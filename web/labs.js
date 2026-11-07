@@ -1,5 +1,5 @@
-// The catalog tabs are rooms along one corridor: every part category has its own lab.
-// Doors and lab scenes are pixel art drawn in code; scenes animate a little (lights, wheels, flames).
+// Every catalog tab is its own lab. Lab scenes are pixel art drawn in code and animate a little
+// (lights, wheels, flames). LABS[id].door is the accent colour of the room.
 "use strict";
 
 const LABS = {
@@ -13,28 +13,6 @@ const LABS = {
   computer: { name: "Avionics Lab", door: "#3c5c25" },
   instr:    { name: "Science Instrument Lab", door: "#5f666c" },
 };
-
-const _doorCache = {};
-function doorSprite(id, open, locked) {
-  const key = `${id}:${open}:${locked}`;
-  if (_doorCache[key]) return _doorCache[key];
-  const col = locked ? "#4b4b4b" : LABS[id].door, dk = _darken(col, 0.35);
-  return (_doorCache[key] = sprite(22, 28, (r) => {
-    r(0, 0, 22, 28, "#1d1a17"); r(1, 1, 20, 27, "#5b534b"); r(2, 2, 18, 26, "#2e2925");   // frame
-    if (open) {
-      r(3, 3, 16, 25, "#0f0d0b"); r(3, 3, 16, 3, "#f4e7b0");                              // dark room, ceiling light
-      for (let y = 6; y < 25; y++) for (let x = 3; x < 19; x++)                           // light cone
-        if ((y - 6) * 0.5 > Math.abs(x - 11) - 1 && (x + y) % 2 === 0) r(x, y, 1, 1, "#4a4232");
-      r(3, 24, 16, 4, "#6b5c40"); r(3, 24, 16, 1, "#8a7752");                             // lit floor
-      r(3, 3, 4, 25, col); r(3, 3, 1, 25, dk); r(5, 14, 1, 2, "#d8aa45");                 // door swung open
-    } else {
-      r(3, 3, 16, 25, col); r(4, 4, 14, 1, _darken(col, -0.25));
-      r(5, 6, 12, 7, dk); r(6, 7, 10, 5, "#9fc0d8"); r(6, 7, 3, 2, "#d9ecf5");             // window
-      r(5, 16, 12, 9, dk); r(6, 17, 10, 7, col);                                          // lower panel
-      r(15, 15, 2, 2, "#d8aa45"); r(15, 17, 2, 1, "#9a7428");                             // handle
-    }
-  }));
-}
 
 // ---------------------------------------------------------------------------- lab scenes (256 x 42)
 const LAB_W = 256, LAB_H = 42;

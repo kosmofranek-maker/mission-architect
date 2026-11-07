@@ -106,7 +106,7 @@ const TABS = [
     hint: "Data is useless until it reaches Earth. Signals weaken with distance squared." },
   { id: "computer", label: "Computer", icon: "chip", role: "comms", fields: ["computer"],
     hint: "Stores data between contacts and must survive the local radiation." },
-  { id: "instr", label: "Instruments", door: "Science", icon: "telescope", role: "science", fields: ["instruments"],
+  { id: "instr", label: "Instruments", icon: "telescope", role: "science", fields: ["instruments"],
     hint: "Pick instruments that serve the mission goals (dark tags). Watch mass, power and data volume." },
 ];
 
@@ -202,7 +202,10 @@ function toast(msg, ms = 2600) {
   const t = $("#toast"); t.innerHTML = msg; t.classList.remove("hidden");
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add("hidden"), ms);
 }
-function show(id) { $$(".screen").forEach((s) => s.classList.toggle("active", s.id === id)); }
+function show(id) {
+  $$(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
+  if (id === "title") titleScene($("#titleStars"));
+}
 // Desktop/tablet landscape: the 1280x720 stage is scaled to fit. Phones / narrow portrait: a scrolling mobile layout.
 function fit() {
   const mobile = innerWidth < 820 || (innerWidth < innerHeight && innerWidth < 1000);
@@ -225,8 +228,9 @@ const level = () => (S.design && S.design.difficulty) || "normal";
 // ---------------------------------------------------------------------------- boot
 async function boot() {
   fit(); addEventListener("resize", fit);
-  stars($("#titleStars"), 220, 3);
+  titleScene($("#titleStars"));
   $("#titlePlanet").src = planet("europa", 64);
+  $("#titlePatch").src = missionPatch();
   S.player = store.get("player", "");
   $("#playerName").value = S.player;
   $("#playerName").addEventListener("input", (e) => { S.player = e.target.value.trim(); store.set("player", S.player); });
@@ -248,6 +252,7 @@ async function boot() {
   if (k === "career") { S.mode = "career"; if (v === "all") store.set("career", Object.fromEntries(ORDER.slice(0, 5).map((o) => [o, { grade: "B", score: 600 }]))); openSelect(); }
   if (k === "tutorial") { go("tutorial"); for (let n = 0; n < Number(v || 0); n++) tutAdvance(); }
   if (v && S.cat.SCENARIOS[v.split(":")[0]]) {
+    S.noLetter = true;
     S.mode = "free";
     if (k === "play") startMission(v);
     if (k === "design") { const [sc2, tab] = v.split(":"); startMission(sc2, S.cat.DEFAULTS[sc2]); if (tab) { S.tab = tab; renderTabs(); renderBinder(); } }
@@ -255,7 +260,7 @@ async function boot() {
     if (k === "letter") { S.mode = "career"; startMission(v); }
     if (k === "stamp") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); stampAnim("ok"); }
     if (k === "news") { startMission(v, S.cat.DEFAULTS[v]); showNews(await api("launch", { design: S.design, save: false, seed: 7 })); }
-    if (k === "launch") { startMission(v, S.cat.DEFAULTS[v]); playLaunch(await api("launch", { design: S.design, save: false, seed: 7 })); }
+    if (k === "launch") { const [sc3, at] = v.split(":"); startMission(sc3, S.cat.DEFAULTS[sc3]); playLaunch(await api("launch", { design: S.design, save: false, seed: 7 }), Number(at || 0)); }
   }
 }
 
@@ -511,19 +516,11 @@ function advisor() {
 }
 const partName = (f, k) => (f === "rtg" ? `${S.cat.RTG.name} (${k} in total)` : optionsFor(f)[k].name);
 
-function showSuggestion() {
-  const a = S.advice; if (!a) return;
-  S.tab = FIELD_TAB[a.field]; renderTabs(); renderBinder();
-  const card = a.field === "rtg" ? $(".card.rtgcard") : document.querySelector(`.card[data-f="${a.field}"][data-k="${a.key}"]`);
-  if (card) { card.scrollIntoView({ behavior: "smooth", block: "center" }); card.classList.remove("pulse"); void card.offsetWidth; card.classList.add("pulse"); }
-  SFX.suggest();
-}
-
 function renderClient() {
   const c = CLIENTS[S.design.scenario];
   let mood = "neutral", text = `"${scen().story}"`;
   const ev = S.ev;
-  if (S.introShown && ev) {
+  if (ev && (S.introShown || (level() === "easy" && S.advice))) { // Cadet hears the first hint straight away
     const miss = ev.issues.filter((i) => i.area === "missing");
     const b = ev.issues.find((i) => i.severity === "blocker" && i.area !== "missing");
     const w = ev.issues.find((i) => i.severity === "warning");
@@ -622,18 +619,15 @@ function renderRequest() {
 
 function renderTabs() {
   $("#tabs").innerHTML = TABS.map((t) => {
-    const locked = S.mode === "team" && !S.myRoles.includes(t.role), on = t.id === S.tab;
+    const locked = S.mode === "team" && !S.myRoles.includes(t.role);
     const todo = t.fields.some((f) => f !== "rtg" && (f === "instruments" ? !S.design.instruments.length : S.design[f] == null));
-    return `<div class="tab door ${on ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}" title="${esc(LABS[t.id].name)}">
-      <span class="lamp ${todo ? "todo" : "done"}" title="${todo ? "still to choose" : "done"}"></span>
-      <img class="px dimg" src="${doorSprite(t.id, on, locked)}" alt=""><span class="dicon">${icon(locked ? "lock" : t.icon, 12)}</span>
-      <span class="dl">${t.door || t.label}</span></div>`;
+    return `<div class="tab ${t.id === S.tab ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}" title="${esc(LABS[t.id].name)}">${icon(locked ? "lock" : t.icon, 14)}${t.label}${todo ? '<span class="todo" title="still to choose"></span>' : ""}</div>`;
   }).join("");
   $$("#tabs .tab").forEach((el) => el.onclick = () => goLab(el.dataset.tab));
   const cur = $("#tabs .tab.on"); if (cur && isMobile()) cur.scrollIntoView({ block: "nearest", inline: "center" });
 }
 
-// Walk down the corridor into another lab: door latch, footsteps, the room slides in from that side.
+// Move to another lab: footsteps, the room slides in from that side.
 function goLab(id) {
   if (S.tab === id) return;
   const from = TABS.findIndex((t) => t.id === S.tab), to = TABS.findIndex((t) => t.id === id);
@@ -704,7 +698,7 @@ function renderBinder() {
     h += `<h4>${FIELD_LABEL[field]}</h4>`;
     if (field === "rtg") {
       const R = S.cat.RTG;
-      h += `<div class="cards"><div class="card rtgcard ${S.design.rtg ? "sel" : ""} ${S.advice && S.advice.field === "rtg" ? "suggest" : ""}" style="cursor:default">
+      h += `<div class="cards"><div class="card rtgcard ${S.design.rtg ? "sel" : ""} " style="cursor:default">
         <div class="ci">${icon("rtg", 32)}</div><div class="cn">${esc(R.name)}</div>
         <div class="cs">${R.power} W each · ${R.mass} kg · ${R.cost} M$</div>
         <div class="stepper"><button class="btn tiny" data-rtg="-1" ${canEdit("rtg") ? "" : "disabled"}>-</button>
@@ -716,8 +710,7 @@ function renderBinder() {
     h += `<div class="cards">` + Object.entries(opts).map(([k, o]) => {
       const sel = field === "instruments" ? S.design.instruments.includes(k) : S.design[field] === k;
       const tags = field === "instruments" ? `<div class="tagrow">${o.tags.map((t) => `<span class="tag ${goalTags.has(t) ? "hit" : ""}">${t}</span>`).join("")}</div>` : "";
-      const sug = S.advice && S.advice.field === field && S.advice.key === k;
-      return `<div class="card ${sel ? "sel" : ""} ${level() !== "hard" && cardBad(field, k, o) ? "bad" : ""} ${sug ? "suggest" : ""} ${locked ? "disabled" : ""}" data-f="${field}" data-k="${k}">
+      return `<div class="card ${sel ? "sel" : ""} ${level() !== "hard" && cardBad(field, k, o) ? "bad" : ""} ${locked ? "disabled" : ""}" data-f="${field}" data-k="${k}">
         <div class="ci">${icon(PART_ICON[field](k), 32)}</div>
         <div class="cn">${esc(o.name)}</div><div class="cs">${statLine(field, k, o)}</div>${tags}
         ${o.learn ? `<div class="cl">${esc(o.learn)}</div>` : ""}</div>`;
@@ -775,12 +768,8 @@ function renderReview() {
   const nb = ev.issues.filter((i) => i.severity === "blocker").length;
   $("#revStatus").innerHTML = nb ? (level() === "hard" ? `${icon("block", 12)} NOT READY` : `${icon("block", 12)} ${nb} BLOCKER${nb > 1 ? "S" : ""}`) : `${icon("check", 12)} FLIGHT READY`;
   const ICON_OF = { blocker: "block", warning: "warn", info: "info" };
-  const lv = level(), a = S.advice;
+  const lv = level();
   let html = "";
-  if (lv === "easy" && a) {
-    html += `<div class="advice">${icon("star")}<span><b>NEXT STEP:</b> ${a.action === "pick" ? `pick ${esc(FIELD_LABEL[a.field].toLowerCase())}` : `fix "${esc(a.issue.text)}"`}.
-      Suggested: <b>${esc(partName(a.field, a.key))}</b>, because ${esc(a.why)}.</span><button class="btn small" id="showMe">Show me</button></div>`;
-  }
   if (lv === "hard") {
     const miss = ev.issues.filter((i) => i.area === "missing").length, nb = ev.issues.filter((i) => i.severity === "blocker" && i.area !== "missing").length;
     const nw = ev.issues.filter((i) => i.severity === "warning").length;
@@ -796,7 +785,6 @@ function renderReview() {
   }
   $("#issues").innerHTML = html;
   $$("#issues .issue[data-n]").forEach((el) => el.onclick = () => { SFX.paper(); el.classList.toggle("open"); });
-  if ($("#showMe")) $("#showMe").onclick = showSuggestion;
   $("#bpLabel").textContent = S.design.bus ? `${S.cat.BUSES[S.design.bus].name} · dry ${fmt(m.dry)} kg · fuel ${fmt(m.propellant)} kg · Δv ${fmt(m.dv)} m/s` : "";
   const ready = ev.ok && (S.mode !== "team" || Object.values(S.approvals).every(Boolean));
   $("#launchBtn").textContent = S.mode === "team" ? "Launch" : "Approve & launch";
@@ -1219,81 +1207,175 @@ function endTutorial(markDone) {
 
 // ---------------------------------------------------------------------------- launch sequence
 let _launchStop = null;
-function playLaunch(res) {
+// Launch film: countdown on the pad, liftoff with steam clouds and camera shake, climb into black sky,
+// booster separation, fairing opens and the spacecraft unfolds, transfer to the destination, then orbit.
+// The mission-control teletype runs alongside.
+const LT = { lift: 3.2, space: 8.6, transfer: 11.6, orbit: 14.6 };
+function playLaunch(res, skipTo = 0) {
   stopPoll();
   S.result = res;
   show("launch");
   const cv = $("#launchCanvas"), g = cv.getContext("2d"), W = 320, H = 180;
+  g.imageSmoothingEnabled = false;
   const tt = $("#teletype"); tt.innerHTML = "";
+  const d = res.design, lv = d.launch_vehicle, dest = destKeyOf(d), atEarth = dest === "earth";
   const failAtLaunch = res.sim.events.some((e) => e.kind === "launch_failure");
-  const pImg = new Image(); pImg.src = planet(PLANET_OF[res.evaluation.destination ? destKeyOf(res.design) : "earth"], 64);
+  const pImg = new Image(); pImg.src = planet(PLANET_OF[dest], 64);
+  const eImg = new Image(); eImg.src = planet("earth", 32);
   const starCv = document.createElement("canvas"); starCv.width = W; starCv.height = H; stars(starCv, 160, res.seed);
-  const smoke = [];
+  const limbCv = document.createElement("canvas"); limbCv.width = W; limbCv.height = H;
+  earthLimb(limbCv.getContext("2d"), W, H, H + 250, 300, res.seed);
+  const clouds = [], trail = [], debris = [];
   const lines = buildTeletype(res);
-  let li = 0, nextLine = 3.2, done = false, t0 = performance.now(), rumbled = false;
+  const cruise = (S.cat.ORBITS[dest][d.orbit] || {}).cruise_years || 0;
+  let li = 0, nextLine = 3.2, done = false, t0 = performance.now() - skipTo * 1000, rumbled = false, sepSound = false, deploySound = false;
   const add = (l) => {
     SFX.tick();
     const div = document.createElement("div"); div.className = `ln ${l.cls || ""}`; div.textContent = l.text; tt.appendChild(div);
     while (tt.children.length > 26) tt.removeChild(tt.firstChild);
   };
+  const text = (s, x, y, size = 10, col = "#f4efe2", align = "left") => {
+    g.font = `${size}px Silkscreen, monospace`; g.textAlign = align;
+    g.fillStyle = "#000"; g.fillText(s, x + 1, y + 1); g.fillStyle = col; g.fillText(s, x, y); g.textAlign = "left";
+  };
+  const lerp = (a, b, f) => a + (b - a) * f;
+  const mix = (c1, c2, f) => `rgb(${c1.map((v, i) => Math.round(lerp(v, c2[i], f))).join(",")})`;
+
+  function rocketPhase(t) {
+    const rise = Math.max(0, t - LT.lift);
+    const climb = (failAtLaunch ? Math.min(rise, 1.6) : rise) ** 2 * 16;
+    const cam = Math.max(0, climb - 46), gy = 150 + cam;
+    const shake = rise > 0 && rise < 3 && !failAtLaunch ? Math.round((Math.random() - .5) * 3 * (3 - rise) / 3) : 0;
+    g.save(); g.translate(shake, Math.round((Math.random() - .5) * Math.abs(shake)));
+    // sky: dawn bands fading into black as we climb
+    const dark = Math.min(1, cam / 260);
+    const bands = [[24, 32, 74], [52, 62, 120], [120, 100, 140], [214, 128, 92], [240, 180, 110]];
+    for (let y = 0; y < H; y += 4) {
+      const f = Math.min(bands.length - 1.001, (y + cam * 0.4) / H * (bands.length - 1)), i = Math.floor(f);
+      const c = bands[i].map((v, k) => lerp(v, bands[i + 1][k], f - i));
+      g.fillStyle = mix(c, [6, 6, 12], dark); g.fillRect(-4, y, W + 8, 4);
+    }
+    if (dark > 0.2) { g.globalAlpha = dark; g.drawImage(starCv, 0, 0); g.globalAlpha = 1; }
+    if (gy < H + 90) drawPad(g, W, gy, rise > 0 ? Math.max(0, 14 - rise * 20) : 14, Math.floor(t * 2) % 2 === 0);
+    // steam venting before liftoff, huge clouds at liftoff
+    if (t < LT.lift && Math.random() < 0.3) clouds.push({ x: 160 + (Math.random() - .5) * 8, wy: -20 - Math.random() * 20, vx: (Math.random() - .5) * 6, vy: -3, s: 2, a: 0.6 });
+    if (rise > 0 && rise < 3.5 && !failAtLaunch) for (let k = 0; k < 4; k++) {
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      clouds.push({ x: 160 + dir * 8, wy: 2, vx: dir * (30 + Math.random() * 50), vy: -4 - Math.random() * 10, s: 3 + Math.random() * 4, a: 0.95 });
+    }
+    const boom = failAtLaunch && rise > 1.6;
+    const ry = 150 - 4 - (LV_SHAPE[lv] || LV_SHAPE.falcon9).h - climb + cam;
+    if (!boom) {
+      const bot = drawLV(g, lv, 160, ry, { fire: rise > 0, boosters: rise < 4.4, flicker: Math.random() });
+      if (rise > 0.2) trail.push({ x: 160 + (Math.random() - .5) * 3, wy: bot - cam - 150 + 12, a: 0.7 });
+    }
+    if (rise >= 4.4 && LV_SHAPE[lv] && LV_SHAPE[lv].boosters) {           // spent boosters tumble away
+      if (!sepSound) { sepSound = true; SFX.beep(false); }
+      const e = rise - 4.4, S2 = LV_SHAPE[lv];
+      g.fillStyle = S2.bcol;
+      g.fillRect(160 - S2.w - 6 - e * 14, ry + S2.h - (S2.bh || 18) + e * e * 30, S2.bw || 3, S2.bh || 18);
+      g.fillRect(160 + S2.w + 3 + e * 14, ry + S2.h - (S2.bh || 18) + e * e * 30, S2.bw || 3, S2.bh || 18);
+    }
+    if (boom) {
+      if (!debris.length) for (let k = 0; k < 70; k++) debris.push({ x: 160, y: ry + 20, vx: (Math.random() - .5) * 90, vy: (Math.random() - .8) * 70, c: ["#ffd96b", "#ff9a3c", "#b3372d", "#5b534b"][k % 4] });
+      debris.forEach((p) => { p.x += p.vx / 60; p.y += p.vy / 60; p.vy += 0.8; g.fillStyle = p.c; g.fillRect(p.x, p.y, 3, 3); });
+      if (rise < 2.1) { g.fillStyle = `rgba(255,240,200,${(2.1 - rise) * 1.4})`; g.fillRect(-4, -4, W + 8, H + 8); }
+    }
+    trail.forEach((p) => { p.a -= 0.006; p.x += (Math.random() - .5) * .4; g.fillStyle = `rgba(220,215,205,${Math.max(0, p.a)})`; g.fillRect(p.x - 1, p.wy + cam + 150 - 12, 3, 3); });
+    clouds.forEach((p) => {
+      p.x += p.vx / 60; p.wy += p.vy / 60; p.vx *= 0.985; p.s += 0.05; p.a -= 0.003;
+      const y = p.wy + gy, s = Math.round(p.s);
+      g.fillStyle = `rgba(233,229,220,${Math.max(0, p.a)})`; g.fillRect(p.x - s, y - s / 2, s * 2, s); g.fillRect(p.x - s / 2, y - s, s, s * 2);
+      g.fillStyle = `rgba(160,155,150,${Math.max(0, p.a * 0.6)})`; g.fillRect(p.x - s, y + s - 1, s * 2, 1);
+    });
+    while (clouds.length > 500) clouds.shift();
+    while (trail.length > 300) trail.shift();
+    g.restore();
+    // overlay text
+    if (t < LT.lift) {
+      const n = Math.ceil(LT.lift - t);
+      text(`T-${n}`, W / 2, 50, 24, "#ffd96b", "center");
+      text(`${S.cat.LAUNCH_VEHICLES[lv].name.toUpperCase()}`, 8, H - 8, 8, "#e9e3d6");
+    } else if (rise < 1.4 && !failAtLaunch) text("LIFTOFF", W / 2, 50, 20, "#f4efe2", "center");
+    else if (boom && rise < 4) text("VEHICLE LOST", W / 2, 50, 18, "#ff6b5b", "center");
+    else if (rise > 4.3 && rise < 5.3 && LV_SHAPE[lv] && LV_SHAPE[lv].boosters) text("BOOSTER SEPARATION", W / 2, 30, 10, "#9cc0ea", "center");
+    else if (rise > 1.5) text(`ALT ${Math.round(climb * 0.35)} KM`, 8, 16, 8, "#9cc0ea");
+  }
+
+  function deployPhase(t) {
+    const e = (t - LT.space) / (LT.transfer - LT.space);
+    g.drawImage(starCv, 0, 0);
+    g.drawImage(limbCv, 0, 30 - e * 20);
+    const x = 150 + e * 30, y = 80 - e * 10;
+    // upper stage below, fairing halves drift apart, spacecraft unfolds
+    const sep = Math.min(1, Math.max(0, (e - 0.15) * 3));
+    g.fillStyle = "#e9e3d6"; g.fillRect(x - 3, y + 8 + sep * 22, 6, 16); g.fillStyle = "#4b4b4b"; g.fillRect(x - 3, y + 24 + sep * 22, 6, 2);
+    if (sep < 1 || e < 0.6) {
+      g.fillStyle = "#f4efe2";
+      g.fillRect(x - 5 - e * 40, y - 6 + e * 18, 4, 14); g.fillRect(x + 1 + e * 40, y - 6 + e * 18, 4, 14);
+    }
+    const unfold = Math.min(1, Math.max(0, (e - 0.45) * 2.5));
+    if (unfold > 0 && !deploySound) { deploySound = true; SFX.click(); }
+    const craft = { ...d, solar: unfold < 1 ? (unfold > 0.5 ? "small" : "body") : d.solar };
+    g.save(); g.translate(x, y); g.scale(2, 2); drawCraft(g, 0, 0, craft); g.restore();
+    text(e < 0.45 ? "FAIRING SEPARATION" : unfold < 1 ? "SOLAR ARRAYS DEPLOYING" : "SPACECRAFT HEALTHY", W / 2, 22, 10, "#9cc0ea", "center");
+  }
+
+  function transferPhase(t) {
+    const e = Math.min(1, (t - LT.transfer) / (LT.orbit - LT.transfer));
+    g.drawImage(starCv, 0, 0);
+    const sx = 160, sy = 100;
+    g.fillStyle = "#d9792b"; g.fillRect(sx - 9, sy - 1, 18, 2); g.fillRect(sx - 1, sy - 9, 2, 18);
+    g.fillStyle = "#ffd96b"; g.fillRect(sx - 5, sy - 5, 10, 10); g.fillStyle = "#fff6c8"; g.fillRect(sx - 3, sy - 3, 6, 6);
+    const ex = 70, ey = 120, px = 270, py = 60;
+    for (let k = 0; k <= 40; k++) {                                       // transfer arc (half an ellipse)
+      const f = k / 40, ax = lerp(ex, px, f), ay = lerp(ey, py, f) - Math.sin(f * Math.PI) * 50;
+      if (k % 2 === 0) { g.fillStyle = f < e ? "#e8cf52" : "#5b5b70"; g.fillRect(ax, ay, 1, 1); }
+    }
+    g.drawImage(eImg, ex - 16, ey - 16);
+    g.drawImage(pImg, px - 16, py - 16, 32, 32);
+    const cx = lerp(ex, px, e), cy = lerp(ey, py, e) - Math.sin(e * Math.PI) * 50;
+    drawCraft(g, cx, cy, d);
+    text(`CRUISE TO ${S.cat.DESTINATIONS[dest].name.toUpperCase()}`, 8, 16, 8, "#9cc0ea");
+    text(`${(cruise * e).toFixed(1)} / ${cruise} YR`, 8, 28, 8, "#e9e3d6");
+  }
+
+  function orbitPhase(t) {
+    g.drawImage(starCv, 0, 0);
+    const ang = t * 0.8, sx = 230 + Math.cos(ang) * 75, sy = 92 + Math.sin(ang) * 22, behind = Math.sin(ang) < 0;
+    if (behind) drawCraft(g, sx, sy, d);
+    g.drawImage(pImg, 180, 42, 100, 100);
+    if (!behind) drawCraft(g, sx, sy, d);
+    const tl = res.sim.timeline, mi = Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length));
+    if (tl[mi]) {
+      text(`MONTH ${tl[mi].month}  ${tl[mi].phase.toUpperCase()}`, 8, 16, 8, "#9cc0ea");
+      text(`SCIENCE ${pct(tl[mi].science_fraction)}`, 8, 28, 8, "#e9e3d6");
+      g.fillStyle = "#2e2925"; g.fillRect(8, 34, 80, 4); g.fillStyle = "#5d8a3c"; g.fillRect(8, 34, 80 * tl[mi].science_fraction, 4);
+    }
+    if (tl[mi] && Math.floor(t * 3) % 3 === 0) { g.fillStyle = "#58b7c9"; g.fillRect(sx - 8, sy - 6, 1, 1); g.fillRect(sx - 11, sy - 8, 1, 1); } // downlink sparkle
+  }
+
   function frame(now) {
     if (done) return;
     const t = (now - t0) / 1000;
-    const rise = Math.max(0, t - 2.0);
     const sec = Math.floor(t);
-    if (sec !== frame._sec && t < 2) { frame._sec = sec; SFX.beep(false); }
-    if (rise > 0 && !rumbled) { rumbled = true; SFX.beep(true); SFX.rumble(); }
-    if (failAtLaunch && rise > 1.6 && !frame._boom) { frame._boom = true; SFX.boom(); }
-    if (t < 4.2 || failAtLaunch) {
-      const climb = (failAtLaunch ? Math.min(rise, 1.6) : rise) ** 2 * 18;
-      const cam = Math.max(0, climb - 50), gy = 150 + cam, ry = 100 - climb + cam;
-      const sky = Math.min(1, cam / 120);
-      g.fillStyle = `rgb(${Math.round(70 * (1 - sky) + 13)},${Math.round(90 * (1 - sky) + 12)},${Math.round(120 * (1 - sky) + 18)})`;
-      g.fillRect(0, 0, W, H);
-      if (sky > 0.3) { g.globalAlpha = sky; g.drawImage(starCv, 0, 0); g.globalAlpha = 1; }
-      g.fillStyle = "#3b4a2e"; g.fillRect(0, gy, W, H);
-      g.fillStyle = "#555"; g.fillRect(140, gy - 60, 6, 60);
-      for (let k = 0; k < 6; k++) g.fillRect(140, gy - 58 + k * 10, 14, 1);
-      const boom = failAtLaunch && rise > 1.6;
-      if (!boom) drawRocket(g, 160, ry, rise > 0);
-      if (rise > 0 && !boom) for (let k = 0; k < 3; k++)
-        smoke.push({ x: 160 + (Math.random() - .5) * 6, y: ry + 44, vx: (Math.random() - .5) * 30, vy: 10 + Math.random() * 20, a: 1 });
-      if (boom) {
-        const e = rise - 1.6;
-        for (let k = 0; k < 48; k++) {
-          g.fillStyle = ["#ffd96b", "#ff9a3c", "#b3372d", "#777"][k % 4];
-          g.fillRect(160 + Math.cos(k * 2.4) * e * 70 * ((k % 5) / 5 + .3), ry + 20 + Math.sin(k * 2.4) * e * 55 * ((k % 3) / 3 + .3), 3, 3);
-        }
-      }
-      smoke.forEach((p) => { p.x += p.vx / 60; p.y += p.vy / 60; p.a -= 0.012; g.fillStyle = `rgba(200,200,200,${Math.max(0, p.a)})`; g.fillRect(p.x, p.y, 3, 3); });
-      while (smoke.length > 400) smoke.shift();
-      g.fillStyle = "#f4efe2"; g.font = "10px monospace";
-      if (t < 2) g.fillText(`T-${Math.ceil(2 - t)}`, 10, 16); else if (t < 3) g.fillText(boom ? "" : "LIFTOFF", 10, 16);
-    } else {
-      g.drawImage(starCv, 0, 0);
-      g.imageSmoothingEnabled = false; g.drawImage(pImg, 190, 40, 100, 100);
-      const ang = t * 0.8, sx = 240 + Math.cos(ang) * 70, sy = 90 + Math.sin(ang) * 22;
-      drawCraft(g, sx, sy, res.design);
-      g.fillStyle = "#9cc0ea"; g.font = "9px monospace";
-      const tl = res.sim.timeline, mi = Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length));
-      if (tl[mi]) { g.fillText(`MONTH ${tl[mi].month}  ${tl[mi].phase.toUpperCase()}`, 8, 14); g.fillText(`SCIENCE ${pct(tl[mi].science_fraction)}`, 8, 26); }
-    }
+    if (sec !== frame._sec && t < LT.lift) { frame._sec = sec; SFX.beep(false); }
+    if (t >= LT.lift && !rumbled) { rumbled = true; SFX.beep(true); SFX.rumble(); }
+    if (failAtLaunch && t - LT.lift > 1.6 && !frame._boom) { frame._boom = true; SFX.boom(); }
+    if (failAtLaunch || t < LT.space) rocketPhase(t);
+    else if (t < LT.transfer) deployPhase(t);
+    else if (!atEarth && t < LT.orbit) transferPhase(t);
+    else orbitPhase(t);
     if (t > nextLine && li < lines.length) { const l = lines[li++]; add(l); nextLine = t + (l.pause || 0.12); }
-    if (li >= lines.length && t > nextLine + 1.2) return finish();
+    if (li >= lines.length && t > nextLine + 1.2 && (failAtLaunch || t > (atEarth ? LT.transfer : LT.orbit) + 2)) return finish();
     requestAnimationFrame(frame);
   }
   function finish() { if (done) return; done = true; showNews(res); }
-  _launchStop = () => { if (!done) { lines.slice(li).forEach((l) => { const d = document.createElement("div"); d.className = `ln ${l.cls || ""}`; d.textContent = l.text; tt.appendChild(d); }); finish(); } };
+  _launchStop = () => { if (!done) { lines.slice(li).forEach((l) => { const dv = document.createElement("div"); dv.className = `ln ${l.cls || ""}`; dv.textContent = l.text; tt.appendChild(dv); }); finish(); } };
   requestAnimationFrame(frame);
 }
 function destKeyOf(design) { return S.cat.SCENARIOS[design.scenario].destination; }
 
-function drawRocket(g, x, y, fire) {
-  const r = (a, b, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(a), Math.round(b), w, h); };
-  r(x - 1, y, 2, 2, "#b3372d"); r(x - 3, y + 2, 6, 6, "#b3372d"); r(x - 3, y + 8, 6, 30, "#f4efe2"); r(x - 2, y + 12, 4, 3, "#3d6fa8");
-  r(x - 6, y + 30, 3, 10, "#b3372d"); r(x + 3, y + 30, 3, 10, "#b3372d"); r(x - 3, y + 38, 6, 3, "#4b4b4b");
-  if (fire) { r(x - 2, y + 41, 4, 4 + Math.random() * 6, "#ff9a3c"); r(x - 1, y + 43, 2, 4 + Math.random() * 6, "#ffd96b"); }
-}
 function drawCraft(g, x, y, d) {
   const r = (a, b, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(a), Math.round(b), w, h); };
   const s = { cubesat: 3, smallsat: 4, medium: 5, flagship: 6 }[d.bus], w = { none: 0, body: 0, small: 4, medium: 6, large: 8, giant: 11 }[d.solar];

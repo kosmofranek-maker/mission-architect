@@ -47,7 +47,7 @@
     ok(S.tab === "instr", "tutorial advances to instruments after the pick");
     $("#tutSkip").click();
     ok(!S.tut && $("#tut").classList.contains("hidden"), "skip closes tutorial");
-    ok($$("#tabs .tab.door").length === 9 && $("#labCanvas").dataset.lab === "instr", "corridor of 9 lab doors, lab scene shown");
+    ok($$("#tabs .tab").length === 9 && !$(".tab.door") && $("#labCanvas").dataset.lab === "instr", "9 plain tabs, lab scene shown");
     document.querySelector('.tab[data-tab="power"]').click();
     ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
     S.mode = "career"; openSelect();
@@ -92,8 +92,7 @@
       document.querySelector(`.folder[data-sc="${sc}"]`).click();
       await until(() => S.ev && S.ev.design.scenario === sc && S.advice);
       if (sc === "wildfire") {
-        ok($(".advice") && S.advice.field === "orbit" && document.querySelector(".card.suggest"), "cadet: next step + suggested card");
-        $("#showMe").click();
+        ok(S.advice.field === "orbit" && /I suggest/.test($("#speech").dataset.full) && !$(".advice") && !$(".card.suggest"), "cadet: hint only in the client's speech");
       }
       for (let n = 0; n < 25 && S.advice && !(S.ev.ok && !S.ev.issues.some((i) => i.severity === "blocker")); n++) {
         const a = S.advice;

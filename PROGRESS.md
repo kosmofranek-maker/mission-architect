@@ -68,6 +68,14 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
 - Tabs are now labs along a corridor (web/labs.js): pixel doors with a red/green lamp for missing parts, animated
   lab scene banner per room, walking transition + door/footsteps sound. Demo links `#letter=<sc>`, `#career=all`.
 
+- Title + launch film (2026-11-07, web/scenes.js): animated title (parallax stars, rotating Earth limb with clouds,
+  satellite pass, rockets climbing from the horizon, meteors, mission patch). Launch: dawn pad with tower and lights,
+  countdown, rocket drawn per launch vehicle (Electron .. SLS with boosters), steam clouds + camera shake, climb into
+  black sky, booster separation, fairing separation + arrays unfolding over Earth, transfer arc to the destination,
+  orbit with the craft passing behind the planet. Demo `#launch=<sc>:<seconds>`.
+- Doors removed again (plain tabs, lab scenes stay). Cadet: no NEXT STEP box or highlighted cards; hints only in the
+  client's speech bubble, shown from the first moment.
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.

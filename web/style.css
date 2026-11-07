@@ -47,15 +47,19 @@ h1, h2, h3 { font-family: "Silkscreen", monospace; font-weight: 700; margin: 0 0
 
 /* ------------------------------------------------ title */
 #title { background: var(--night); }
-.title-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
-.title-planet { position: absolute; width: 360px; height: 360px; right: -60px; bottom: -80px; opacity: .9; }
-.logo { font-size: 64px; line-height: .95; text-align: center; color: var(--paper); text-shadow: 6px 6px 0 var(--red); }
+.title-wrap { position: absolute; inset: 0 0 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.title-patch { width: 96px; height: 96px; animation: patchIn .8s cubic-bezier(.2,.9,.3,1.3) both; filter: drop-shadow(4px 4px 0 rgba(0,0,0,.6)); }
+@keyframes patchIn { from { transform: scale(0) rotate(-200deg); } }
+.logo { animation: logoFloat 4s ease-in-out infinite; }
+@keyframes logoFloat { 50% { transform: translateY(-4px); } }
+.title-planet { position: absolute; width: 256px; height: 256px; right: -70px; top: -60px; opacity: .85; }
+.logo { font-size: 64px; line-height: .95; text-align: center; color: var(--paper); text-shadow: 3px 3px 0 var(--red), 6px 6px 0 var(--redD), 9px 9px 0 rgba(0,0,0,.6); }
 .tagline { color: var(--gray); margin: 0 0 10px; font-size: 22px; }
 .name-field { color: var(--paper); display: flex; gap: 10px; align-items: center; }
 .name-field input, .code-input { background: var(--paperL); border: 2px solid var(--ink); padding: 4px 8px; width: 220px; }
 .menu { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
 .menu .wide { grid-column: span 2; margin-top: 6px; }
-.credit { position: absolute; bottom: 12px; color: #5d5866; font-size: 18px; }
+.credit { position: absolute; bottom: -96px; color: #e9eef2; font-size: 18px; text-shadow: 2px 2px 0 #000; }
 
 /* ------------------------------------------------ mission select */
 .select-wrap { position: absolute; inset: 30px 40px; display: flex; flex-direction: column; gap: 18px; }
@@ -110,21 +114,11 @@ h1, h2, h3 { font-family: "Silkscreen", monospace; font-weight: 700; margin: 0 0
 .req-small { padding: 2px 8px; color: var(--ink2); font-size: 17px; }
 .stepper { display: inline-flex; gap: 8px; align-items: center; }
 
-/* corridor of lab doors (one door per catalog tab) */
-.tabs { display: flex; gap: 0; padding: 4px 4px 0; height: 74px; flex: none; position: relative;
-  background: linear-gradient(#3b342d 0 52px, #2a2520 52px 54px, #57493b 54px); border: 2px solid var(--ink); border-bottom: none; }
-.tabs::before { content: ""; position: absolute; left: 0; right: 0; top: 30px; height: 2px; background: #2e2925; }
-.tab.door { flex: 1; display: flex; flex-direction: column; align-items: center; cursor: pointer; position: relative; min-width: 0; }
-.tab.door .dimg { width: 33px; height: 42px; margin-top: 6px; transition: transform .12s; }
-.tab.door:hover:not(.on) .dimg { transform: translateY(-2px); }
-.tab.door .dicon { position: absolute; top: 9px; left: 50%; transform: translateX(-50%); background: #e6dcc3; border: 1px solid #000; line-height: 0; padding: 1px; }
-.tab.door.on .dicon { left: calc(50% + 5px); }
-.tab.door .lamp { position: absolute; top: 0; left: 50%; margin-left: -3px; width: 6px; height: 4px; border: 1px solid #000; background: #3c5c25; }
-.tab.door .lamp.todo { background: #e0533f; box-shadow: 0 0 6px 2px rgba(224,83,63,.7); animation: lampblink 1.4s steps(2) infinite; }
-@keyframes lampblink { 50% { background: #7a231c; box-shadow: none; } }
-.tab.door .dl { font-family: "Silkscreen"; font-size: 8px; color: #e6dcc3; margin-top: 3px; white-space: nowrap; letter-spacing: 0; }
-.tab.door.on .dl { color: var(--gold); }
-.tab.door.locked .dl { color: var(--gray); }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding-left: 6px; }
+.tab { font-family: "Silkscreen"; font-size: 11px; background: var(--paper2); border: 2px solid var(--ink); border-bottom: none;
+  padding: 4px 7px 3px; cursor: pointer; display: flex; gap: 4px; align-items: center; position: relative; top: 2px; }
+.tab.on { background: var(--paper); z-index: 2; }
+.tab.locked { color: var(--gray); }
 .lab-banner { position: relative; margin: -10px -10px 8px; border-bottom: 2px solid var(--ink); line-height: 0; }
 .lab-banner canvas { width: 100%; height: auto; display: block; }
 .lab-plate { position: absolute; left: 8px; bottom: 6px; background: var(--paperL); border: 2px solid var(--ink); padding: 2px 6px; line-height: 1;
@@ -281,15 +275,6 @@ h1, h2, h3 { font-family: "Silkscreen", monospace; font-weight: 700; margin: 0 0
 .hb-body ul { margin: 0; padding-left: 18px; }
 .hb-body .line { display: grid; grid-template-columns: 18px 1fr; gap: 6px; margin: 3px 0; font-size: 19px; }
 .hb-foot { border-top: 2px solid var(--ink); padding: 6px 10px; display: flex; justify-content: flex-end; }
-
-/* ------------------------------------------------ Cadet advice */
-.advice { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: center; background: #fbefc4;
-  border: 2px solid var(--gold); padding: 4px 6px; margin: 2px 0 6px; font-size: 18px; }
-.card.suggest { box-shadow: inset 0 0 0 3px var(--gold); }
-.card.suggest::before { content: "SUGGESTED"; position: absolute; left: 4px; top: -9px; background: var(--gold); color: var(--ink);
-  font-family: "Silkscreen"; font-size: 10px; padding: 0 4px; border: 2px solid var(--ink); }
-.card.pulse { animation: pulse .9s ease-out 2; }
-@keyframes pulse { 50% { transform: scale(1.03); background: #fff3c4; } }
 .mstatus { display: none; }
 
 /* ================================================ PHONES (html.mobile set by fit() in game.js) */
@@ -304,7 +289,7 @@ html.mobile .btn.small, html.mobile .btn.tiny { min-height: 30px; }
 
 /* title */
 html.mobile #title { background: var(--night); }
-html.mobile #titleStars { position: fixed; }
+html.mobile #titleStars { position: fixed; object-fit: cover; }
 html.mobile .title-wrap { position: relative; min-height: 100vh; padding: 24px 16px; }
 html.mobile .logo { font-size: 38px; }
 html.mobile .tagline { font-size: 18px; text-align: center; }
@@ -312,7 +297,8 @@ html.mobile .name-field { flex-direction: column; gap: 4px; }
 html.mobile .menu { grid-template-columns: 1fr; width: 100%; max-width: 360px; }
 html.mobile .menu .wide { grid-column: span 1; }
 html.mobile .btn.big { min-width: 0; width: 100%; }
-html.mobile .title-planet { position: fixed; width: 200px; height: 200px; right: -50px; bottom: -50px; opacity: .5; }
+html.mobile .title-planet { position: fixed; width: 160px; height: 160px; right: -50px; top: -40px; bottom: auto; opacity: .5; }
+html.mobile .title-patch { width: 64px; height: 64px; }
 html.mobile .credit { position: static; text-align: center; margin-top: 16px; }
 
 /* mission select, lobby, hall */
@@ -344,8 +330,8 @@ html.mobile .speech { margin-top: 0; min-height: 0; }
 html.mobile .speech::before { display: none; }
 html.mobile .request { flex: none; }
 html.mobile .goal .gl { width: 40%; }
-html.mobile .tabs { overflow-x: auto; scrollbar-width: none; }
-html.mobile .tab.door { flex: none; width: 64px; }
+html.mobile .tabs { flex-wrap: nowrap; overflow-x: auto; padding-left: 0; scrollbar-width: none; }
+html.mobile .tab { flex: none; padding: 7px 8px 5px; }
 html.mobile .folders { grid-template-rows: none; }
 html.mobile .binder { flex: none; overflow: visible; }
 html.mobile .cards { grid-template-columns: 1fr; }
