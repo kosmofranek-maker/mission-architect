@@ -1,0 +1,53 @@
+name: Test and deploy to Hetzner
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-mission-architect
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure SSH (key can only run the deploy command on the server)
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$SSH_KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "::error::Set repo secrets HETZNER_DEPLOY_KEY and HETZNER_KNOWN_HOSTS"; exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh-keygen -lf ~/.ssh/id_deploy
+
+      - name: Deploy (git pull + docker compose up --build on the server)
+        run: ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes -o ConnectTimeout=15 root@178.105.110.45
+
+      - name: Healthcheck
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS https://mission-architect.178-105-110-45.sslip.io/api/catalog > /dev/null; then
+              echo "healthy after $i attempt(s)"; exit 0
+            fi
+            echo "attempt $i: not healthy yet"; sleep 6
+          done
+          echo "::error::healthcheck failed"; exit 1

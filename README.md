@@ -36,7 +36,8 @@ click-through test of the UI (result appears in the tab title).
 Docker: `docker build -t mission-architect . && docker run -p 8600:8600 mission-architect`
 
 Production runs behind Caddy: `docker-compose.yml` joins the proxy's network, `deploy/Caddyfile.snippet` is the
-site block, `deploy/deploy.sh` redeploys.
+site block, `deploy/deploy.sh` redeploys by hand. Every push to `main` runs the tests and auto-deploys via GitHub Actions
+(`.github/workflows/deploy.yml`; one-time server setup in `deploy/install-autodeploy.sh`).
 
 ## Code map
 - `engine/catalog.py` all game content (parts, orbits, missions), with the learning text.
