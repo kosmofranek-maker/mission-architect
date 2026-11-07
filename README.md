@@ -21,6 +21,8 @@ design, watch the launch and the mission unfold month by month on the teletype, 
 - Seeded month-by-month simulation: launch failure, solar storms, safe modes, reaction-wheel failures,
   micrometeoroids, budget cuts and surprise discoveries. Same seed + same design = same story.
 - Risk check: 200 simulated missions give success odds and a science range.
+- Design drawer: save designs and compare two side by side (cost, margins, science, success odds, parts).
+- Live flight dashboard: power, battery, fuel, data, budget and science month by month during the flight.
 - Score out of 950 with grade S to F and a post-mission analysis of *why* it went that way.
 - Team room: up to 4 players (Mission Manager, Systems Engineer, Science Lead, Comms & Ops) edit one design live.
   Each role edits only its own parts; every change cancels approvals; launch needs all four stamps.

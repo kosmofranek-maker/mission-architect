@@ -75,7 +75,7 @@
       <div><span id="tbDay" class="tb-day"></span> <span id="tbRoom"></span></div>
       <div id="tbScenario" class="tb-center"></div>
       <div id="mStatus" class="mstatus"></div>
-      <div class="tb-right"><span id="tbBudget"></span><button class="btn small" id="helpBtn">Help</button><button class="btn small" id="menuBtn">Menu</button></div>
+      <div class="tb-right"><span id="tbBudget"></span><button class="btn small" id="designsBtn">Compare</button><button class="btn small" id="helpBtn">Help</button><button class="btn small" id="menuBtn">Menu</button></div>
     </header>
 
     <div class="desk-bg under-top"></div>
@@ -164,6 +164,8 @@
         <button class="btn" id="mHints">Engineer's handbook (hints)</button>
         <button class="btn" id="mTutorial">Replay tutorial</button>
         <button class="btn" id="mSound">Sound: on</button>
+        <button class="btn" id="mSave">Save design to the drawer</button>
+        <button class="btn" id="mCompare">Compare designs</button>
         <button class="btn" id="mExport">Copy design code</button>
         <button class="btn" id="mImport">Paste design code</button>
         <button class="btn" id="mReset">Clear design (start blank)</button>
@@ -174,9 +176,29 @@
   </section>
 
   <!-- ============================== LAUNCH -->
+  <div id="compare" class="modal hidden">
+    <div class="paper cmp-box">
+      <div class="doc-head"><span>DESIGN COMPARISON</span><span id="cmpMission"></span></div>
+      <div class="cmp-pick">
+        <label><b class="cmp-a">A</b> <select id="cmpA"></select></label>
+        <span class="cmp-vs">vs</span>
+        <label><b class="cmp-b">B</b> <select id="cmpB"></select></label>
+      </div>
+      <div id="cmpVerdict" class="cmp-verdict"></div>
+      <div id="cmpBody" class="cmp-body"></div>
+      <div class="cmp-foot">
+        <button class="btn small" id="cmpSave">Save current design</button>
+        <span id="cmpMsg" class="req-small"></span>
+        <button class="btn small" id="cmpLoadA">Load A</button><button class="btn small" id="cmpLoadB">Load B</button>
+        <button class="btn small" id="cmpDel">Delete B</button><button class="btn small" id="cmpClose">Close</button>
+      </div>
+    </div>
+  </div>
+
   <section id="launch" class="screen">
     <canvas id="launchCanvas" width="320" height="180" class="px launch-canvas"></canvas>
     <div class="teletype paper" id="teletype"></div>
+    <div class="flightdash" id="flightDash"></div>
     <button class="btn skip" id="skipBtn">Skip</button>
   </section>
 
@@ -187,6 +209,7 @@
     <div class="news-actions">
       <button class="btn" id="nRedesign">Redesign</button>
       <button class="btn" id="nNext">Next mission</button>
+      <button class="btn" id="nCompare">Compare designs</button>
       <button class="btn" id="nHall">Hall of fame</button>
     </div>
   </section>

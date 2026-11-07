@@ -9,7 +9,7 @@ import math
 import random
 
 from . import catalog as C
-from .model import evaluate
+from .model import DV_MARGIN, evaluate
 
 # base monthly probabilities (multiplied by difficulty event_mult)
 P_SOLAR_STORM = 0.025
@@ -67,6 +67,15 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
     months_done = 0
     rad_p = ev["radiation"]["monthly_risk"]
     hga = d["comms"] in ("xhga", "kahga")
+    # resources tracked for the flight dashboard
+    orb = ev["orbit_info"]
+    dv_ins, dv_yr = orb.get("dv_insert", 0), orb.get("dv_per_year", 0)
+    dv_ret = orb.get("dv_return", 0) if ev["edl"]["use"] == "return" else 0
+    dv_total = (dv_ins + dv_yr * ev["years"] + dv_ret) * DV_MARGIN
+    has_fuel = dv_total > 0 and 0 < ev["mass"]["propellant"] < float("inf")
+    dv_used = 0.0
+    data_month = ev["data"]["generated_gb_day"] * ev["data"]["return"] * 30.4
+    data_acc = 0.0
 
     for m in range(1, total_m + 1):
         phase = "cruise" if m <= cruise_m else "science"
@@ -162,13 +171,23 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
         if power_margin < 0:
             rate *= 0.6
 
+        if phase == "science" and m == cruise_m + 1:
+            dv_used += dv_ins
+        elif phase == "science":
+            dv_used += dv_yr / 12
+        if m == total_m:
+            dv_used += dv_ret
+        if phase == "science" and alive:
+            data_acc += data_month * rate * pointing_f
+
         if phase == "science" and alive:
             sci_acc += rate * pointing_f
         months_done = m
         timeline.append({"month": m, "phase": phase, "alive": alive,
                          "science_fraction": sci_acc / sci_m_planned if sci_m_planned else 0,
                          "battery_pct": batt_cap / max(1e-9, ev["power"]["battery_usable_wh"]),
-                         "reserve": reserve, "power_margin": power_margin, "rate": rate * pointing_f if alive else 0})
+                         "reserve": reserve, "power_margin": power_margin, "rate": rate * pointing_f if alive else 0,
+                         "fuel_pct": max(0.0, 1 - dv_used / dv_total) if has_fuel else None, "data_gb": data_acc})
         if not alive:
             break
 
@@ -192,7 +211,8 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
     return {"seed": seed, "launched": True, "outcome": outcome, "events": events, "timeline": timeline,
             "science_fraction": frac, "science_score": ev["science"]["score"] * frac,
             "months_survived": months_done, "months_planned": total_m, "reserve_end": reserve / budget,
-            "wheel_failures": wheel_fails, "evaluation": ev}
+            "wheel_failures": wheel_fails, "evaluation": ev,
+            "data_planned_gb": data_month * sci_m_planned, "reserve_start": budget - ev["cost"]["total"]}
 
 
 def monte_carlo(design: dict, runs: int = 200, seed0: int = 1000) -> dict:

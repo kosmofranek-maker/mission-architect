@@ -84,6 +84,15 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   re-entry roll. Missions: Lunar Polar Lander, Asteroid Sample Return, Mars Ancient Life Rover (career = 11 days).
   Launch film gets a descent (parachute / sky crane / airbags / engines), touchdown and a driving rover.
 
+- Design drawer + comparison (2026-11-07): save designs (menu / Compare button on the desk), every flown design is
+  filed automatically with grade and score. Side-by-side table: cost, reserve, mass, margins, data, science, blockers,
+  success odds and typical science from 200 simulated flights, last flight, and every part (differences highlighted),
+  plus a plain-language verdict ("B is 40 M$ cheaper; A plans 8 more science points: you are trading money for
+  science"). Load either design back onto the desk. Demo `#compare=<scenario>`.
+- Flight dashboard under the launch film: power margin, battery health, fuel, data returned, budget reserve and
+  science as LED gauges month by month (flash when they drop), latest event line and a live chart with event marks.
+  Simulation timeline now carries fuel_pct and data_gb.
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.

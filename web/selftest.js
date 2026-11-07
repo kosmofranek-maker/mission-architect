@@ -93,6 +93,12 @@
     await until(() => !$(".news-actions").classList.contains("wait") && $(".grade-stamp").classList.contains("slam"), 8000);
     ok($("#finalScore").textContent === String(S.result.score.total), "grade slams and score counts up");
     ok(/Luis Herrera, Planetary Climate Lab/.test($(".quote").textContent), "client quoted in the newspaper");
+    ok(/MONTH \d+ \/ \d+/.test($("#flightDash").textContent) && $$("#flightDash .fd-g").length === 6, "flight dashboard with 6 resource gauges");
+    ok(drawer.of("mars_climate").some((x) => x.flight && x.flight.seed === S.result.seed), "flown design filed in the drawer");
+    $("#nCompare").click();
+    await until(() => $$("table.cmp tr").length > 10 && /Success odds/.test($("#cmpBody").textContent), 15000);
+    ok(/Total cost/.test($("#cmpBody").textContent) && $("#cmpVerdict").textContent.length > 5, "comparison table with risk odds + verdict");
+    $("#cmpClose").click();
     ok(/THE ORBITAL TIMES/.test($("#paper").textContent) && $(".grade-stamp b").textContent.length === 1, "launch + newspaper with grade");
     // ---- Cadet: follow the advisor's suggestions only, for every mission
     store.set("difficulty", "easy");

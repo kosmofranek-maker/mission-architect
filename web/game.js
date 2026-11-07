@@ -308,6 +308,10 @@ async function boot() {
     if (k === "design") { const [sc2, tab] = v.split(":"); startMission(sc2, S.cat.DEFAULTS[sc2]); if (tab) { S.tab = tab; renderTabs(); renderBinder(); } }
     if (k === "hints") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); openHints("power"); }
     if (k === "letter") { S.mode = "career"; startMission(v); }
+    if (k === "compare") {
+      startMission(v, S.cat.DEFAULTS[v]); const e = drawer.add({ name: "Preset design", scenario: v, design: S.cat.DEFAULTS[v] });
+      S.design = { ...S.design, launch_vehicle: "falcon_heavy", years: S.design.years + 2 }; renderAll(); openCompare("current", e.id);
+    }
     if (k === "stamp") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); stampAnim("ok"); }
     if (k === "news") { startMission(v, S.cat.DEFAULTS[v]); showNews(await api("launch", { design: S.design, save: false, seed: 7 })); }
     if (k === "launch") { const [sc3, at] = v.split(":"); startMission(sc3, S.cat.DEFAULTS[sc3]); playLaunch(await api("launch", { design: S.design, save: false, seed: 7 }), Number(at || 0)); }
@@ -997,6 +1001,9 @@ function wireDesk() {
     if (S.mode === "team") return toast("Clearing is disabled in team rooms.");
     S.design = dflt; renderAll(); evaluateSoon();
   };
+  $("#designsBtn").onclick = () => { SFX.page(); openCompare(); };
+  $("#mCompare").onclick = () => { $("#menu").classList.add("hidden"); openCompare(); };
+  $("#mSave").onclick = () => { const e = saveCurrentDesign(); if (e) $("#mMsg").textContent = `Saved "${e.name}" to the drawer.`; };
   $("#mExport").onclick = async () => {
     const code = btoa(JSON.stringify(S.design));
     try { await navigator.clipboard.writeText(code); $("#mMsg").textContent = "Design code copied to clipboard."; }
@@ -1057,6 +1064,101 @@ async function doLaunch() {
     playLaunch(res);
   } catch (e) { toast(esc(e.message)); $("#launchBtn").disabled = false; }
   finally { S.stamping = false; }
+}
+
+// ---------------------------------------------------------------------------- design drawer + side-by-side comparison
+// Saved designs live in this browser (a drawer per player). Every flown design is filed automatically with its result.
+const drawer = {
+  all() { return store.get("designs", []); },
+  of(sc) { return this.all().filter((x) => x.scenario === sc).sort((a, b) => b.at - a.at); },
+  add(entry) {
+    const all = this.all().filter((x) => !(entry.flight && x.flight && x.flight.seed === entry.flight.seed && x.scenario === entry.scenario));
+    all.push({ id: `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, at: Date.now(), ...entry });
+    store.set("designs", all.slice(-40)); return all[all.length - 1];
+  },
+  remove(id) { store.set("designs", this.all().filter((x) => x.id !== id)); },
+  get(id) { return this.all().find((x) => x.id === id); },
+};
+function saveCurrentDesign() {
+  const n = drawer.of(S.design.scenario).length + 1;
+  const name = (prompt("Name this design:", `${scen().name} draft ${n}`) || "").trim();
+  if (!name) return null;
+  SFX.paper();
+  return drawer.add({ name: name.slice(0, 40), scenario: S.design.scenario, design: { ...S.design, instruments: [...S.design.instruments] } });
+}
+
+const CMP_ROWS = [
+  ["Total cost", (e) => e.cost.total, "low", (v) => `${fmt(v)} M$`],
+  ["Budget reserve", (e) => e.cost.reserve, "high", pct],
+  ["Launch mass", (e) => e.mass.wet, "low", (v, e) => `${fmt(v)} / ${fmt(e.mass.capacity)} kg`],
+  ["Mass margin", (e) => e.mass.margin, "high", pct],
+  ["Power margin", (e) => e.power.margin, "high", pct],
+  ["Data reaching Earth", (e) => e.data.return, "high", pct],
+  ["Planned science", (e) => e.science.score, "high", (v) => `${fmt(v)} / 100`],
+  ["Blockers", (e) => e.issues.filter((i) => i.severity === "blocker").length, "low", (v) => (v ? `${v}` : "none")],
+];
+async function openCompare(aId, bId) {
+  const sc = S.design.scenario, list = drawer.of(sc);
+  const opts = [{ id: "current", name: "Current design on the desk" }, ...list];
+  const fill = (sel, val) => { sel.innerHTML = opts.map((o) => `<option value="${o.id}" ${o.id === val ? "selected" : ""}>${esc(o.name)}${o.flight ? ` (${o.flight.grade}, ${o.flight.score} pts)` : ""}</option>`).join(""); };
+  aId = aId || "current"; bId = bId || (list.find((x) => x.id !== aId) || { id: "current" }).id;
+  fill($("#cmpA"), aId); fill($("#cmpB"), bId);
+  $("#cmpA").onchange = () => openCompare($("#cmpA").value, $("#cmpB").value);
+  $("#cmpB").onchange = () => openCompare($("#cmpA").value, $("#cmpB").value);
+  $("#cmpMission").textContent = scen().name.toUpperCase();
+  $("#compare").classList.remove("hidden");
+  const pick = (id) => (id === "current" ? { name: "Current design", design: S.design } : drawer.get(id));
+  const A = pick(aId), B = pick(bId);
+  $("#cmpMsg").textContent = list.length ? "" : "The drawer is empty: save this design, change it, then compare.";
+  $("#cmpDel").disabled = bId === "current"; $("#cmpLoadA").disabled = $("#cmpLoadB").disabled = S.mode === "team";
+  $("#cmpSave").onclick = () => { const e = saveCurrentDesign(); if (e) openCompare(aId === "current" ? e.id : aId, "current"); };
+  $("#cmpLoadA").onclick = () => loadDesign(A.design); $("#cmpLoadB").onclick = () => loadDesign(B.design);
+  $("#cmpDel").onclick = () => { if (confirm(`Delete "${B.name}" from the drawer?`)) { drawer.remove(bId); openCompare(aId === bId ? "current" : aId); } };
+  $("#cmpClose").onclick = () => $("#compare").classList.add("hidden");
+  $("#cmpBody").innerHTML = `<p class="req-small">Running both designs through the review board...</p>`; $("#cmpVerdict").textContent = "";
+  const token = (openCompare.token = (openCompare.token || 0) + 1);
+  const [ea, eb] = await Promise.all([api("evaluate", { design: A.design }), api("evaluate", { design: B.design })]);
+  if (token !== openCompare.token) return;
+  const draw = (ra, rb) => {
+    const better = (va, vb, dir) => (va === vb || va == null || vb == null ? [0, 0] : (dir === "low" ? va < vb : va > vb) ? [1, 0] : [0, 1]);
+    const num = CMP_ROWS.map(([label, get, dir, f]) => [label, get(ea), get(eb), dir, f]);
+    if (ra && rb) num.push(["Success odds (200 flights)", ra.success_rate, rb.success_rate, "high", pct],
+      ["Typical science", ra.science_median, rb.science_median, "high", (v) => fmt(v)]);
+    const flight = (x) => (x.flight ? `${x.flight.grade} · ${x.flight.score} pts` : "not flown");
+    const fields = [...tabs().flatMap((t) => t.fields), "years"];
+    const partName2 = (d, f) => f === "years" ? `${d.years} yr` : f === "rtg" ? `${d.rtg || 0}` : f === "instruments"
+      ? (d.instruments.length ? d.instruments.map((k) => S.cat.INSTRUMENTS[k].name).join(", ") : "-") : d[f] ? (optionsFor(f)[d[f]] || {}).name || "-" : "-";
+    $("#cmpBody").innerHTML = `<table class="cmp"><tr><th></th><th class="cmp-a">A: ${esc(A.name)}</th><th class="cmp-b">B: ${esc(B.name)}</th></tr>
+      ${num.map(([label, va, vb, dir, f]) => { const [wa, wb] = better(va, vb, dir);
+        return `<tr><td>${label}</td><td class="${wa ? "win" : ""}">${f(va, ea)}</td><td class="${wb ? "win" : ""}">${f(vb, eb)}</td></tr>`; }).join("")}
+      <tr><td>Last flight</td><td>${flight(A)}</td><td>${flight(B)}</td></tr>
+      <tr class="sep"><td colspan="3">Parts</td></tr>
+      ${fields.map((f) => { const pa = partName2(ea.design, f), pb = partName2(eb.design, f);
+        return `<tr class="${pa !== pb ? "diff" : ""}"><td>${f === "rtg" ? "RTGs" : f === "years" ? "Science phase" : fieldLabel(f)}</td><td>${esc(pa)}</td><td>${esc(pb)}</td></tr>`; }).join("")}
+      </table>`;
+    // plain-language verdict: there is rarely one perfect answer
+    const V = [], ba = ea.issues.find((i) => i.severity === "blocker"), bb = eb.issues.find((i) => i.severity === "blocker");
+    if (ba) V.push(`A can't launch yet: ${ba.text}`);
+    if (bb) V.push(`B can't launch yet: ${bb.text}`);
+    const dc = ea.cost.total - eb.cost.total, ds = ea.science.score - eb.science.score;
+    if (Math.abs(dc) >= 1) V.push(`${dc < 0 ? "A" : "B"} is ${fmt(Math.abs(dc))} M$ cheaper.`);
+    if (Math.abs(ds) >= 1) V.push(`${ds > 0 ? "A" : "B"} plans ${fmt(Math.abs(ds))} more science points.`);
+    if (ra && rb && Math.abs(ra.success_rate - rb.success_rate) >= 0.02) V.push(`${ra.success_rate > rb.success_rate ? "A" : "B"} survives more often (${pct(Math.max(ra.success_rate, rb.success_rate))} vs ${pct(Math.min(ra.success_rate, rb.success_rate))}).`);
+    if (!ba && !bb && dc * ds > 0) V.push("Neither is simply better: you are trading money for science.");
+    if (!V.length) V.push("These two designs are practically the same.");
+    $("#cmpVerdict").innerHTML = V.map((x) => `<span>${esc(x)}</span>`).join(" ");
+  };
+  draw(null, null);
+  if (ea.ok && eb.ok) {
+    const [ra, rb] = await Promise.all([api("risk", { design: A.design }), api("risk", { design: B.design })]);
+    if (token === openCompare.token) draw(ra, rb);
+  }
+}
+function loadDesign(design) {
+  if (S.mode === "team") return toast("Loading is disabled in team rooms.");
+  $("#compare").classList.add("hidden");
+  startMission(design.scenario, { ...design, instruments: [...design.instruments] });
+  toast("Design loaded onto the desk.");
 }
 
 // ---------------------------------------------------------------------------- engineer's handbook (hints per stage)
@@ -1322,6 +1424,67 @@ function endTutorial(markDone) {
   $("#tut").classList.add("hidden");
 }
 
+// ---------------------------------------------------------------------------- flight dashboard (resources during the flight)
+const DASH = [
+  { k: "power", label: "POWER", ic: "bolt" }, { k: "battery", label: "BATTERY", ic: "battery" },
+  { k: "fuel", label: "FUEL", ic: "nozzle" }, { k: "data", label: "DATA HOME", ic: "disk" },
+  { k: "budget", label: "RESERVE", ic: "coin" }, { k: "science", label: "SCIENCE", ic: "star" },
+];
+const fmtGb = (gb) => (gb >= 1000 ? `${fmt(gb / 1000, 1)} Tb` : `${fmt(gb)} Gb`);
+function dashValues(res, e) {
+  const ev = res.evaluation, sim = res.sim, rs = sim.reserve_start || 0;
+  const battNeed = ev.power.battery_usable_wh ? ev.power.eclipse_need_wh / ev.power.battery_usable_wh : 0;
+  const v = (f, text, st) => ({ f: Math.max(0, Math.min(1, f)), text, st });
+  if (!e) e = { power_margin: ev.power.margin, battery_pct: 1, fuel_pct: ev.mass.propellant > 0 ? 1 : null, data_gb: 0,
+    reserve: rs, science_fraction: 0 };
+  const pm = e.power_margin;
+  return {
+    power: v((pm + 0.25) / 1.25, `${pm >= 0 ? "+" : ""}${pct(pm)} margin`, pm < 0 ? "bad" : pm < 0.15 ? "warn" : ""),
+    battery: v(e.battery_pct, `${pct(e.battery_pct)} health`, e.battery_pct < battNeed ? "bad" : e.battery_pct < 0.9 ? "warn" : ""),
+    fuel: e.fuel_pct == null ? v(0, "no tanks", "off") : v(e.fuel_pct, `${pct(e.fuel_pct)} left`, e.fuel_pct < 0.05 ? "bad" : e.fuel_pct < 0.15 ? "warn" : ""),
+    data: v(sim.data_planned_gb ? e.data_gb / sim.data_planned_gb : 0, fmtGb(e.data_gb), ""),
+    budget: v(rs > 0 ? e.reserve / rs : 0, `${fmt(e.reserve)} M$`, e.reserve < 0 ? "bad" : rs > 0 && e.reserve < rs * 0.5 ? "warn" : ""),
+    science: v(e.science_fraction, pct(e.science_fraction), ""),
+  };
+}
+function renderDash(res, mi, stage) {
+  const box = $("#flightDash"), sim = res.sim, tl = sim.timeline, e = mi != null ? tl[mi] : null;
+  const vals = dashValues(res, e), prev = renderDash._prev || {};
+  const lostAtLaunch = sim.events.some((x) => x.kind === "launch_failure");
+  const clock = stage || (e ? `MONTH ${e.month} / ${sim.months_planned} · ${e.phase.toUpperCase()}` : "");
+  const evs = e ? sim.events.filter((x) => x.month <= e.month && !["launch"].includes(x.kind)) : [];
+  const last = lostAtLaunch && stage !== "COUNTDOWN" ? sim.events[0] : evs[evs.length - 1];
+  const status = last ? `<span class="${last.impact}">M${String(last.month).padStart(2, "0")} ${esc(last.text)}</span>`
+    : `<span>${stage === "COUNTDOWN" ? "All stations: go for launch." : "All systems nominal."}</span>`;
+  box.innerHTML = `<div class="fd-head"><span>${icon("dish", 14)} MISSION CONTROL &middot; RESOURCES</span><span>${clock}</span></div>
+    <div class="fd-grid">${DASH.map((g) => {
+      const x = vals[g.k], lit = Math.round(x.f * 20), hit = prev[g.k] != null && x.f < prev[g.k] - 0.03 && g.k !== "fuel";
+      return `<div class="fd-g ${x.st} ${hit ? "hit" : ""}"><div class="fd-l">${icon(g.ic, 14)}${g.label}</div>
+        <div class="leds">${Array.from({ length: 20 }, (_, i) => `<i class="${i < lit ? "on" : ""}"></i>`).join("")}</div>
+        <div class="fd-v">${x.text}</div></div>`;
+    }).join("")}</div>
+    <div class="fd-status">${status}</div>
+    <div class="fd-chart"><canvas id="fdChart" width="780" height="44"></canvas>
+      <div class="fd-key"><b style="color:#6cc24a">science</b> <b style="color:#58b7c9">data home</b> <b style="color:#e0a83a">power margin</b> <b style="color:#d8aa45">reserve</b></div></div>`;
+  const cv = $("#fdChart"), g = cv.getContext("2d"), W = cv.width, H = cv.height, n = Math.max(1, sim.months_planned);
+  g.fillStyle = "#141613"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#2b2e28"; for (let m = 0; m <= n; m += 12) g.fillRect(Math.round(m / n * (W - 1)), 0, 1, H);
+  const upto = mi == null ? -1 : mi, rs = sim.reserve_start || 1, dp = sim.data_planned_gb || 1;
+  [["science_fraction", "#6cc24a", (x) => x], ["data_gb", "#58b7c9", (x) => x / dp], ["power_margin", "#e0a83a", (x) => (x + 0.25) / 1.25],
+    ["reserve", "#d8aa45", (x) => x / rs]].forEach(([k, col, f]) => {
+    g.strokeStyle = col; g.lineWidth = 2; g.beginPath();
+    for (let i = 0; i <= upto; i++) {
+      const x = tl[i].month / n * (W - 1), y = H - 2 - Math.max(0, Math.min(1, f(tl[i][k]))) * (H - 4);
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke();
+  });
+  sim.events.filter((x) => x.impact === "bad" || x.impact === "fatal").forEach((x) => {
+    if (mi != null && x.month <= tl[upto].month) { g.fillStyle = x.impact === "fatal" ? "#e0533f" : "#f0c46a"; g.fillRect(Math.round(x.month / n * (W - 1)) - 1, 0, 3, 5); }
+  });
+  renderDash._prev = Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, x.f]));
+}
+
 // ---------------------------------------------------------------------------- launch sequence
 let _launchStop = null;
 // Launch film: countdown on the pad, liftoff with steam clouds and camera shake, climb into black sky,
@@ -1335,6 +1498,8 @@ function playLaunch(res, skipTo = 0) {
   const cv = $("#launchCanvas"), g = cv.getContext("2d"), W = 320, H = 180;
   g.imageSmoothingEnabled = false;
   const tt = $("#teletype"); tt.innerHTML = "";
+  renderDash._prev = null; renderDash(res, null, "COUNTDOWN");
+  let dashKey = "";
   const d = res.design, lv = d.launch_vehicle, dest = destKeyOf(d), atEarth = dest === "earth";
   const failAtLaunch = res.sim.events.some((e) => e.kind === "launch_failure");
   const pImg = new Image(); pImg.src = planet(PLANET_OF[dest], 64);
@@ -1572,11 +1737,18 @@ function playLaunch(res, skipTo = 0) {
     else if (surfaceMission) surfacePhase(t);
     else orbitPhase(t);
     if (t > nextLine && li < lines.length) { const l = lines[li++]; add(l); nextLine = t + (l.pause || 0.12); }
+    {
+      const tl = res.sim.timeline, stage = t < LT.lift ? "COUNTDOWN" : t < LT.space && !tl.length ? "ASCENT" : null;
+      const mi = tl.length && t >= LT.space ? Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length)) : null;
+      const key = `${stage}|${mi}`;
+      if (key !== dashKey) { dashKey = key; renderDash(res, mi, stage || (mi == null ? (failAtLaunch ? "VEHICLE LOST" : "ASCENT") : null)); }
+    }
     if (li >= lines.length && t > nextLine + 1.2 && (failAtLaunch || t > (atEarth ? LT.transfer : LT.orbit) + 2)) return finish();
     requestAnimationFrame(frame);
   }
   function finish() { if (done) return; done = true; showNews(res); }
-  _launchStop = () => { if (!done) { lines.slice(li).forEach((l) => { const dv = document.createElement("div"); dv.className = `ln ${l.cls || ""}`; dv.textContent = l.text; tt.appendChild(dv); }); finish(); } };
+  _launchStop = () => { if (!done) { lines.slice(li).forEach((l) => { const dv = document.createElement("div"); dv.className = `ln ${l.cls || ""}`; dv.textContent = l.text; tt.appendChild(dv); });
+    if (res.sim.timeline.length) renderDash(res, res.sim.timeline.length - 1); finish(); } };
   requestAnimationFrame(frame);
 }
 function destKeyOf(design) { return S.cat.SCENARIOS[design.scenario].destination; }
@@ -1625,6 +1797,8 @@ function showNews(res) {
     const p = progress(), k = res.design.scenario;
     if (!p[k] || sc.total > p[k].score) { p[k] = { grade: sc.grade, score: sc.total }; store.set("career", p); }
   }
+  if (res.sim.launched) drawer.add({ name: `Flight ${res.seed} · ${sc.grade}`, scenario: res.design.scenario, design: res.design,
+    flight: { score: sc.total, grade: sc.grade, outcome: sim.outcome, seed: res.seed } });
   const labels = { science: "Science", budget: "Budget left", margins: "Margins", reliability: "Reliability", team: "Team goals" };
   const day = ORDER.indexOf(res.design.scenario) + 1;
   const c = CLIENTS[res.design.scenario];
@@ -1706,6 +1880,11 @@ function wireNews() {
     else openSelect();
   };
   $("#nHall").onclick = openHall;
+  $("#nCompare").onclick = () => {
+    const mine = drawer.of(S.result.design.scenario), cur = mine.find((x) => x.flight && x.flight.seed === S.result.seed);
+    S.design = { ...S.result.design };
+    openCompare(cur ? cur.id : "current", (mine.find((x) => x !== cur) || { id: "current" }).id);
+  };
 }
 
 // ---------------------------------------------------------------------------- hall of fame
