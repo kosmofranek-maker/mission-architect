@@ -198,6 +198,27 @@ h1, h2, h3 { font-family: "Silkscreen", monospace; font-weight: 700; margin: 0 0
 .modal { position: absolute; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 30; }
 .modal-box { padding: 20px; width: 380px; display: flex; flex-direction: column; gap: 10px; }
 
+/* ------------------------------------------------ program manifest */
+.plan-wrap { margin: 0 0 6px; border: 2px solid var(--ink); line-height: 0; }
+.plan-wrap canvas { width: 100%; height: auto; display: block; }
+.manifest { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.mrow { display: grid; grid-template-columns: 18px 18px 1fr 150px 128px; grid-template-areas: "n i name lv slot" ". . st st del";
+  gap: 2px 6px; align-items: center; background: var(--paperL); border: 2px solid var(--ink); padding: 3px 6px; font-size: 17px; }
+.mrow.partner { background: #e6edf6; } .mrow.bad { border-color: var(--red); }
+.mrow .m-n { grid-area: n; font-family: "Silkscreen"; font-size: 11px; }
+.mrow > img { grid-area: i; }
+.mrow .m-name { grid-area: name; display: flex; flex-direction: column; line-height: 1; }
+.mrow .m-name small { color: var(--ink2); font-size: 15px; }
+.mrow select { grid-area: lv; font-family: "VT323", monospace; font-size: 16px; background: #fff8e6; border: 2px solid var(--ink); max-width: 150px; }
+.mrow .m-fixed { grid-area: lv; font-size: 15px; color: var(--blueD); }
+.mrow .m-fixed + .m-fixed { grid-area: slot; }
+.mrow .m-slot { grid-area: slot; display: flex; gap: 4px; align-items: center; font-size: 15px; white-space: nowrap; }
+.mrow .m-bad { grid-area: st; color: var(--red); font-size: 15px; }
+.mrow .m-ok { grid-area: st; color: var(--greenD); font-size: 15px; display: flex; gap: 4px; align-items: center; }
+.mrow .m-del { grid-area: del; justify-self: end; }
+html.mobile .mrow { grid-template-columns: 18px 18px 1fr; grid-template-areas: "n i name" "lv lv lv" "slot slot slot" "st st del"; }
+html.mobile .mrow select { max-width: none; }
+
 /* ------------------------------------------------ design comparison */
 .cmp-box { width: 900px; max-height: 680px; display: flex; flex-direction: column; }
 .cmp-pick { display: flex; gap: 12px; align-items: center; padding: 8px 10px; flex-wrap: wrap; }

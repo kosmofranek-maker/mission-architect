@@ -60,24 +60,102 @@ PARTNERS = {
             "instrument": {"name": "European spectrometer", "mass": 16, "power": 18, "cost": 0, "data_mbps": 1.0,
                            "duty": 0.2, "value": 18, "tags": ["composition", "climate", "water"], "pointing_deg": 0.5},
             "gives": "Pays 12% of the hardware and adds a European spectrometer (uses one instrument slot).",
-            "learn": "ESA built instruments for Juno, Cassini and Europa Clipper and flew its own probes to Mars, Venus and a comet."},
+            "learn": "ESA built instruments for Juno, Cassini and Europa Clipper and flew its own probes to Mars, Venus and a comet.",
+            "rocket": "Ariane 6", "program": {"station": {"p": "lab", "slot": 3}, "moon": {"p": "lcargo_l", "slot": 2},
+                                              "mars": {"p": "mpower", "slot": 0}},
+            "program_gives": "Builds a module or lander and launches it on Ariane 6 for free, on ESA's own date."},
     "jaxa": {"name": "JAXA (Japan)", "share": 0.10, "delay": 0.06,
              "instrument": {"name": "Japanese multiband camera", "mass": 9, "power": 12, "cost": 0, "data_mbps": 3.0,
                             "duty": 0.1, "value": 18, "tags": ["imaging", "topography", "thermal"], "pointing_deg": 0.5},
              "gives": "Pays 10% of the hardware and adds a Japanese multiband camera (uses one instrument slot).",
-             "learn": "JAXA's Hayabusa missions brought back samples from two asteroids."},
+             "learn": "JAXA's Hayabusa missions brought back samples from two asteroids.",
+             "rocket": "H3", "program": {"station": {"p": "cargo", "slot": 4}, "moon": {"p": "lrover", "slot": 3},
+                                         "mars": {"p": "mcargo", "slot": 1}},
+             "program_gives": "Builds and launches a cargo ship or rover on an H3 rocket for free, on JAXA's own date."},
     "csa": {"name": "CSA (Canada)", "share": 0.08, "delay": 0.05,
             "instrument": {"name": "Canadian laser altimeter", "mass": 12, "power": 18, "cost": 0, "data_mbps": 0.1,
                            "duty": 1.0, "value": 18, "tags": ["topography"], "pointing_deg": 0.1, "where": "orbit"},
             "instrument_surface": {"name": "Canadian X-ray rock spectrometer", "mass": 2, "power": 6, "cost": 0,
                                    "data_mbps": 0.05, "duty": 0.2, "value": 16, "tags": ["composition"], "pointing_deg": 10},
             "gives": "Pays 8% of the hardware and adds a Canadian instrument (uses one instrument slot).",
-            "learn": "Canada built the laser that mapped asteroid Bennu, the X-ray spectrometer on Curiosity and the space station's robot arms."},
+            "learn": "Canada built the laser that mapped asteroid Bennu, the X-ray spectrometer on Curiosity and the space station's robot arms.",
+            "arm": True, "program_gives": "Adds a robotic arm: docking and berthing go wrong far less often, and it pays 8% of the hardware."},
     "isro": {"name": "ISRO (India)", "share": 0.06, "delay": 0.07, "tracking_h": 4,
              "gives": "Pays 6% of the hardware and lends its deep-space antennas: +4 hours of contact per day.",
-             "learn": "India reached Mars orbit on its first try and landed near the Moon's south pole with Chandrayaan-3."},
+             "learn": "India reached Mars orbit on its first try and landed near the Moon's south pole with Chandrayaan-3.",
+             "program_gives": "Pays 6% of the hardware."},
 }
 MAX_PARTNERS = 2
+
+# --------------------------------------------------------------------------------------
+# Programs: missions built from many launches (a space station, a Moon base, a crewed Mars expedition).
+# Each flight carries one payload. Flights are planned in slots: quarters near Earth and the Moon,
+# launch windows for Mars. Supplies, bunks and power are tracked month by month.
+# --------------------------------------------------------------------------------------
+CREW_RATED = ["falcon9", "vulcan", "sls"]      # rockets with a launch escape system, certified for people
+SUPPLY_KG_PER_CREW_MONTH = 75                  # food, water and air per person per month, with water recycling
+CREW_POWER_KW = 1.5                            # life support, lights, computers per person
+MODULE_BERTH_RISK = 0.03                       # chance a station module is damaged while docking
+
+PAYLOADS = {
+    # ---- Earth-orbit station
+    "core": {"name": "Core module", "group": "module", "mass": 20000, "cost": 900, "target": "leo",
+             "power_gen": 25, "power_use": 6, "berth": True,
+             "learn": "Power, guidance, thrusters and docking ports. Everything else bolts onto it."},
+    "hab": {"name": "Habitation module", "group": "module", "mass": 16000, "cost": 650, "target": "leo",
+            "power_use": 8, "beds": 4, "stock": 1500, "requires": ["core"], "berth": True,
+            "learn": "Bunks, galley, toilet and the machines that recycle water and air. Comes with 1.5 t of supplies."},
+    "lab": {"name": "Laboratory module", "group": "module", "mass": 15000, "cost": 550, "target": "leo",
+            "power_use": 10, "research": 1, "requires": ["core"], "berth": True,
+            "learn": "Experiment racks for biology, medicine and materials in weightlessness."},
+    "truss": {"name": "Solar truss (+40 kW)", "group": "module", "mass": 14000, "cost": 300, "target": "leo",
+              "power_gen": 40, "requires": ["core"], "berth": True,
+              "learn": "A long beam with huge solar wings and radiators. The ISS carries eight such wings."},
+    "cargo": {"name": "Cargo ship (3 t supplies)", "group": "cargo", "mass": 8000, "cost": 80, "target": "leo",
+              "supplies": 3000, "requires": ["core"],
+              "learn": "An uncrewed ship full of food, water, air and spare parts. Leaves with the rubbish and burns up."},
+    "cargo_l": {"name": "Large cargo ship (6 t supplies)", "group": "cargo", "mass": 15000, "cost": 140, "target": "leo",
+                "supplies": 6000, "requires": ["core"],
+                "learn": "Twice the supplies in one trip. Needs a bigger rocket."},
+    "crew": {"name": "Crew capsule (4 seats)", "group": "crew", "mass": 13000, "cost": 120, "target": "leo", "crew": 4,
+             "requires": ["hab"],
+             "learn": "Four astronauts ride up, live aboard for six months and come home in the same capsule."},
+    # ---- Moon base (a habitat and a small solar field are already on the surface)
+    "lcargo": {"name": "Cargo lander (1.5 t supplies)", "group": "cargo", "mass": 6000, "cost": 120, "target": "tli",
+               "supplies": 1500, "land_risk": 0.03,
+               "learn": "A small robotic lander that touches down next to the base with supplies."},
+    "lcargo_l": {"name": "Large cargo lander (4 t supplies)", "group": "cargo", "mass": 15000, "cost": 260,
+                 "target": "tli", "supplies": 4000, "land_risk": 0.04,
+                 "learn": "Bigger lander, more supplies per launch, but it needs a heavy rocket."},
+    "lpower": {"name": "Fission power unit (40 kW)", "group": "module", "mass": 6000, "cost": 300, "target": "tli",
+               "power_gen": 40, "land_risk": 0.03,
+               "learn": "A small nuclear reactor: steady power through the 14-day lunar night, when solar panels give nothing."},
+    "lrover": {"name": "Pressurized rover", "group": "module", "mass": 9000, "cost": 350, "target": "tli",
+               "power_use": 3, "research": 1, "land_risk": 0.03,
+               "learn": "A camper van for the Moon: two astronauts drive for weeks without spacesuits, exploring far away."},
+    "lcrew_s": {"name": "Crew lander (2 seats)", "group": "crew", "mass": 10000, "cost": 300, "target": "tli", "crew": 2,
+                "land_risk": 0.02, "learn": "Small and cheaper: fits a medium rocket, but brings only two astronauts."},
+    "lcrew": {"name": "Crew lander (4 seats)", "group": "crew", "mass": 15000, "cost": 450, "target": "tli", "crew": 4,
+              "land_risk": 0.02, "learn": "Four astronauts at once, but only the biggest crew-rated rocket can send it."},
+    # ---- Mars base: send the hardware one launch window, the crew the next
+    "mhab": {"name": "Surface habitat lander", "group": "module", "mass": 18000, "cost": 1200, "target": "mars",
+             "cruise": 7, "beds": 4, "stock": 2000, "power_use": 10, "land_risk": 0.05,
+             "learn": "The crew's home on Mars, landed empty and checked out before anyone leaves Earth. Carries 2 t of supplies."},
+    "mpower": {"name": "Power and fuel plant lander", "group": "module", "mass": 14000, "cost": 700, "target": "mars",
+               "cruise": 7, "power_gen": 30, "land_risk": 0.05,
+               "learn": "30 kW of power, plus a machine that turns Martian air into rocket fuel for the trip home."},
+    "mcargo": {"name": "Cargo lander (4 t supplies)", "group": "cargo", "mass": 15000, "cost": 400, "target": "mars",
+               "cruise": 7, "supplies": 4000, "land_risk": 0.05,
+               "learn": "Food, water and spare parts, landed and waiting before the crew arrives."},
+    "mtransit": {"name": "Transit stage segment", "group": "stage", "mass": 30000, "cost": 500, "target": "leo",
+                 "learn": "Engines, tanks and a living module, far too big for one rocket: launched in pieces and joined in Earth orbit."},
+    "mcrew": {"name": "Crew vehicle (4 seats)", "group": "crew", "mass": 13000, "cost": 300, "target": "leo", "crew": 4,
+              "cruise": 7, "needs_stages": 2, "requires": ["mhab"], "predeploy": True, "land_risk": 0.03,
+              "learn": "Docks with two transit stage segments in Earth orbit, flies seven months to Mars and lands next to the habitat."},
+}
+EXISTING = {"base_hab": {"name": "Lunar habitat (already built)", "group": "module", "beds": 4, "stock": 0, "power_use": 8}}
+PLACE_LABEL = {"station": "the station", "moon": "the Moon base", "mars": "the Mars base"}
+
 
 SLIP_COST_MONTH = 0.004  # share of the budget burned per month of waiting (the "standing army")
 
@@ -208,6 +286,66 @@ SCENARIOS = {
             {"tag": "sample", "label": "Return a pristine sample", "weight": 50, "target": 30, "required": True},
             {"tag": "composition", "label": "Map minerals first", "weight": 30, "target": 25, "required": True},
             {"tag": "topography", "label": "Find a safe sample site", "weight": 20, "target": 20, "required": False},
+        ],
+    },
+    "orbital_outpost": {
+        "name": "Orbital Outpost",
+        "kind": "program",
+        "destination": "earth",
+        "difficulty": "Advanced",
+        "budget": 5600,
+        "min_years": 2,
+        "pitch": "Build a space station piece by piece and keep a crew living on it.",
+        "story": ("No rocket can lift a whole station. Launch it in modules, bolt them together in orbit, "
+                  "then keep astronauts aboard with crew rotations and cargo ships."),
+        "program": {"place": "station", "slot_months": 3, "slots": 8, "stay": 6,
+                    "payloads": ["core", "hab", "lab", "truss", "cargo", "cargo_l", "crew"],
+                    "need": ["core", "hab", "lab", "truss"], "existing": [], "base_power": 0, "stock0": 0,
+                    "crew_goal": 48, "research_goal": 36, "ops_month": 10},
+        "goals": [
+            {"tag": "assembly", "label": "Assemble the station", "weight": 35, "target": 1, "required": True},
+            {"tag": "crew", "label": "Crew-months aboard", "weight": 35, "target": 1, "required": True},
+            {"tag": "research", "label": "Research in the lab", "weight": 30, "target": 1, "required": False},
+        ],
+    },
+    "lunar_base": {
+        "name": "Lunar Base Supply Line",
+        "kind": "program",
+        "destination": "moon_surface",
+        "difficulty": "Advanced",
+        "budget": 6200,
+        "min_years": 2,
+        "pitch": "Keep astronauts living at a Moon base for two years: crews, cargo and power.",
+        "story": ("A habitat already stands at the south pole. Now it needs people, food, water and enough "
+                  "power to survive the long lunar nights. Every kilogram comes from Earth."),
+        "program": {"place": "moon", "slot_months": 3, "slots": 8, "stay": 6,
+                    "payloads": ["lcargo", "lcargo_l", "lpower", "lrover", "lcrew_s", "lcrew"],
+                    "need": [], "existing": ["base_hab"], "base_power": 12, "stock0": 600,
+                    "crew_goal": 36, "research_goal": 18, "ops_month": 14},
+        "goals": [
+            {"tag": "crew", "label": "Crew-months on the Moon", "weight": 40, "target": 1, "required": True},
+            {"tag": "supplied", "label": "Never run out of supplies", "weight": 30, "target": 1, "required": True},
+            {"tag": "research", "label": "Explore with a rover", "weight": 30, "target": 1, "required": False},
+        ],
+    },
+    "mars_base": {
+        "name": "First Crew to Mars",
+        "kind": "program",
+        "destination": "mars_surface",
+        "difficulty": "Expert",
+        "budget": 9500,
+        "min_years": 2,
+        "pitch": "Send a habitat, power and supplies ahead, then four astronauts to live on Mars.",
+        "story": ("Mars windows open every 26 months. Land the base in one window, check it works, and only then "
+                  "launch the crew in the next. Their ship is too big for one rocket: build it in orbit."),
+        "program": {"place": "mars", "slot_months": 26, "slots": 3, "stay": 16, "windows": True,
+                    "payloads": ["mhab", "mpower", "mcargo", "mtransit", "mcrew"],
+                    "need": ["mhab", "mpower"], "existing": [], "base_power": 0, "stock0": 0,
+                    "crew_goal": 64, "research_goal": 0, "ops_month": 20},
+        "goals": [
+            {"tag": "predeploy", "label": "Base ready before the crew", "weight": 30, "target": 1, "required": True},
+            {"tag": "crew", "label": "Crew-months on Mars", "weight": 40, "target": 1, "required": True},
+            {"tag": "supplied", "label": "Never run out of supplies", "weight": 30, "target": 1, "required": True},
         ],
     },
     "mars_climate": {
@@ -682,7 +820,7 @@ ROLES = {
                 "goal": "Keep at least 10% of the budget in reserve.",
                 "learn": "Owns money and schedule. Says 'no' a lot."},
     "systems": {"name": "Systems Engineer", "icon": "🔧",
-                "owns": ["bus", "solar", "rtg", "battery", "adcs", "propulsion", "edl"],
+                "owns": ["bus", "solar", "rtg", "battery", "adcs", "propulsion", "edl", "manifest"],
                 "goal": "Keep mass margin ≥ 15% and power margin ≥ 20%.",
                 "learn": "Makes everything fit, fly and stay powered."},
     "science": {"name": "Science Lead", "icon": "🔭",

@@ -14,6 +14,7 @@ const LABS = {
   computer: { name: "Avionics Lab", door: "#3c5c25" },
   instr:    { name: "Science Instrument Lab", door: "#5f666c" },
   partners: { name: "International Office", door: "#1d3f8f" },
+  manifest: { name: "Program Planning Office", door: "#3b5a6e" },
 };
 
 // ---------------------------------------------------------------------------- lab scenes (256 x 42)
@@ -181,6 +182,19 @@ function drawLab(canvas, id, t) {
       r(196, 14, 14, 12, "#1d1a17"); r(197, 15, 12, 10, t % 10 < 5 ? "#3d6fa8" : "#25456b");
       r(216, 14, 13, 11, "#e8cf52"); r(221, 18, 3, 3, "#1d1a17"); r(218, 16, 3, 2, "#1d1a17"); r(224, 16, 3, 2, "#1d1a17"); r(221, 22, 3, 2, "#1d1a17");
       person(160, "#e9e3d6", "#a87552", "#141012", t % 12 < 6 ? 0 : 1);
+      break;
+    }
+    case "manifest": {
+      wall("#3b4656", "#2c3542"); floor("#2a2d33", "#33373e"); lights();
+      r(10, 4, 150, 20, "#e9dfc6"); r(10, 4, 150, 2, "#9a7428");                               // big planning board
+      for (let x = 14; x < 158; x += 18) r(x, 7, 1, 16, "#c9c1a8");
+      [[16, 9, 30, "#b3372d"], [34, 13, 40, "#3d6fa8"], [60, 17, 50, "#5d8a3c"], [90, 9, 36, "#d9792b"], [120, 13, 30, "#8a5aa6"]].forEach(([x, y, w, c]) => r(x, y, w, 3, c));
+      r(16 + (t * 2) % 140, 6, 1, 18, "#b3372d");                                               // "today" line moving
+      [[176, 10], [196, 6], [216, 12]].forEach(([x, h], i) => {                                 // rocket models on a shelf
+        r(x, 24 - h - 8, 4, h + 8, "#f4efe2"); r(x + 1, 23 - h - 8, 2, 1, "#b3372d"); if (i === 1) { r(x - 3, 24 - h, 3, h, "#d9792b"); r(x + 4, 24 - h, 3, h, "#d9792b"); }
+      });
+      r(170, 24, 60, 2, "#6b4a33");
+      person(60, "#2c3b55", "#e8c4a6", "#5a3a22", t % 10 < 5 ? 0 : 1); person(110, "#4b5a3a", "#6e4630", "#1a1716", t % 14 < 7 ? 0 : 1);
       break;
     }
     case "partners": {

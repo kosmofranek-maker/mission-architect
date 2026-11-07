@@ -124,7 +124,10 @@ def test_blank_design_evaluates_with_choose_blockers(scenario):
     ev = evaluate(blank_design(scenario))
     assert not ev["ok"]
     missing = [i for i in ev["issues"] if i["area"] == "missing"]
-    assert len(missing) == len(COMPONENTS) - (0 if edl_use(scenario) else 1)
+    if C.SCENARIOS[scenario].get("kind") == "program":
+        assert len(missing) == 1 and missing[0]["field"] == "manifest"
+    else:
+        assert len(missing) == len(COMPONENTS) - (0 if edl_use(scenario) else 1)
     assert ev["science"]["score"] == 0
     assert not simulate(blank_design(scenario), 1)["launched"]
 
@@ -229,3 +232,49 @@ def test_partners_share_cost_add_hardware_and_delay():
     assert "partner_esa" in b["science"]["per_instrument"]
     assert b["data"]["contact_hours"] > a["data"]["contact_hours"]
     assert b["schedule"]["slip"] == a["schedule"]["slip"] and b["partners"]["delay"] > 0.1
+
+
+def _prog(sc, flights):
+    from engine.model import blank_design
+    return blank_design(sc) | {"manifest": [{"p": p, "lv": lv, "slot": s} for p, lv, s in flights]}
+
+
+def test_station_order_matters():
+    ev = evaluate(_prog("orbital_outpost", [("hab", "falcon9", 0), ("core", "vulcan", 1)]))
+    assert any(i["area"] == "order" for i in ev["issues"])
+
+
+def test_crew_needs_crew_rated_rocket_and_supplies():
+    bad = evaluate(_prog("orbital_outpost", [("core", "vulcan", 0), ("hab", "falcon9", 0), ("crew", "falcon_heavy", 1)]))
+    assert any(i["area"] == "crew" and i["severity"] == "blocker" for i in bad["issues"])
+    hungry = evaluate(_prog("orbital_outpost", [("core", "vulcan", 0), ("truss", "falcon9", 0), ("hab", "falcon9", 0),
+                                                ("crew", "falcon9", 1), ("crew", "falcon9", 3)]))
+    assert any(i["area"] == "supplies" and i["severity"] == "blocker" for i in hungry["issues"])
+
+
+def test_moon_base_needs_power_for_four():
+    ev = evaluate(_prog("lunar_base", [("lcargo", "vulcan", 0), ("lcrew", "sls", 1)]))
+    assert any(i["area"] == "power" for i in ev["issues"])
+
+
+def test_mars_crew_needs_predeployed_habitat_and_stages():
+    same_window = evaluate(_prog("mars_base", [("mhab", "sls", 1), ("mpower", "falcon_heavy", 1), ("mtransit", "falcon_heavy", 1),
+                                               ("mtransit", "falcon_heavy", 1), ("mcrew", "falcon9", 1)]))
+    assert any(i["area"] == "order" for i in same_window["issues"])
+    no_stages = evaluate(_prog("mars_base", [("mhab", "sls", 0), ("mpower", "falcon_heavy", 0), ("mcrew", "falcon9", 1)]))
+    assert any("transit stage" in i["text"] for i in no_stages["issues"])
+
+
+def test_partner_flight_is_free_and_on_their_date():
+    base = _prog("orbital_outpost", [("core", "vulcan", 0), ("truss", "falcon9", 1), ("hab", "falcon9", 1)])
+    a, b = evaluate(base), evaluate(base | {"partners": ["esa"]})
+    assert len(b["program"]["flights"]) == len(a["program"]["flights"]) + 1
+    lab = b["program"]["flights"][-1]
+    assert lab["p"] == "lab" and lab["partner"] == "esa" and lab["cost"] == 0
+    assert b["science"]["score"] > a["science"]["score"]
+
+
+def test_program_simulation_is_reproducible():
+    from engine.simulate import simulate
+    d = default_design("mars_base")
+    assert simulate(d, 11)["events"] == simulate(d, 11)["events"]

@@ -7,12 +7,12 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const fmt = (n, d = 0) => (n == null || !isFinite(n) ? "∞" : Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d }));
 const pct = (x) => `${Math.round((x || 0) * 100)}%`;
 
-const ORDER = ["wildfire", "storm_watch", "lunar_ice", "landing_scout", "lunar_lander", "asteroid_prospector", "asteroid_sample",
-  "venus_clouds", "mars_climate", "mars_rover", "europa"];
+const ORDER = ["wildfire", "storm_watch", "lunar_ice", "landing_scout", "lunar_lander", "orbital_outpost", "asteroid_prospector",
+  "asteroid_sample", "venus_clouds", "lunar_base", "mars_climate", "mars_rover", "europa", "mars_base"];
 const PLANET_OF = { earth: "earth", moon: "moon", mars: "mars", europa: "europa", venus: "venus", asteroid: "asteroid",
   moon_surface: "moon", mars_surface: "mars" };
 const DEGRADE = { venus: 0.03, europa: 0.04, mars_surface: 0.08 }; // solar cell loss per year (mirrors engine/model.py)
-const KIND_LABEL = { orbiter: "Orbiter", lander: "Lander", rover: "Rover", sample_return: "Sample return" };
+const KIND_LABEL = { orbiter: "Orbiter", lander: "Lander", rover: "Rover", sample_return: "Sample return", program: "Crewed program" };
 const GRADE_COL = { S: "#6a3d9a", A: "#3c6b25", B: "#1d4f8a", C: "#8a6410", F: "#a8322a" };
 const PASS = ["S", "A", "B", "C"];
 
@@ -108,6 +108,33 @@ const CLIENTS = {
       ok: "We read the history of the lake. The question of life stays open.",
       bad: "The rover drove, but it never reached the rocks that mattered.",
       lost: "Another crater on Mars. This one is ours." } },
+  orbital_outpost: { name: "Director Hana Novak", org: "Human Spaceflight Directorate",
+    look: { skin: "#e8c4a6", skinD: "#c29c80", hair: "#5a3a22", hairStyle: "bun", coat: "#2c3b55", shirt: "#e9e3d6", tie: "#c9a227", badge: true },
+    letter: ["No rocket in the world can lift a whole space station. So we will build one the way the ISS was built: piece by piece, in orbit.",
+      "Core module first, then power, a home and a laboratory. Then people: crews of four, six months each, and cargo ships to feed them.",
+      "Plan every launch. If one cargo ship fails, my astronauts must still have food on the table."],
+    quotes: { good: "Four people are floating in our laboratory right now. Twenty launches ago that was a drawing on your desk.",
+      ok: "The station flies and people live aboard. Not every module made it, but it's a start.",
+      bad: "We have pieces in orbit, but not a station. That's a very expensive lesson in planning.",
+      lost: "We have lost the program. The pieces will burn up in the atmosphere one day." } },
+  lunar_base: { name: "Cmdr. Kwame Asante", org: "Artemis Base Camp",
+    look: { skin: "#6e4630", skinD: "#4f3122", hair: "#1a1716", hairStyle: "short", coat: "#d06a2a", shirt: "#e9e3d6", badge: true },
+    letter: ["I'm writing from the Moon. Well, from the training base in Houston, but my bags are packed.",
+      "Our habitat at the south pole is ready, but it is empty: no people, a little food and a small solar field that dies every lunar night.",
+      "Get crews up here, keep them fed, keep the lights on through two-week nights, and if you can, give us a rover to explore."],
+    quotes: { good: "Two years on the Moon without one empty plate. The supply line worked like a train timetable.",
+      ok: "We lived up there, and we learned. The next crews will have it easier.",
+      bad: "We spent more time worrying about food than doing science.",
+      lost: "The base is empty again. The Moon is patient; we'll be back." } },
+  mars_base: { name: "Flight Director Lena Hoffmann", org: "Mars Exploration Program",
+    look: { skin: "#efd2bd", skinD: "#c9a891", hair: "#8a5a3a", hairStyle: "long", coat: "#7a3b26", shirt: "#e9e3d6", tie: "#2b2b2b", glasses: true, badge: true },
+    letter: ["Everything you have built so far leads here. Four people. Seven months to get there, sixteen months on the surface.",
+      "Nothing waits for us on Mars. The habitat, the power plant and the food must land a whole window before the crew launches, and we check every bolt from Earth first.",
+      "Their ship is too big for any rocket, so we launch it in pieces and join it in orbit. Plan it like lives depend on it. They do."],
+    quotes: { good: "Four humans are standing on Mars, and they have a warm home, power and food. History will remember this team.",
+      ok: "The crew made it and came home. Not everything went to plan, but humanity has been to Mars.",
+      bad: "We reached Mars, but the crew spent the mission rationing instead of exploring.",
+      lost: "The program ended before anyone set foot on Mars. We will try again in the next window." } },
   europa: { name: "Dr. Ingrid Solberg", org: "Outer Planets Program",
     look: { skin: "#efd2bd", skinD: "#c9a891", hair: "#d8c27a", hairStyle: "long", coat: "#2c3b55", shirt: "#e9e3d6", glasses: true, badge: true },
     letter: ["Under twenty kilometres of ice there may be more water than in all of Earth's oceans. Where there is water, there might be life.",
@@ -149,6 +176,10 @@ const onSurface = () => !!S.cat.DESTINATIONS[destKey()].surface;
 // The tab list for the current mission: orbiters have no landing tab, surface missions pick a site instead of an orbit.
 function tabs() {
   const k = kindNow();
+  if (k === "program") return [
+    { id: "manifest", label: "Manifest", icon: "calendar", role: "systems", fields: ["manifest"],
+      hint: "Plan every launch: which payload, on which rocket, in which slot. Order matters, crews need somewhere to live and something to eat, and every rocket has a limit." },
+    { ...TABS.find((t) => t.id === "partners"), hint: "Partners build and launch some flights for free, on their own dates, or make docking safer. Up to two." }];
   return TABS.filter((t) => t.id !== "edl" || k !== "orbiter").map((t) => {
     if (t.id === "edl" && k === "sample_return") return { ...t, label: "Return", icon: "capsule",
       hint: "The return capsule carries the sample through a fireball re-entry and parachutes it to the ground. The trip home also needs extra fuel." };
@@ -369,7 +400,7 @@ function startMission(sc, design, opts = {}) {
     d.difficulty = store.get("difficulty", "normal");
     d.sandbox = S.mode === "free" && $("#sandbox").checked;
   }
-  S.design = d; S.tab = "orbit"; S.introShown = false; S.ev = null; S._prevOk = undefined; S._prevMet = null;
+  S.design = d; S.tab = S.cat.SCENARIOS[sc].kind === "program" ? "manifest" : "orbit"; S.introShown = false; S.ev = null; S._prevOk = undefined; S._prevMet = null;
   openDesk();
   const tut = () => { if (opts.tutorial || (!design && S.mode === "career" && sc === "wildfire" && !store.get("tutorialDone", false) && !S.tut)) startTutorial(true); };
   if (!design && !S.noLetter) openLetter(tut); else tut();
@@ -537,6 +568,7 @@ function recommend(f) {
       if (good.length) return { key: cheapest(good)[0], why: dest.earth_au ? "only the Deep Space Network can hear you this far, and it is enough" : "it gives enough contact time per day" };
       return { key: fit.sort((a, b) => downlinkGb(x, b[0]) - downlinkGb(x, a[0]))[0][0], why: "it collects the most data per day" };
     }
+    case "manifest": T.push(...programTips()); break;
     case "partners": {
       if (ev) T.push(ev.partners.keys.length ? `Your partners pay <b>${fmt(ev.partners.saving)} M$</b>; chance that someone is late: <b>${pct(ev.partners.delay)}</b>.` : "No partners yet: you pay for everything, and nobody else can make you late.");
       T.push("Partner instruments ride along for free but need an instrument slot, mass and power like any other.");
@@ -594,6 +626,7 @@ function issueField(i) {
 
 // The next thing a Cadet should do: pick a missing part, or swap one that causes a problem.
 function advisor() {
+  if (isProgram()) return programAdvisor();
   const d = S.design, ev = S.ev;
   if (!ev) return null;
   for (const f of PICK_ORDER) {
@@ -630,7 +663,8 @@ function renderClient() {
     const b = ev.issues.find((i) => i.severity === "blocker" && i.area !== "missing");
     const w = ev.issues.find((i) => i.severity === "warning");
     const lv = level(), a = S.advice;
-    if (lv === "easy" && a) {
+    if (lv === "easy" && a && a.program) { mood = b ? "angry" : "neutral"; text = `"${a.text}."`; }
+    else if (lv === "easy" && a) {
       mood = a.action === "pick" ? "neutral" : b ? "angry" : "neutral";
       const name = partName(a.field, a.key);
       text = a.action === "pick"
@@ -720,12 +754,17 @@ function renderRequest() {
   const o = S.cat.ORBITS[destKey()][S.design.orbit];
   $("#reqCruise").textContent = `Scientists ask for ${s.min_years}+ years. ` + (!o ? "Cruise time depends on the orbit." : o.cruise_years ? `Plus ${o.cruise_years} yr cruise first.` : "Science starts right after launch.");
   $("#yearsDown").disabled = !canEdit("years"); $("#yearsUp").disabled = !canEdit("years");
+  $("#reqYears").closest(".req-line").classList.toggle("hidden", isProgram());
+  if (isProgram()) {
+    const P = s.program, sl = ev && ev.kind === "program" ? ev.program.slots : null;
+    $("#reqCruise").textContent = `${P.slots} launch slots${P.windows ? " (Mars windows, 26 months apart)" : `, one every ${P.slot_months} months`}${sl ? ` from ${sl[0].label}` : ""}. Crews stay ${P.stay} months.`;
+  }
 }
 
 function renderTabs() {
   $("#tabs").innerHTML = tabs().map((t) => {
     const locked = S.mode === "team" && !S.myRoles.includes(t.role);
-    const todo = t.fields.some((f) => f !== "rtg" && f !== "partners" && (f === "instruments" ? !S.design.instruments.length : S.design[f] == null));
+    const todo = t.fields.some((f) => f !== "rtg" && f !== "partners" && (f === "instruments" || f === "manifest" ? !(S.design[f] || []).length : S.design[f] == null));
     return `<div class="tab ${t.id === S.tab ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}" title="${esc(LABS[t.id].name)}">${icon(locked ? "lock" : t.icon, 14)}${t.label}${todo ? '<span class="todo" title="still to choose"></span>' : ""}</div>`;
   }).join("");
   $$("#tabs .tab").forEach((el) => el.onclick = () => goLab(el.dataset.tab));
@@ -751,7 +790,8 @@ function optionsFor(field) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], use = { lander: "land", rover: "land", sample_return: "return" }[kindNow()];
   const keep = (obj, fn) => Object.fromEntries(Object.entries(obj).filter(([k, o]) => fn(o, k)));
   if (field === "edl") return keep(c.EDL, (o) => o.use === use);
-  if (field === "partners") return Object.fromEntries(Object.entries(c.PARTNERS).map(([k, p]) => [k, { ...p, learn: `${p.gives} ${p.learn}` }]));
+  if (field === "partners") return Object.fromEntries(Object.entries(c.PARTNERS).map(([k, p]) => [k, { ...p,
+    learn: `${kindNow() === "program" ? p.program_gives || p.gives : p.gives} ${p.learn}` }]));
   if (field === "window") return Object.fromEntries(((S.ev && S.ev.windows) || []).map((w) => [w.key, { ...w, name: windowName(w), learn: windowLearn(w) }]));
   if (field === "ground") return keep(c.GROUND, (o) => !o.relay_mbps || dest.relay);
   if (field === "instruments") return keep(c.INSTRUMENTS, (o) => !o.where || (o.where === "surface") === !!dest.surface);
@@ -777,7 +817,11 @@ function statLine(field, k, o) {
   const tgt = curOrbit().lv_target;
   switch (field) {
     case "launch_vehicle": return `${fmt(o.capacity[tgt] * energy())} kg to ${c.LV_TARGET_LABEL[tgt]} · ${fmt(o.cost)} M$`;
-    case "partners": return `pays ${pct(o.share)} of hardware · delay risk ${pct(o.delay)}`;
+    case "partners": {
+      if (kindNow() === "program") { const off = o.program && o.program[progSpec().place];
+        return off ? `builds ${S.cat.PAYLOADS[off.p].name} · delay risk ${pct(o.delay)}` : o.arm ? `robotic arm · pays ${pct(o.share)}` : `pays ${pct(o.share)} of hardware`; }
+      return `pays ${pct(o.share)} of hardware · delay risk ${pct(o.delay)}`;
+    }
     case "window": return `build ${o.build_months} mo · rocket ${o.energy >= 1 ? "+" : ""}${Math.round((o.energy - 1) * 100)}% · cost x${o.cost_mult} · risk x${o.risk_mult}`;
     case "orbit": return onSurface() ? `night ${o.eclipse_h ? `${o.eclipse_h} h` : "forever"} · sunlit ${pct(1 - o.eclipse_frac)} · landing risk ${pct(o.landing_risk)}`
       : `Δv ${o.dv_insert} m/s · covers ${pct(o.coverage)} · shadow ${o.eclipse_h} h`;
@@ -806,10 +850,18 @@ function cardBad(field, k, o) {
 }
 
 function renderBinder() {
-  const tab = tabs().find((t) => t.id === S.tab) || tabs()[1];
+  const tab = tabs().find((t) => t.id === S.tab) || tabs().find((t) => t.id === "orbit") || tabs()[0];
+  S.tab = tab.id;
   const locked = S.mode === "team" && !S.myRoles.includes(tab.role);
   const goalTags = new Set(scen().goals.map((g) => g.tag));
   const role = S.cat.ROLES[tab.role];
+  if (tab.id === "manifest") {
+    const head = `<div class="lab-banner"><canvas id="labCanvas" data-lab="manifest" width="${LAB_W}" height="${LAB_H}" class="px"></canvas>
+      <div class="lab-plate"><b>${esc(LABS.manifest.name)}</b><span>${esc(role.name)}'s lab</span></div></div>
+      ${locked ? `<div class="lock-banner">${icon("lock")} Classified: the manifest belongs to the ${role.name}. You can read it but not change it.</div>` : ""}
+      <p class="hint">${esc(tab.hint)}</p>`;
+    return renderManifest(head);
+  }
   let h = `<div class="lab-banner"><canvas id="labCanvas" data-lab="${tab.id}" width="${LAB_W}" height="${LAB_H}" class="px"></canvas>
     <div class="lab-plate"><b>${esc(LABS[tab.id].name)}</b><span>${esc(role.name)}'s lab</span></div></div>`;
   h += locked ? `<div class="lock-banner">${icon("lock")} Classified: this section belongs to the ${S.cat.ROLES[tab.role].name}. You can read it but not change it.</div>` : "";
@@ -876,7 +928,7 @@ function renderReview() {
   const pf = p.generation ? p.load / p.generation : 1;
   const D = S.design, battBad = D.battery && p.eclipse_need_wh > p.battery_usable_wh;
   const pending = (ic, label, need) => meter(ic, label, 0, `needs ${need}`, "", null);
-  $("#meters").innerHTML =
+  if (ev.kind === "program") $("#meters").innerHTML = programMeters(ev); else $("#meters").innerHTML =
     (!D.launch_vehicle || !D.orbit ? pending("weight", "MASS", !D.orbit ? "orbit" : "rocket") :
       meter("weight", "MASS", mf, m.capacity ? `${fmt(m.wet)}/${fmt(m.capacity)} kg` : "can't reach",
         mf > 1 ? "bad" : m.margin < req ? "warn" : "", 1 - req)) +
@@ -949,6 +1001,7 @@ function drawBlueprint() {
   for (let y = 0; y < H; y += 10) r(0, y, W, 1, "rgba(156,192,234,.15)");
   const L = "#dce9f8", M = "#9cc0ea", D = "#5b86b8";
   let empty = $(".blueprint .bp-empty");
+  if (isProgram()) { if (empty) empty.remove(); return drawProgramBlueprint(g, W, H); }
   if (!d.bus) {
     if (!empty) { empty = document.createElement("div"); empty.className = "bp-empty"; $(".blueprint").appendChild(empty); }
     empty.textContent = "No bus selected. Pick one in the BUS tab.";
@@ -1127,6 +1180,15 @@ function saveCurrentDesign() {
   return drawer.add({ name: name.slice(0, 40), scenario: S.design.scenario, design: { ...S.design, instruments: [...S.design.instruments] } });
 }
 
+const PROG_CMP_ROWS = [
+  ["Total cost", (e) => e.cost.total, "low", (v) => `${fmt(v)} M$`],
+  ["Budget reserve", (e) => e.cost.reserve, "high", pct],
+  ["Flights", (e) => e.program.flights.length, "low", (v) => `${v}`],
+  ["Crew-months", (e) => e.program.crew_months, "high", (v) => fmt(v)],
+  ["Spare supplies (worst)", (e) => e.program.min_reserve_months ?? 0, "high", (v) => `${fmt(v, 1)} months`],
+  ["Goals", (e) => e.science.score, "high", (v) => `${fmt(v)} / 100`],
+  ["Blockers", (e) => e.issues.filter((i) => i.severity === "blocker").length, "low", (v) => (v ? `${v}` : "none")],
+];
 const CMP_ROWS = [
   ["Total cost", (e) => e.cost.total, "low", (v) => `${fmt(v)} M$`],
   ["Budget reserve", (e) => e.cost.reserve, "high", pct],
@@ -1161,12 +1223,13 @@ async function openCompare(aId, bId) {
   if (token !== openCompare.token) return;
   const draw = (ra, rb) => {
     const better = (va, vb, dir) => (va === vb || va == null || vb == null ? [0, 0] : (dir === "low" ? va < vb : va > vb) ? [1, 0] : [0, 1]);
-    const num = CMP_ROWS.map(([label, get, dir, f]) => [label, get(ea), get(eb), dir, f]);
+    const rowsDef = ea.kind === "program" ? PROG_CMP_ROWS : CMP_ROWS;
+    const num = rowsDef.map(([label, get, dir, f]) => [label, get(ea), get(eb), dir, f]);
     if (ra && rb) num.push(["Success odds (200 flights)", ra.success_rate, rb.success_rate, "high", pct],
       ["Typical science", ra.science_median, rb.science_median, "high", (v) => fmt(v)]);
     const flight = (x) => (x.flight ? `${x.flight.grade} · ${x.flight.score} pts` : "not flown");
     const fields = [...tabs().flatMap((t) => t.fields), "years"];
-    const partName2 = (d, f) => f === "years" ? `${d.years} yr` : f === "rtg" ? `${d.rtg || 0}` : MULTI.has(f)
+    const partName2 = (d, f) => f === "manifest" ? (d.manifest || []).map((x) => `${S.cat.PAYLOADS[x.p].name.split(" (")[0]} (${x.lv ? S.cat.LAUNCH_VEHICLES[x.lv].name.split(" (")[0] : "?"}, slot ${x.slot + 1})`).join("; ") || "-" : f === "years" ? `${d.years} yr` : f === "rtg" ? `${d.rtg || 0}` : MULTI.has(f)
       ? ((d[f] || []).length ? d[f].map((k) => optionsFor(f)[k].name).join(", ") : "-") : d[f] ? (optionsFor(f)[d[f]] || {}).name || "-" : "-";
     $("#cmpBody").innerHTML = `<table class="cmp"><tr><th></th><th class="cmp-a">A: ${esc(A.name)}</th><th class="cmp-b">B: ${esc(B.name)}</th></tr>
       ${num.map(([label, va, vb, dir, f]) => { const [wa, wb] = better(va, vb, dir);
@@ -1226,7 +1289,7 @@ function openHints(stageId) {
   const st = stages.find((x) => x.id === stageId);
   const chosen = st.fields.filter((f) => f !== "rtg").map((f) => {
     const v = S.design[f];
-    const name = MULTI.has(f) ? (v.length ? v.map((k) => optionsFor(f)[k].name).join(", ") : null) : v ? optionsFor(f)[v].name : null;
+    const name = f === "manifest" ? (v.length ? `${v.length} flight(s)` : null) : MULTI.has(f) ? (v.length ? v.map((k) => optionsFor(f)[k].name).join(", ") : null) : v ? optionsFor(f)[v].name : null;
     return `<div class="line">${icon(name ? "check" : "none", 14)}<span>${fieldLabel(f)}: ${name ? esc(name) : "<i>not chosen yet</i>"}</span></div>`;
   }).join("");
   const iss = stageIssues(st);
@@ -1475,8 +1538,26 @@ const DASH = [
   { k: "budget", label: "RESERVE", ic: "coin" }, { k: "science", label: "SCIENCE", ic: "star" },
 ];
 const fmtGb = (gb) => (gb >= 1000 ? `${fmt(gb / 1000, 1)} Tb` : `${fmt(gb)} Gb`);
+const DASH_PROGRAM = [
+  { k: "power", label: "POWER", ic: "bolt" }, { k: "supplies", label: "SUPPLIES", ic: "battery" },
+  { k: "crew", label: "CREW ABOARD", ic: "person" }, { k: "modules", label: "ASSEMBLED", ic: "bus" },
+  { k: "budget", label: "RESERVE", ic: "coin" }, { k: "science", label: "GOALS", ic: "star" },
+];
 function dashValues(res, e) {
   const ev = res.evaluation, sim = res.sim, rs = sim.reserve_start || 0;
+  if (sim.program) {
+    const v = (f, text, st) => ({ f: Math.max(0, Math.min(1, f)), text, st });
+    e = e || { power_margin: 1, stock_kg: 0, crew: 0, beds: 0, assembled: 0, reserve: rs, science_fraction: 0 };
+    const pm = e.power_margin, eat = Math.max(1, e.crew) * S.cat.SUPPLY_KG_PER_CREW_MONTH, months = e.stock_kg / eat;
+    return {
+      power: v((pm + 0.25) / 1.25, `${pm >= 0 ? "+" : ""}${pct(pm)} margin`, pm < 0 ? "bad" : pm < 0.15 ? "warn" : ""),
+      supplies: v(months / 6, `${fmt(e.stock_kg / 1000, 1)} t (${fmt(months, 1)} mo)`, e.crew && months < 1 ? "bad" : e.crew && months < 2 ? "warn" : ""),
+      crew: v(e.beds ? e.crew / e.beds : 0, `${e.crew} / ${e.beds} bunks`, ""),
+      modules: v(e.assembled, pct(e.assembled), ""),
+      budget: v(rs > 0 ? e.reserve / rs : 0, `${fmt(e.reserve)} M$`, e.reserve < 0 ? "bad" : rs > 0 && e.reserve < rs * 0.5 ? "warn" : ""),
+      science: v(e.science_fraction, pct(e.science_fraction), ""),
+    };
+  }
   const battNeed = ev.power.battery_usable_wh ? ev.power.eclipse_need_wh / ev.power.battery_usable_wh : 0;
   const v = (f, text, st) => ({ f: Math.max(0, Math.min(1, f)), text, st });
   if (!e) e = { power_margin: ev.power.margin, battery_pct: 1, fuel_pct: ev.mass.propellant > 0 ? 1 : null, data_gb: 0,
@@ -1501,7 +1582,7 @@ function renderDash(res, mi, stage) {
   const status = last ? `<span class="${last.impact}">M${String(last.month).padStart(2, "0")} ${esc(last.text)}</span>`
     : `<span>${stage === "COUNTDOWN" ? "All stations: go for launch." : "All systems nominal."}</span>`;
   box.innerHTML = `<div class="fd-head"><span>${icon("dish", 14)} MISSION CONTROL &middot; RESOURCES</span><span>${clock}</span></div>
-    <div class="fd-grid">${DASH.map((g) => {
+    <div class="fd-grid">${(sim.program ? DASH_PROGRAM : DASH).map((g) => {
       const x = vals[g.k], lit = Math.round(x.f * 20), hit = prev[g.k] != null && x.f < prev[g.k] - 0.03 && g.k !== "fuel";
       return `<div class="fd-g ${x.st} ${hit ? "hit" : ""}"><div class="fd-l">${icon(g.ic, 14)}${g.label}</div>
         <div class="leds">${Array.from({ length: 20 }, (_, i) => `<i class="${i < lit ? "on" : ""}"></i>`).join("")}</div>
@@ -1509,12 +1590,12 @@ function renderDash(res, mi, stage) {
     }).join("")}</div>
     <div class="fd-status">${status}</div>
     <div class="fd-chart"><canvas id="fdChart" width="780" height="44"></canvas>
-      <div class="fd-key"><b style="color:#6cc24a">science</b> <b style="color:#58b7c9">data home</b> <b style="color:#e0a83a">power margin</b> <b style="color:#d8aa45">reserve</b></div></div>`;
+      <div class="fd-key"><b style="color:#6cc24a">science</b> <b style="color:#58b7c9">${sim.program ? "supplies" : "data home"}</b> <b style="color:#e0a83a">power margin</b> <b style="color:#d8aa45">reserve</b></div></div>`;
   const cv = $("#fdChart"), g = cv.getContext("2d"), W = cv.width, H = cv.height, n = Math.max(1, sim.months_planned);
   g.fillStyle = "#141613"; g.fillRect(0, 0, W, H);
   g.fillStyle = "#2b2e28"; for (let m = 0; m <= n; m += 12) g.fillRect(Math.round(m / n * (W - 1)), 0, 1, H);
   const upto = mi == null ? -1 : mi, rs = sim.reserve_start || 1, dp = sim.data_planned_gb || 1;
-  [["science_fraction", "#6cc24a", (x) => x], ["data_gb", "#58b7c9", (x) => x / dp], ["power_margin", "#e0a83a", (x) => (x + 0.25) / 1.25],
+  [["science_fraction", "#6cc24a", (x) => x], sim.program ? ["stock_kg", "#58b7c9", (x) => x / 8000] : ["data_gb", "#58b7c9", (x) => x / dp], ["power_margin", "#e0a83a", (x) => (x + 0.25) / 1.25],
     ["reserve", "#d8aa45", (x) => x / rs]].forEach(([k, col, f]) => {
     g.strokeStyle = col; g.lineWidth = 2; g.beginPath();
     for (let i = 0; i <= upto; i++) {
@@ -1544,8 +1625,9 @@ function playLaunch(res, skipTo = 0) {
   const tt = $("#teletype"); tt.innerHTML = "";
   renderDash._prev = null; renderDash(res, null, "COUNTDOWN");
   let dashKey = "";
-  const d = res.design, lv = d.launch_vehicle, dest = destKeyOf(d), atEarth = dest === "earth";
-  const failAtLaunch = res.sim.events.some((e) => e.kind === "launch_failure");
+  const d = res.design, dest = destKeyOf(d), atEarth = dest === "earth", isProg = !!res.sim.program;
+  const lv = isProg ? ((res.evaluation.program.flights.find((f) => f.lv) || {}).lv || "falcon9") : d.launch_vehicle;
+  const failAtLaunch = !isProg && res.sim.events.some((e) => e.kind === "launch_failure");
   const pImg = new Image(); pImg.src = planet(PLANET_OF[dest], 64);
   const eImg = new Image(); eImg.src = planet("earth", 32);
   const starCv = document.createElement("canvas"); starCv.width = W; starCv.height = H; stars(starCv, 160, res.seed);
@@ -1688,7 +1770,7 @@ function playLaunch(res, skipTo = 0) {
   const crashed = res.sim.events.some((e) => e.kind === "landing_failure");
   const isMars = dest === "mars_surface", gyS = 140;
   const groundCv = document.createElement("canvas"); groundCv.width = W; groundCv.height = H;
-  if (surfaceMission) {
+  if (surfaceMission || (isProg && dest.endsWith("_surface"))) {
     const gg = groundCv.getContext("2d"), rnd = _rng(res.seed);
     if (isMars) for (let y = 0; y < gyS; y++) { gg.fillStyle = mix([196, 140, 92], [233, 196, 140], y / gyS); gg.fillRect(0, y, W, 1); }
     else gg.drawImage(starCv, 0, 0);
@@ -1720,6 +1802,18 @@ function playLaunch(res, skipTo = 0) {
       r(x - 1, y - s - 5, 1, 5, "#9c9284"); r(x - 3, y - s - 6, 5, 1, "#e9e3d6");
     }
     g.restore();
+  }
+  // Programs: the station or base grows as flights arrive; crews come and go.
+  const place = isProg ? S.cat.SCENARIOS[d.scenario].program.place : null;
+  function programPhase(t) {
+    if (place === "station") { g.drawImage(starCv, 0, 0); g.drawImage(limbCv, 0, 40); }
+    else { g.drawImage(groundCv, 0, 0); if (place === "moon" && eSmall.complete) g.drawImage(eSmall, 262, 18); }
+    const tl = res.sim.timeline, mi = Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length));
+    const e = tl[Math.max(0, mi)] || { modules: S.cat.SCENARIOS[d.scenario].program.existing, crew: 0, stock_kg: 0, month: 0 };
+    const abs = res.evaluation.program.start + e.month - 1;
+    drawOutpost(g, place, outpostState(e.modules, e.crew, res.evaluation.program.flights, abs), 160, place === "station" ? 70 : gyS - 12, 2, "real", t * 10);
+    text(`MONTH ${e.month}  CREW ${e.crew}`, 8, 16, 8, "#f4efe2");
+    text(`SUPPLIES ${fmt((e.stock_kg || 0) / 1000, 1)} T`, 8, 28, 8, "#e9e3d6");
   }
   const tracks = [];
   function surfacePhase(t) {
@@ -1777,6 +1871,7 @@ function playLaunch(res, skipTo = 0) {
     if (t >= LT.lift && !rumbled) { rumbled = true; SFX.beep(true); SFX.rumble(); }
     if (failAtLaunch && t - LT.lift > 1.6 && !frame._boom) { frame._boom = true; SFX.boom(); }
     if (failAtLaunch || t < LT.space) rocketPhase(t);
+    else if (isProg) programPhase(t);
     else if (t < LT.transfer) deployPhase(t);
     else if (!atEarth && t < LT.orbit) transferPhase(t);
     else if (surfaceMission) surfacePhase(t);
@@ -1788,7 +1883,7 @@ function playLaunch(res, skipTo = 0) {
       const key = `${stage}|${mi}`;
       if (key !== dashKey) { dashKey = key; renderDash(res, mi, stage || (mi == null ? (failAtLaunch ? "VEHICLE LOST" : "ASCENT") : null)); }
     }
-    if (li >= lines.length && t > nextLine + 1.2 && (failAtLaunch || t > (atEarth ? LT.transfer : LT.orbit) + 2)) return finish();
+    if (li >= lines.length && t > nextLine + 1.2 && (failAtLaunch || t > (isProg ? LT.space + 4 : atEarth ? LT.transfer : LT.orbit) + 2)) return finish();
     requestAnimationFrame(frame);
   }
   function finish() { if (done) return; done = true; showNews(res); }
@@ -1817,7 +1912,7 @@ function buildTeletype(res) {
     const evs = byMonth[t.month] || [];
     evs.forEach((e) => L.push({ text: `M${String(t.month).padStart(2, "0")} ${e.text}`, cls: e.impact, pause: e.impact === "fatal" ? 1.6 : 0.9 }));
     if (!evs.length && t.month % 6 === 0)
-      L.push({ text: `M${String(t.month).padStart(2, "0")} ${t.phase === "cruise" ? "cruising, all systems nominal" : `science ${pct(t.science_fraction)} collected`}`, cls: "month", pause: 0.18 });
+      L.push({ text: `M${String(t.month).padStart(2, "0")} ${sim.program ? `crew ${t.crew}, supplies ${fmt(t.stock_kg / 1000, 1)} t` : t.phase === "cruise" ? "cruising, all systems nominal" : `science ${pct(t.science_fraction)} collected`}`, cls: "month", pause: 0.18 });
   });
   L.push({ text: `END OF TRANSMISSION · OUTCOME: ${sim.outcome.toUpperCase()}`, pause: 0.8 });
   return L;
@@ -1878,7 +1973,7 @@ function showNews(res) {
     </div>`;
   const pc = $("#newsPhoto"), g = pc.getContext("2d");
   stars(pc, 60, res.seed);
-  const im = new Image(); im.onload = () => { g.imageSmoothingEnabled = false; g.drawImage(im, 150, 4, 68, 68); drawCraft(g, 90, 38, res.design); };
+  const im = new Image(); im.onload = () => { g.imageSmoothingEnabled = false; g.drawImage(im, 150, 4, 68, 68); if (res.sim.program) { const ls = res.sim.timeline[res.sim.timeline.length - 1] || {}; drawOutpost(g, S.cat.SCENARIOS[res.design.scenario].program.place, outpostState(ls.modules || [], ls.crew || 0, res.evaluation.program.flights, null), 80, 40, 1); } else drawCraft(g, 90, 38, res.design); };
   im.src = planet(PLANET_OF[destKeyOf(res.design)], 48);
   animateNews(sc);
   const idx = ORDER.indexOf(res.design.scenario);

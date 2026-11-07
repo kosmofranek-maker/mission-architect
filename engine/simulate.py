@@ -24,6 +24,13 @@ BATTERY_FADE_YEAR = 0.03
 def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dict:
     ev = evaluation or evaluate(design)
     d = ev["design"]
+    if ev.get("kind") == "program":
+        if not ev["ok"]:
+            return {"seed": seed, "launched": False, "outcome": "not_launched", "events": [], "timeline": [],
+                    "science_fraction": 0.0, "science_score": 0.0, "months_survived": 0, "months_planned": 0,
+                    "reserve_end": ev["cost"]["reserve"], "evaluation": ev}
+        from .program import simulate_program
+        return simulate_program(ev, seed)
     rng = random.Random(seed)
     em = C.DIFFICULTY[d["difficulty"]]["event_mult"]
     cruise_m = round(ev["cruise_years"] * 12)

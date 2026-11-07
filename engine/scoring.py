@@ -62,6 +62,13 @@ def analysis(sim: dict, parts: dict) -> list[str]:
             out.append(f"The mission was lost in month {fatal['month']}: {fatal['text']} {fatal['why']}")
     elif sim["outcome"] == "cancelled":
         out.append("Budget cuts ate all reserves and operations were cancelled. A bigger reserve buys resilience.")
+    if sim.get("program"):
+        lost = [e for e in sim["events"] if e["kind"] in ("launch_failure", "landing_failure", "berth", "abort")]
+        if lost:
+            out.append(f"{len(lost)} flight(s) never delivered. Programs survive single failures only with spare supplies and margin.")
+        if sim.get("shortage") is not None:
+            out.append("The crew ran out of supplies and came home early. More cargo, earlier, keeps a reserve for bad luck.")
+        out.append(f"Astronauts lived and worked there for {sim.get('crew_months', 0):.0f} crew-months.")
     weak = min(ev["science"]["goals"], key=lambda g: g["fraction"])
     if weak["fraction"] < 1:
         out.append(f"Weakest science goal: '{weak['label']}' at {weak['fraction']:.0%}. "

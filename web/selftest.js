@@ -51,7 +51,7 @@
     document.querySelector('.tab[data-tab="power"]').click();
     ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
     S.mode = "career"; openSelect();
-    ok($$(".folder").length === 11 && $$(".folder.locked").length >= 1 && /Rover/.test($("#folders").textContent), "career has 11 mission files incl. rover");
+    ok($$(".folder").length === 14 && $$(".folder.locked").length >= 1 && /Crewed program/.test($("#folders").textContent), "career has 14 mission files incl. crewed programs");
     // ---- surface mission: landing tab, sites, airbags need air
     S.mode = "free"; openSelect();
     document.querySelector('.folder[data-sc="lunar_lander"]').click();
@@ -61,6 +61,20 @@
     ok(document.querySelector('.card[data-f="edl"][data-k="airbags"]').classList.contains("bad") && $("#labCanvas").dataset.lab === "edl", "airbags marked unusable on the airless Moon");
     document.querySelector('.tab[data-tab="instr"]').click();
     ok(document.querySelector('.card[data-k="drill"]') && !document.querySelector('.card[data-k="hirise"]'), "surface instruments only");
+    // ---- program: manifest with flights, order rules, crew rating
+    S.mode = "free"; openSelect();
+    document.querySelector('.folder[data-sc="orbital_outpost"]').click();
+    await until(() => S.ev && S.ev.design.scenario === "orbital_outpost");
+    ok($$("#tabs .tab").length === 2 && $("#planChart") && $$('#binder [data-add]').length === 7, "program desk: manifest + partners, 7 payloads");
+    document.querySelector('#binder [data-add="hab"]').click();
+    await until(() => S.ev && S.ev.program.flights.length === 1);
+    ok(S.ev.issues.some((i) => i.area === "order"), "habitat before the core is blocked");
+    document.querySelector('#binder [data-add="core"]').click();
+    await until(() => S.ev && S.ev.program.flights.length === 2);
+    ok(!S.ev.issues.some((i) => i.area === "order") && S.ev.program.flights[1].lv === "vulcan", "core fixes the order; cheapest rocket that lifts it");
+    document.querySelector('#binder [data-del="0"]').click();
+    await until(() => S.ev && S.ev.program.flights.length === 1);
+    ok(true, "flight removed");
     // ---- solo, build from blank
     S.mode = "free"; openSelect();
     document.querySelector('.folder[data-sc="mars_climate"]').click();
@@ -112,8 +126,13 @@
       if (sc === "wildfire") {
         ok(S.advice.field === "orbit" && /I suggest/.test($("#speech").dataset.full) && !$(".advice") && !$(".card.suggest"), "cadet: hint only in the client's speech");
       }
-      for (let n = 0; n < 25 && S.advice && !(S.ev.ok && !S.ev.issues.some((i) => i.severity === "blocker")); n++) {
+      for (let n = 0; n < 30 && S.advice && (isProgram() || !(S.ev.ok && !S.ev.issues.some((i) => i.severity === "blocker"))); n++) {
         const a = S.advice;
+        if (a.program) {
+          a.apply();
+          await until(() => S.ev && JSON.stringify(S.ev.design.manifest) === JSON.stringify(S.design.manifest) && S.advice !== a);
+          continue;
+        }
         if (a.field === "instruments" && S.ev.design.instruments.includes(a.key)) break;
         await pick(FIELD_TAB[a.field], a.field, a.key);
       }
@@ -124,6 +143,7 @@
         ok(/Smallest array|RTGs already|biggest array/.test($("#hbBody").textContent), "cadet handbook: power tips suggest an array");
         $("#hbClose").click();
       }
+      if (isProgram()) ok(S.ev.science.score >= 70, `cadet: program ${sc} reaches its goals (${S.ev.science.score})`);
       ok(S.ev.ok, `cadet: suggestions alone build a flight-ready ${sc} (left: ${S.ev.issues.filter((i) => i.severity === "blocker").map((i) => i.text).join("; ")})`);
     }
     // ---- Flight Director: only "requirements not met", no details, no coloured meters
