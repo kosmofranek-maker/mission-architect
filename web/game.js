@@ -101,23 +101,45 @@ const SFX = (() => {
     tick() { tone(2200, 1400, 0.02, 0.04, "square"); },
     rumble() { noise(3.5, 160, 0.5, "lowpass", 60, 0.3); },
     paper() { noise(0.25, 2500, 0.12, "highpass"); },
+    click() { tone(1500, 900, 0.035, 0.07, "square"); },
+    select() { tone(520, 780, 0.07, 0.12, "triangle"); setTimeout(() => tone(780, 1040, 0.06, 0.1, "triangle"), 55); noise(0.05, 3000, 0.06, "highpass"); },
+    deselect() { tone(700, 380, 0.09, 0.1, "triangle"); },
+    page() { noise(0.16, 1800, 0.1, "bandpass", 4200, 0.03); },
+    error() { tone(140, 110, 0.12, 0.12, "square"); setTimeout(() => tone(140, 100, 0.16, 0.12, "square"), 140); },
+    chime() { [660, 880, 1320].forEach((f, i) => setTimeout(() => tone(f, f, 0.35, 0.12), i * 110)); },
+    ding() { tone(1320, 1320, 0.4, 0.09); tone(1980, 1980, 0.25, 0.04); },
+    beep(hi) { tone(hi ? 1320 : 880, hi ? 1320 : 880, hi ? 0.45 : 0.12, 0.1, "square"); },
+    boom() { noise(2.2, 900, 0.7, "lowpass", 50, 0.01); tone(90, 30, 1.2, 0.5); },
+    pop() { tone(420, 900, 0.06, 0.1, "sine"); },
+    suggest() { tone(990, 990, 0.08, 0.06); setTimeout(() => tone(1240, 1240, 0.12, 0.06), 90); },
   };
 })();
+// every button gets a soft mechanical click
+document.addEventListener("click", (e) => { if (e.target.closest(".btn:not(:disabled)")) SFX.click(); }, true);
 
 function toast(msg, ms = 2600) {
   const t = $("#toast"); t.innerHTML = msg; t.classList.remove("hidden");
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add("hidden"), ms);
 }
 function show(id) { $$(".screen").forEach((s) => s.classList.toggle("active", s.id === id)); }
+// Desktop/tablet landscape: the 1280x720 stage is scaled to fit. Phones / narrow portrait: a scrolling mobile layout.
 function fit() {
+  const mobile = innerWidth < 820 || (innerWidth < innerHeight && innerWidth < 1000);
+  document.documentElement.classList.toggle("mobile", mobile);
+  const st = $("#stage");
+  if (mobile) { st.style.transform = ""; S.scale = 1; return; }
   const s = Math.min(innerWidth / 1280, innerHeight / 720);
-  const st = $("#stage"); st.style.transform = `scale(${s}) translate(-50%,-50%)`; st.style.transformOrigin = "0 0";
+  S.scale = s; st.style.transform = `scale(${s}) translate(-50%,-50%)`; st.style.transformOrigin = "0 0";
 }
+const isMobile = () => document.documentElement.classList.contains("mobile");
 const canEdit = (field) => S.mode !== "team" || S.myRoles.includes(S.cat.FIELD_OWNER[field]);
 const scen = () => S.cat.SCENARIOS[S.design.scenario];
 const destKey = () => scen().destination;
 // orbit may be unchosen (null): fall back to the destination's first orbit for display only
 const curOrbit = () => S.cat.ORBITS[destKey()][S.design.orbit] || Object.values(S.cat.ORBITS[destKey()])[0];
+// guidance level: easy = Cadet (suggests what to pick), normal = Engineer (says exactly what is wrong),
+// hard = Flight Director (only says that requirements are not met)
+const level = () => (S.design && S.design.difficulty) || "normal";
 
 // ---------------------------------------------------------------------------- boot
 async function boot() {
@@ -148,7 +170,7 @@ function go(where) {
   stopPoll();
   if (where === "title") return show("title");
   if (where === "career" || where === "free") { S.mode = where; return openSelect(); }
-  if (where === "tutorial") { S.mode = "career"; store.set("difficulty", store.get("difficulty", "normal")); startMission("wildfire"); return startTutorial(true); }
+  if (where === "tutorial") { S.mode = "career"; startMission("wildfire"); S.design.difficulty = "easy"; renderAll(); evaluateSoon(0); return startTutorial(true); }
   if (where === "team") { if (!S.player) return nameFirst(); return openLobby(); }
   if (where === "hall") return openHall();
 }
@@ -181,7 +203,7 @@ function openSelect() {
       ${lock ? `<div class="f-lock">${icon("lock", 64)}</div>` : ""}
     </div>`;
   }).join("");
-  $$(".folder").forEach((f) => f.onclick = () => { if (!f.classList.contains("locked")) startMission(f.dataset.sc); });
+  $$(".folder").forEach((f) => f.onclick = () => { if (f.classList.contains("locked")) return SFX.error(); SFX.page(); startMission(f.dataset.sc); });
   show("select");
 }
 
@@ -191,7 +213,7 @@ function startMission(sc, design) {
     d.difficulty = store.get("difficulty", "normal");
     d.sandbox = S.mode === "free" && $("#sandbox").checked;
   }
-  S.design = d; S.tab = "orbit"; S.introShown = false; S.ev = null;
+  S.design = d; S.tab = "orbit"; S.introShown = false; S.ev = null; S._prevOk = undefined; S._prevMet = null;
   openDesk();
   if (!design && S.mode === "career" && sc === "wildfire" && !store.get("tutorialDone", false) && !S.tut) startTutorial(true);
 }
@@ -219,8 +241,10 @@ function evaluateSoon(ms = 90) {
 async function setField(field, value) {
   if (!canEdit(field)) {
     const role = S.cat.ROLES[S.cat.FIELD_OWNER[field]];
+    SFX.error();
     return toast(`${icon("lock")} Only the ${role.name} may change that.`);
   }
+  if (field === "instruments" && value.length < S.design.instruments.length) SFX.deselect(); else SFX.select();
   S.introShown = true;
   $("#stampMark").classList.add("hidden");
   if (S.mode === "team") {
@@ -239,6 +263,11 @@ function renderAll() {
 
 function renderEval() {
   if (!S.ev) return;
+  S.advice = level() === "easy" ? advisor() : null;
+  const met = S.ev.science.goals.filter((g) => g.met).length;
+  if (S._prevOk === false && S.ev.ok) SFX.chime();
+  else if (S._prevMet != null && met > S._prevMet) SFX.ding();
+  S._prevOk = S.ev.ok; S._prevMet = met;
   renderTop(); renderRequest(); renderReview(); renderClient(); renderBinder(); drawBlueprint(); renderApprovals();
 }
 
@@ -251,6 +280,151 @@ function renderTop() {
   if (S.ev) $("#tbBudget").innerHTML = `${icon("coin")} ${fmt(S.ev.cost.total)} / ${fmt(S.ev.cost.budget)} M$`;
 }
 
+// ---------------------------------------------------------------------------- Cadet advisor
+const PICK_ORDER = ["orbit", "instruments", "bus", "solar", "battery", "adcs", "propulsion", "comms", "ground", "computer", "launch_vehicle"];
+const FIELD_TAB = { orbit: "orbit", instruments: "instr", bus: "bus", solar: "power", battery: "power", adcs: "adcs",
+  propulsion: "prop", comms: "comms", ground: "comms", computer: "computer", launch_vehicle: "launch", rtg: "power" };
+
+function downlinkGb(commsKey, groundKey) {
+  const c = S.cat, dest = c.DESTINATIONS[destKey()], x = c.COMMS[commsKey], g = c.GROUND[groundKey];
+  if (dest.earth_au > g.max_earth_au) return 0;
+  const rate = (dest.earth_au ? Math.min(x.max_mbps, x.mbps_1au / dest.earth_au ** 2) : x.max_mbps) * g.gain;
+  return rate * g.hours * (S.design.orbit ? curOrbit().earth_view : 1) * 3.6;
+}
+
+function recommend(f) {
+  const c = S.cat, d = S.design, ev = S.ev, dest = c.DESTINATIONS[destKey()], orbits = c.ORBITS[destKey()], sc = scen();
+  const cheapest = (arr) => arr.sort((a, b) => (a[1].cost ?? a[1].cost_year) - (b[1].cost ?? b[1].cost_year))[0];
+  const life = (d.orbit ? curOrbit().cruise_years : 0) + d.years;
+  switch (f) {
+    case "orbit": {
+      const val = (o) => sc.goals.reduce((a, g) => a + g.weight * (o.science[g.tag] || 0), 0) * (0.6 + 0.4 * o.coverage);
+      const [k, o] = Object.entries(orbits).sort((a, b) => val(b[1]) - val(a[1]))[0];
+      return { key: k, why: `it gives the best science for this mission's goals (covers ${pct(o.coverage)} of the surface)` };
+    }
+    case "instruments": {
+      const goals = (ev ? ev.science.goals : sc.goals.map((g) => ({ ...g, fraction: 0 })))
+        .filter((g) => g.fraction < (g.required ? 0.5 : 1)).sort((a, b) => (b.required - a.required) || (b.weight - a.weight));
+      for (const g of goals) {
+        const cand = Object.entries(c.INSTRUMENTS).filter(([k, i]) => i.tags.includes(g.tag) && !d.instruments.includes(k))
+          .sort((a, b) => b[1].value / (b[1].cost + 5) - a[1].value / (a[1].cost + 5));
+        if (cand.length) return { key: cand[0][0], why: `it serves "${g.label}"${g.required ? ", a required goal" : ""}` };
+      }
+      return null;
+    }
+    case "bus": {
+      const n = Math.max(1, d.instruments.length), base = ev && ev.mass.dry != null ? ev.mass.dry - (d.bus ? c.BUSES[d.bus].mass : 0) : 0;
+      const fit = Object.entries(c.BUSES).filter(([, b]) => b.slots >= n && b.max_dry >= (base + b.mass) * 1.25);
+      return fit.length ? { key: cheapest(fit)[0], why: `it is the cheapest bus with ${n}+ slot(s) that holds your parts with room to spare` }
+        : { key: "flagship", why: "only the biggest bus can hold all this" };
+    }
+    case "solar": {
+      if (!ev) return null;
+      const sunF = 1 / dest.sun_au ** 2, deg = (1 - (destKey() === "europa" ? 0.04 : 0.02)) ** life;
+      const ef = d.orbit ? curOrbit().eclipse_frac : 0.35, est = ev.power.load + (d.instruments.length ? 0 : 30) + 40;
+      const need = Math.max(0, (est - ev.power.rtg) * 1.25 / (1 - ef) / sunF / deg);
+      if (need === 0) return { key: "none", why: "your RTGs already cover the power" };
+      const fit = Object.entries(c.SOLAR_ARRAYS).filter(([, a]) => a.power_1au >= need).sort((a, b) => a[1].power_1au - b[1].power_1au);
+      return fit.length ? { key: fit[0][0], why: `it is the smallest array that powers ~${fmt(est)} W here with margin` }
+        : { key: "giant", why: `even this is not enough this far from the Sun: also add RTGs in the Power tab` };
+    }
+    case "battery": {
+      if (!ev) return null;
+      const eh = d.orbit ? curOrbit().eclipse_h : 1, wh = eh * Math.max(0, ev.power.load + 40 - ev.power.rtg) / 0.6;
+      const fit = Object.entries(c.BATTERIES).filter(([, b]) => b.wh >= wh * 1.1).sort((a, b) => a[1].wh - b[1].wh);
+      return { key: fit.length ? fit[0][0] : "b8000", why: `the longest shadow lasts ${eh} h and you need ~${fmt(wh)} Wh stored` };
+    }
+    case "adcs": {
+      const strict = Math.min(...d.instruments.map((k) => c.INSTRUMENTS[k].pointing_deg), ["xhga", "kahga"].includes(d.comms) ? 0.5 : 99, 99);
+      const fit = Object.entries(c.ADCS).filter(([, a]) => a.pointing_deg <= strict && (!a.needs_magnetic || dest.magnetic));
+      return { key: cheapest(fit.length ? fit : [["precision", c.ADCS.precision]])[0],
+        why: strict < 99 ? `your most demanding part needs ${strict}° pointing` : "it is the cheapest option that works here" };
+    }
+    case "propulsion": {
+      if (!d.orbit || !ev) return { key: "mono", why: "a reliable all-rounder" };
+      const o = curOrbit(), dv = (o.dv_insert + o.dv_per_year * d.years) * 1.1;
+      const dry = (ev.mass.dry ?? 0) - (ev.mass.tanks ?? 0) - (d.propulsion ? c.PROPULSION[d.propulsion].mass : 0);
+      const opts = Object.entries(c.PROPULSION).map(([k, p]) => {
+        if (!p.isp) return [k, o.dv_insert === 0 && o.max_years_no_prop >= d.years ? 0 : Infinity];
+        const r = Math.exp(dv / (p.isp * 9.80665)) - 1, fuel = r * 0.08 >= 1 ? Infinity : ((dry + p.mass) * r) / (1 - 0.08 * r);
+        return [k, p.max_prop && fuel > p.max_prop ? Infinity : p.mass + fuel * 1.08];
+      }).sort((a, b) => a[1] - b[1]);
+      return { key: opts[0][0], why: `engine + fuel is lightest for the ${fmt(dv)} m/s this mission needs` };
+    }
+    case "comms": {
+      const need = ev ? ev.data.generated_gb_day : 1, g = d.ground || (dest.earth_au ? "dsn34" : "commercial");
+      const okPoint = !d.adcs || c.ADCS[d.adcs].pointing_deg <= 0.5;
+      const fit = Object.entries(c.COMMS).filter(([k]) => okPoint || !["xhga", "kahga"].includes(k));
+      const good = fit.filter(([k]) => downlinkGb(k, g) >= need);
+      if (good.length) return { key: cheapest(good)[0], why: `it sends home all ${fmt(need, 1)} Gb/day your instruments collect` };
+      const best = fit.sort((a, b) => downlinkGb(b[0], g) - downlinkGb(a[0], g))[0];
+      return { key: best[0], why: "it is the fastest link you can point" };
+    }
+    case "ground": {
+      const need = ev ? ev.data.generated_gb_day : 1, x = d.comms || (dest.earth_au ? "xhga" : "xlga");
+      const fit = Object.entries(c.GROUND).filter(([, g]) => dest.earth_au <= g.max_earth_au);
+      const good = fit.filter(([k]) => downlinkGb(x, k) >= need);
+      if (good.length) return { key: cheapest(good)[0], why: dest.earth_au ? "only the Deep Space Network can hear you this far, and it is enough" : "it gives enough contact time per day" };
+      return { key: fit.sort((a, b) => downlinkGb(x, b[0]) - downlinkGb(x, a[0]))[0][0], why: "it collects the most data per day" };
+    }
+    case "computer": {
+      const env = ev ? ev.radiation.env : dest.radiation, shield = d.bus === "flagship" ? 1 : 0, store = ev ? ev.data.storage_need_gb : 0;
+      const fit = Object.entries(c.COMPUTERS).filter(([, x]) => x.rad + shield >= env && x.storage_gb >= store);
+      return { key: cheapest(fit.length ? fit : [["radhard", c.COMPUTERS.radhard]])[0], why: `radiation here is ${c.RADIATION_LABEL[env].toLowerCase()}, and it survives that` };
+    }
+    case "launch_vehicle": {
+      if (!ev || ev.mass.wet == null) return null;
+      const tgt = curOrbit().lv_target, fit = Object.entries(c.LAUNCH_VEHICLES).filter(([, v]) => v.capacity[tgt] >= ev.mass.wet * 1.15);
+      return fit.length ? { key: cheapest(fit)[0], why: `it is the cheapest rocket that lifts your ${fmt(ev.mass.wet)} kg with margin` }
+        : { key: "sls", why: "nothing smaller can lift it; better cut mass" };
+    }
+  }
+  return null;
+}
+
+function issueField(i) {
+  const t = i.text;
+  if (i.field) return i.field;
+  return { launch: "launch_vehicle", propulsion: "propulsion", radiation: "computer", adcs: "adcs" }[i.area]
+    || (i.area === "bus" ? (/slots/.test(t) ? "bus" : "bus") : null)
+    || (i.area === "power" ? (/Battery|eclipse/i.test(t) ? "battery" : /RTG/.test(t) ? null : "solar") : null)
+    || (i.area === "comms" ? (/high-gain/.test(t) ? "adcs" : /hear you/.test(t) ? "ground" : /Recorder/.test(t) ? "computer" : "comms") : null)
+    || (i.area === "science" && /Required goal/.test(t) ? "instruments" : null);
+}
+
+// The next thing a Cadet should do: pick a missing part, or swap one that causes a problem.
+function advisor() {
+  const d = S.design, ev = S.ev;
+  if (!ev) return null;
+  for (const f of PICK_ORDER) {
+    if (f === "instruments" ? !d.instruments.length : d[f] == null) {
+      const r = recommend(f);
+      if (r) return { ...r, field: f, action: "pick" };
+    }
+  }
+  for (const sev of ["blocker", "warning"]) {
+    for (const i of ev.issues.filter((x) => x.severity === sev)) {
+      let f = issueField(i); if (!f) continue;
+      let r = recommend(f);
+      if (f === "solar" && r && r.key === d.solar && d.rtg < S.cat.RTG.max) {
+        f = "rtg"; r = { key: d.rtg + 1, why: `sunlight is too weak here; each RTG adds ${S.cat.RTG.power} W, day and night` };
+      }
+      if (f === "rtg") return { ...r, field: f, action: "swap", issue: i };
+      if (r && (f === "instruments" ? !d.instruments.includes(r.key) : d[f] !== r.key)) return { ...r, field: f, action: "swap", issue: i };
+    }
+  }
+  return null;
+}
+const partName = (f, k) => (f === "rtg" ? `${S.cat.RTG.name} (${k} in total)` : optionsFor(f)[k].name);
+
+function showSuggestion() {
+  const a = S.advice; if (!a) return;
+  S.tab = FIELD_TAB[a.field]; renderTabs(); renderBinder();
+  const card = a.field === "rtg" ? $(".card.rtgcard") : document.querySelector(`.card[data-f="${a.field}"][data-k="${a.key}"]`);
+  if (card) { card.scrollIntoView({ behavior: "smooth", block: "center" }); card.classList.remove("pulse"); void card.offsetWidth; card.classList.add("pulse"); }
+  SFX.suggest();
+}
+
 function renderClient() {
   const c = CLIENTS[S.design.scenario];
   let mood = "neutral", text = `"${scen().story}"`;
@@ -259,7 +433,19 @@ function renderClient() {
     const miss = ev.issues.filter((i) => i.area === "missing");
     const b = ev.issues.find((i) => i.severity === "blocker" && i.area !== "missing");
     const w = ev.issues.find((i) => i.severity === "warning");
-    if (miss.length && !b) { mood = "neutral"; text = `"Good. ${miss.length} part${miss.length > 1 ? "s" : ""} still missing. Next: ${miss[0].text.replace(/^Choose /, "").replace(/\.$/, "")}."`; }
+    const lv = level(), a = S.advice;
+    if (lv === "easy" && a) {
+      mood = a.action === "pick" ? "neutral" : b ? "angry" : "neutral";
+      const name = partName(a.field, a.key);
+      text = a.action === "pick"
+        ? `"Next we need ${FIELD_LABEL[a.field].toLowerCase()}. I suggest the ${name}: ${a.why}."`
+        : `"${a.issue.text} Try the ${name}: ${a.why}."`;
+    } else if (lv === "hard") {
+      if (miss.length) { mood = "neutral"; text = `"The spacecraft is not complete yet."`; }
+      else if (b) { mood = "angry"; text = `"This design does not meet our requirements."`; }
+      else if (w) { mood = "neutral"; text = `"It meets the requirements. I still have concerns."`; }
+      else { mood = "happy"; text = `"Requirements met. Proceed."`; }
+    } else if (miss.length && !b) { mood = "neutral"; text = `"Good. ${miss.length} part${miss.length > 1 ? "s" : ""} still missing."`; }
     else if (b) { mood = "angry"; text = `"${b.text}" ${["Fix it before the board sees this.", "This will never fly.", "Try again."][b.text.length % 3]}`; }
     else if (w) { mood = "neutral"; text = `"It could fly, but: ${w.text.charAt(0).toLowerCase() + w.text.slice(1)}"`; }
     else { mood = "happy"; text = `"Excellent work. I can take this design to the board."`; }
@@ -295,7 +481,7 @@ function renderTabs() {
     const todo = t.fields.some((f) => f !== "rtg" && (f === "instruments" ? !S.design.instruments.length : S.design[f] == null));
     return `<div class="tab ${t.id === S.tab ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}">${icon(locked ? "lock" : t.icon, 14)}${t.label}${todo ? '<span class="todo" title="still to choose"></span>' : ""}</div>`;
   }).join("");
-  $$("#tabs .tab").forEach((el) => el.onclick = () => { S.tab = el.dataset.tab; renderTabs(); renderBinder(); });
+  $$("#tabs .tab").forEach((el) => el.onclick = () => { if (S.tab !== el.dataset.tab) SFX.page(); S.tab = el.dataset.tab; renderTabs(); renderBinder(); });
 }
 
 function optionsFor(field) {
@@ -342,7 +528,7 @@ function renderBinder() {
     h += `<h4>${FIELD_LABEL[field]}</h4>`;
     if (field === "rtg") {
       const R = S.cat.RTG;
-      h += `<div class="cards"><div class="card ${S.design.rtg ? "sel" : ""}" style="cursor:default">
+      h += `<div class="cards"><div class="card rtgcard ${S.design.rtg ? "sel" : ""} ${S.advice && S.advice.field === "rtg" ? "suggest" : ""}" style="cursor:default">
         <div class="ci">${icon("rtg", 32)}</div><div class="cn">${esc(R.name)}</div>
         <div class="cs">${R.power} W each · ${R.mass} kg · ${R.cost} M$</div>
         <div class="stepper"><button class="btn tiny" data-rtg="-1" ${canEdit("rtg") ? "" : "disabled"}>-</button>
@@ -354,7 +540,8 @@ function renderBinder() {
     h += `<div class="cards">` + Object.entries(opts).map(([k, o]) => {
       const sel = field === "instruments" ? S.design.instruments.includes(k) : S.design[field] === k;
       const tags = field === "instruments" ? `<div class="tagrow">${o.tags.map((t) => `<span class="tag ${goalTags.has(t) ? "hit" : ""}">${t}</span>`).join("")}</div>` : "";
-      return `<div class="card ${sel ? "sel" : ""} ${cardBad(field, k, o) ? "bad" : ""} ${locked ? "disabled" : ""}" data-f="${field}" data-k="${k}">
+      const sug = S.advice && S.advice.field === field && S.advice.key === k;
+      return `<div class="card ${sel ? "sel" : ""} ${level() !== "hard" && cardBad(field, k, o) ? "bad" : ""} ${sug ? "suggest" : ""} ${locked ? "disabled" : ""}" data-f="${field}" data-k="${k}">
         <div class="ci">${icon(PART_ICON[field](k), 32)}</div>
         <div class="cn">${esc(o.name)}</div><div class="cs">${statLine(field, k, o)}</div>${tags}
         ${o.learn ? `<div class="cl">${esc(o.learn)}</div>` : ""}</div>`;
@@ -375,6 +562,7 @@ function renderBinder() {
 }
 
 function meter(ic, label, frac, val, state, mark) {
+  if (level() === "hard") { state = ""; mark = null; } // Flight Director: raw numbers only, judge them yourself
   return `<div class="meter">${icon(ic)}<span class="lbl">${label}</span>
     <div class="bar ${state}"><i style="width:${Math.max(0, Math.min(100, frac * 100))}%"></i>${mark != null ? `<span class="mark" style="left:${mark * 100}%"></span>` : ""}</div>
     <span class="val">${val}</span></div>`;
@@ -400,13 +588,38 @@ function renderReview() {
     meter("coin", "COST", c.total / c.budget, `${fmt(c.total)}/${fmt(c.budget)} M$`,
       c.total > c.budget && !S.design.sandbox ? "bad" : c.reserve < 0.1 ? "warn" : "", 0.9) +
     meter("star", "SCIENCE", ev.science.score / 100, `${fmt(ev.science.score)} / 100`, ev.science.score < 40 ? "bad" : ev.science.score < 70 ? "warn" : "", 0.7);
+  const lvH = level() === "hard", cell = (ic, v, st) => `<span class="ms ${lvH ? "" : st}">${icon(ic, 12)}${v}</span>`;
+  $("#mStatus").innerHTML =
+    cell("weight", D.launch_vehicle && D.orbit && m.capacity ? pct(mf) : "-", mf > 1 ? "bad" : m.margin < req ? "warn" : "") +
+    cell("bolt", D.solar != null || D.rtg ? pct(pf) : "-", pf > 1 ? "bad" : p.margin < 0.2 ? "warn" : "") +
+    cell("disk", D.instruments.length && D.comms && D.ground ? pct(d.return) : "-", d.return < 0.5 ? "bad" : d.return < 0.8 ? "warn" : "") +
+    cell("coin", `${fmt(c.total)}/${fmt(c.budget)}`, c.total > c.budget && !D.sandbox ? "bad" : c.reserve < 0.1 ? "warn" : "") +
+    cell("star", fmt(ev.science.score), ev.science.score < 40 ? "bad" : ev.science.score < 70 ? "warn" : "");
   const nb = ev.issues.filter((i) => i.severity === "blocker").length;
-  $("#revStatus").innerHTML = nb ? `${icon("block", 12)} ${nb} BLOCKER${nb > 1 ? "S" : ""}` : `${icon("check", 12)} FLIGHT READY`;
+  $("#revStatus").innerHTML = nb ? (level() === "hard" ? `${icon("block", 12)} NOT READY` : `${icon("block", 12)} ${nb} BLOCKER${nb > 1 ? "S" : ""}`) : `${icon("check", 12)} FLIGHT READY`;
   const ICON_OF = { blocker: "block", warning: "warn", info: "info" };
-  $("#issues").innerHTML = ev.issues.length ? ev.issues.map((i, n) =>
-    `<div class="issue" data-n="${n}">${icon(ICON_OF[i.severity])}<span>${esc(i.text)}</span><span class="why">${esc(i.why)}</span></div>`).join("")
-    : `<div class="issue">${icon("check")}<span>No findings. Nice, clean design.</span></div>`;
-  $$("#issues .issue").forEach((el) => el.onclick = () => el.classList.toggle("open"));
+  const lv = level(), a = S.advice;
+  let html = "";
+  if (lv === "easy" && a) {
+    html += `<div class="advice">${icon("star")}<span><b>NEXT STEP:</b> ${a.action === "pick" ? `pick ${esc(FIELD_LABEL[a.field].toLowerCase())}` : `fix "${esc(a.issue.text)}"`}.
+      Suggested: <b>${esc(partName(a.field, a.key))}</b>, because ${esc(a.why)}.</span><button class="btn small" id="showMe">Show me</button></div>`;
+  }
+  if (lv === "hard") {
+    const miss = ev.issues.filter((i) => i.area === "missing").length, nb = ev.issues.filter((i) => i.severity === "blocker" && i.area !== "missing").length;
+    const nw = ev.issues.filter((i) => i.severity === "warning").length;
+    html += miss ? `<div class="issue">${icon("block")}<span>Spacecraft incomplete.</span></div>` : "";
+    html += nb ? `<div class="issue">${icon("block")}<span>The design does not meet requirements.</span></div>` : "";
+    html += nw ? `<div class="issue">${icon("warn")}<span>Reviewers have concerns.</span></div>` : "";
+    html += !miss && !nb && !nw ? `<div class="issue">${icon("check")}<span>All requirements met.</span></div>` : "";
+    html += `<div class="req-small">Flight Director rules: the board does not explain itself. Check the numbers.</div>`;
+  } else {
+    html += ev.issues.length ? ev.issues.map((i, n) =>
+      `<div class="issue" data-n="${n}">${icon(ICON_OF[i.severity])}<span>${esc(i.text)}</span><span class="why">${esc(i.why)}</span></div>`).join("")
+      : `<div class="issue">${icon("check")}<span>No findings. Nice, clean design.</span></div>`;
+  }
+  $("#issues").innerHTML = html;
+  $$("#issues .issue[data-n]").forEach((el) => el.onclick = () => { SFX.paper(); el.classList.toggle("open"); });
+  if ($("#showMe")) $("#showMe").onclick = showSuggestion;
   $("#bpLabel").textContent = S.design.bus ? `${S.cat.BUSES[S.design.bus].name} · dry ${fmt(m.dry)} kg · fuel ${fmt(m.propellant)} kg · Δv ${fmt(m.dv)} m/s` : "";
   const ready = ev.ok && (S.mode !== "team" || Object.values(S.approvals).every(Boolean));
   $("#launchBtn").textContent = S.mode === "team" ? "Launch" : "Approve & launch";
@@ -501,7 +714,7 @@ function wireDesk() {
   $("#helpBtn").onclick = () => startTutorial(false);
   $("#tutNext").onclick = () => tutAdvance();
   $("#tutSkip").onclick = () => endTutorial(true);
-  $("#menuBtn").onclick = () => { $("#mMsg").textContent = ""; soundLabel(); $("#menu").classList.remove("hidden"); };
+  $("#menuBtn").onclick = () => { SFX.page(); $("#mMsg").textContent = ""; soundLabel(); $("#menu").classList.remove("hidden"); };
   $("#mResume").onclick = () => $("#menu").classList.add("hidden");
   $("#mHints").onclick = () => { $("#menu").classList.add("hidden"); openHints(); };
   $("#mTutorial").onclick = () => { $("#menu").classList.add("hidden"); endTutorial(false); startTutorial(S.mode !== "team"); };
@@ -536,8 +749,10 @@ function stampAnim(kind) {
   return new Promise((done) => {
     const tool = $("#stampTool"), bp = $(".blueprint"), col = $(".col-right"), mark = $("#stampMark");
     tool.src = stampTool(kind === "ok" ? "#4f7a34" : "#a8322a");
-    tool.style.left = `${col.offsetLeft + bp.offsetLeft + bp.offsetWidth / 2 - 48}px`;
-    tool.style.top = `${col.offsetTop + bp.offsetTop + bp.offsetHeight / 2 - 112}px`;
+    const r = bp.getBoundingClientRect(), dr = $("#desk").getBoundingClientRect(), k = S.scale || 1;
+    void col;
+    tool.style.left = `${(r.left - dr.left + r.width / 2) / k - 48}px`;
+    tool.style.top = `${(r.top - dr.top + r.height / 2) / k - 112}px`;
     mark.classList.add("hidden");
     tool.className = "px stamp-tool"; void tool.offsetWidth; tool.classList.add("down");
     setTimeout(() => {
@@ -557,8 +772,10 @@ async function doLaunch() {
   try {
     if (!S.ev.ok) {
       await stampAnim("no");
+      SFX.error();
       S.introShown = true; renderClient();
-      return toast(`${icon("block")} The review board rejects the design. Open the blockers on the review sheet to see why.`);
+      return toast(level() === "hard" ? `${icon("block")} Rejected. The design does not meet requirements.`
+        : `${icon("block")} The review board rejects the design. Open the blockers on the review sheet to see why.`);
     }
     $("#launchBtn").disabled = true;
     const name = `${scen().name}${S.player ? ` (${S.player})` : ""}`;
@@ -591,7 +808,7 @@ function openHints(stageId) {
   $("#hbMission").textContent = `${scen().name.toUpperCase()} · ${S.cat.DESTINATIONS[destKey()].name.toUpperCase()}`;
   $("#hbNav").innerHTML = stages.map((st) => {
     const iss = stageIssues(st), worst = iss.some((i) => i.severity === "blocker") ? "block" : iss.some((i) => i.severity === "warning") ? "warn" : "check";
-    return `<div class="${st.id === stageId ? "on" : ""}" data-s="${st.id}">${icon(st.icon, 14)}${st.label}<span class="st">${icon(worst, 12)}</span></div>`;
+    return `<div class="${st.id === stageId ? "on" : ""}" data-s="${st.id}">${icon(st.icon, 14)}${st.label}${level() === "hard" ? "" : `<span class="st">${icon(worst, 12)}</span>`}</div>`;
   }).join("");
   $$("#hbNav [data-s]").forEach((el) => (el.onclick = () => openHints(el.dataset.s)));
   const st = stages.find((x) => x.id === stageId);
@@ -604,9 +821,11 @@ function openHints(stageId) {
   const ICON_OF = { blocker: "block", warning: "warn", info: "info" };
   $("#hbBody").innerHTML = `
     <h4>${esc(st.label)}: what this stage is about</h4><p>${esc(st.hint)}</p>
-    <h4>Tips for this mission</h4><ul>${stageTips(st.id).map((t) => `<li>${t}</li>`).join("")}</ul>
+    ${level() === "easy" ? `<h4>Tips for this mission</h4><ul>${stageTips(st.id).map((t) => `<li>${t}</li>`).join("")}</ul>`
+      : `<p class="req-small">Mission-specific tips are only given at Cadet level.</p>`}
     <h4>Your design right now</h4>${chosen}
-    ${iss.length ? iss.map((i) => `<div class="line">${icon(ICON_OF[i.severity], 14)}<span><b>${esc(i.text)}</b> ${esc(i.why)}</span></div>`).join("")
+    ${level() === "hard" ? `<div class="line">${icon(iss.some((i) => i.severity === "blocker") ? "block" : "check", 14)}<span>${iss.some((i) => i.severity === "blocker") ? "This stage does not meet requirements." : "No objections from the board."}</span></div>`
+      : iss.length ? iss.map((i) => `<div class="line">${icon(ICON_OF[i.severity], 14)}<span><b>${esc(i.text)}</b> ${esc(i.why)}</span></div>`).join("")
       : `<div class="line">${icon("check", 14)}<span>No problems in this stage.</span></div>`}
     ${st.id !== "review" ? `<p><button class="btn small" id="hbGo">Open the ${esc(st.label)} tab</button></p>` : ""}`;
   const goBtn = $("#hbGo");
@@ -794,8 +1013,9 @@ function tutAdvance() {
   while (S.tut.i < S.tut.steps.length && S.tut.steps[S.tut.i].done && S.tut.steps[S.tut.i].done() && S.tut.steps[S.tut.i].el !== "#launchBtn") S.tut.i++;
   if (S.tut.i >= S.tut.steps.length) return endTutorial(S.tut.full);
   const st = S.tut.steps[S.tut.i];
+  SFX.pop();
   if (st.tab && S.tab !== st.tab) { S.tab = st.tab; renderTabs(); renderBinder(); }
-  const el = $(st.el); if (el) el.classList.add("tut-focus");
+  const el = $(st.el); if (el) { el.classList.add("tut-focus"); if (isMobile()) el.scrollIntoView({ behavior: "smooth", block: "start" }); }
   const box = $("#tut"); box.classList.remove("hidden");
   box.style.left = st.pos.left + "px"; box.style.top = st.pos.top + "px";
   $("#tutText").textContent = st.text();
@@ -843,7 +1063,10 @@ function playLaunch(res) {
     if (done) return;
     const t = (now - t0) / 1000;
     const rise = Math.max(0, t - 2.0);
-    if (rise > 0 && !rumbled) { rumbled = true; SFX.rumble(); }
+    const sec = Math.floor(t);
+    if (sec !== frame._sec && t < 2) { frame._sec = sec; SFX.beep(false); }
+    if (rise > 0 && !rumbled) { rumbled = true; SFX.beep(true); SFX.rumble(); }
+    if (failAtLaunch && rise > 1.6 && !frame._boom) { frame._boom = true; SFX.boom(); }
     if (t < 4.2 || failAtLaunch) {
       const climb = (failAtLaunch ? Math.min(rise, 1.6) : rise) ** 2 * 18;
       const cam = Math.max(0, climb - 50), gy = 150 + cam, ry = 100 - climb + cam;

@@ -7,6 +7,11 @@
   const ok = (cond, msg) => { if (!cond) throw new Error(msg); log.push(msg); };
   const has = (f, k) => S.ev && (f === "instruments" ? S.ev.design.instruments.includes(k) : S.ev.design[f] === k);
   const pick = async (tab, f, k) => {
+    if (f === "rtg") {
+      document.querySelector('.tab[data-tab="power"]').click();
+      document.querySelector('[data-rtg="1"]').click();
+      return until(() => S.ev && S.ev.design.rtg === k);
+    }
     document.querySelector(`.tab[data-tab="${tab}"]`).click();
     document.querySelector(`.card[data-f="${f}"][data-k="${k}"]`).click();
     try { await until(() => has(f, k)); } catch { throw new Error(`pick ${f}=${k} failed (mode ${S.mode}, toast "${$("#toast").textContent}", roles ${S.myRoles}, room ${S.room})`); }
@@ -22,7 +27,7 @@
   };
   try {
     await until(() => S.cat);
-    S.player = "tester"; S.noSave = true;
+    S.player = "tester"; S.noSave = true; store.set("difficulty", "normal");
     // ---- tutorial
     document.querySelector('[data-go="tutorial"]').click();
     await until(() => S.tut && S.ev);
@@ -52,10 +57,7 @@
     // handbook from the in-game menu
     $("#menuBtn").click(); $("#mHints").click();
     ok(!$("#hints").classList.contains("hidden") && $$("#hbNav [data-s]").length === 10, "handbook opens with 10 stages");
-    document.querySelector('#hbNav [data-s="launch"]').click();
-    ok(/Rockets that lift it|No rocket can lift/.test($("#hbBody").textContent), "launch tips are computed from the design");
-    document.querySelector('#hbNav [data-s="power"]').click();
-    ok(/Smallest array|RTGs already|biggest array/.test($("#hbBody").textContent), "power tips suggest an array");
+    ok(/only given at Cadet/.test($("#hbBody").textContent) && /Your design right now/.test($("#hbBody").textContent), "engineer handbook: status, no tips");
     $("#hbClose").click();
     await pick("launch", "launch_vehicle", "falcon9");
     ok(S.ev.ok, "design flight ready: " + S.ev.issues.filter((i) => i.severity === "blocker").map((i) => i.text).join("; "));
@@ -71,6 +73,45 @@
     await until(() => !$(".news-actions").classList.contains("wait") && $(".grade-stamp").classList.contains("slam"), 8000);
     ok($("#finalScore").textContent === String(S.result.score.total), "grade slams and score counts up");
     ok(/THE ORBITAL TIMES/.test($("#paper").textContent) && $(".grade-stamp b").textContent.length === 1, "launch + newspaper with grade");
+    // ---- Cadet: follow the advisor's suggestions only, for every mission
+    store.set("difficulty", "easy");
+    for (const sc of ["wildfire", "lunar_ice", "mars_climate", "europa"]) {
+      S.mode = "free"; openSelect();
+      document.querySelector(`.folder[data-sc="${sc}"]`).click();
+      await until(() => S.ev && S.ev.design.scenario === sc && S.advice);
+      if (sc === "wildfire") {
+        ok($(".advice") && S.advice.field === "orbit" && document.querySelector(".card.suggest"), "cadet: next step + suggested card");
+        $("#showMe").click();
+      }
+      for (let n = 0; n < 25 && S.advice && !(S.ev.ok && !S.ev.issues.some((i) => i.severity === "blocker")); n++) {
+        const a = S.advice;
+        if (a.field === "instruments" && S.ev.design.instruments.includes(a.key)) break;
+        await pick(FIELD_TAB[a.field], a.field, a.key);
+      }
+      if (sc === "mars_climate") {
+        openHints("launch");
+        ok(/Rockets that lift it|No rocket can lift/.test($("#hbBody").textContent), "cadet handbook: launch tips computed from the design");
+        document.querySelector('#hbNav [data-s="power"]').click();
+        ok(/Smallest array|RTGs already|biggest array/.test($("#hbBody").textContent), "cadet handbook: power tips suggest an array");
+        $("#hbClose").click();
+      }
+      ok(S.ev.ok, `cadet: suggestions alone build a flight-ready ${sc} (left: ${S.ev.issues.filter((i) => i.severity === "blocker").map((i) => i.text).join("; ")})`);
+    }
+    // ---- Flight Director: only "requirements not met", no details, no coloured meters
+    store.set("difficulty", "hard");
+    S.mode = "free"; openSelect();
+    document.querySelector('.folder[data-sc="wildfire"]').click();
+    await until(() => S.ev && S.ev.design.difficulty === "hard");
+    ok(/incomplete/.test($("#issues").textContent) && !/Choose/.test($("#issues").textContent), "director: blank design is just 'incomplete'");
+    await pick("orbit", "orbit", "sso");
+    for (const i of ["thermal", "wac", "sounder"]) await pick("instr", "instruments", i);
+    await pick("bus", "bus", "cubesat"); await pick("power", "solar", "small"); await pick("power", "battery", "b1000");
+    await pick("adcs", "adcs", "wheels"); await pick("prop", "propulsion", "mono"); await pick("comms", "comms", "xlga");
+    await pick("comms", "ground", "commercial"); await pick("computer", "computer", "radtol"); await pick("launch", "launch_vehicle", "falcon9");
+    const txt = $("#issues").textContent + $("#speech").textContent;
+    ok(/does not meet requirements/.test(txt) && !/slots|kg/.test(txt), "director: vague verdict, no details");
+    ok(!document.querySelector("#meters .bar.bad, #meters .bar.warn, .card.suggest, .advice"), "director: no coloured meters or suggestions");
+    store.set("difficulty", "normal");
     // ---- team room (one player holding all four roles), also starts blank
     stopPoll(); show("team");
     $("#createRoom").click();

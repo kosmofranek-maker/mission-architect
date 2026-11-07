@@ -1,4 +1,5 @@
 :root {
+  --woodbg: repeating-linear-gradient(0deg, #4a3a2c 0 6px, #5c4836 6px 7px, #4a3a2c 7px 18px, #33281f 18px 19px);
   --ink: #2a2520; --ink2: #4d453c; --paper: #e6dcc3; --paper2: #d8ccae; --paperL: #f0e8d4;
   --wood: #4a3a2c; --woodD: #33281f; --woodL: #5c4836; --night: #141217;
   --red: #a8322a; --redD: #6f1f19; --green: #4f7a34; --greenD: #32511f; --gold: #c99a3c;
@@ -260,3 +261,108 @@ h1, h2, h3 { font-family: "Silkscreen", monospace; font-weight: 700; margin: 0 0
 .hb-body ul { margin: 0; padding-left: 18px; }
 .hb-body .line { display: grid; grid-template-columns: 18px 1fr; gap: 6px; margin: 3px 0; font-size: 19px; }
 .hb-foot { border-top: 2px solid var(--ink); padding: 6px 10px; display: flex; justify-content: flex-end; }
+
+/* ------------------------------------------------ Cadet advice */
+.advice { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: center; background: #fbefc4;
+  border: 2px solid var(--gold); padding: 4px 6px; margin: 2px 0 6px; font-size: 18px; }
+.card.suggest { box-shadow: inset 0 0 0 3px var(--gold); }
+.card.suggest::before { content: "SUGGESTED"; position: absolute; left: 4px; top: -9px; background: var(--gold); color: var(--ink);
+  font-family: "Silkscreen"; font-size: 10px; padding: 0 4px; border: 2px solid var(--ink); }
+.card.pulse { animation: pulse .9s ease-out 2; }
+@keyframes pulse { 50% { transform: scale(1.03); background: #fff3c4; } }
+.mstatus { display: none; }
+
+/* ================================================ PHONES (html.mobile set by fit() in game.js) */
+html.mobile, html.mobile body { height: auto; overflow: auto; }
+html.mobile body { font-size: 18px; -webkit-text-size-adjust: 100%; }
+html.mobile #stage { position: relative; left: 0; top: 0; width: 100%; height: auto; min-height: 100vh; overflow: visible; background: transparent; }
+html.mobile .screen.active { position: relative; inset: auto; min-height: 100vh; }
+html.mobile .desk-bg { display: none; }
+html.mobile #desk, html.mobile #select, html.mobile #team, html.mobile #news, html.mobile #hall { background: var(--woodbg); }
+html.mobile .btn { min-height: 38px; }
+html.mobile .btn.small, html.mobile .btn.tiny { min-height: 30px; }
+
+/* title */
+html.mobile #title { background: var(--night); }
+html.mobile #titleStars { position: fixed; }
+html.mobile .title-wrap { position: relative; min-height: 100vh; padding: 24px 16px; }
+html.mobile .logo { font-size: 38px; }
+html.mobile .tagline { font-size: 18px; text-align: center; }
+html.mobile .name-field { flex-direction: column; gap: 4px; }
+html.mobile .menu { grid-template-columns: 1fr; width: 100%; max-width: 360px; }
+html.mobile .menu .wide { grid-column: span 1; }
+html.mobile .btn.big { min-width: 0; width: 100%; }
+html.mobile .title-planet { position: fixed; width: 200px; height: 200px; right: -50px; bottom: -50px; opacity: .5; }
+html.mobile .credit { position: static; text-align: center; margin-top: 16px; }
+
+/* mission select, lobby, hall */
+html.mobile .select-wrap { position: static; padding: 12px; inset: auto; }
+html.mobile .folders { grid-template-columns: 1fr; gap: 26px; }
+html.mobile .folder .f-planet { width: 72px; height: 72px; }
+html.mobile .select-bottom { flex-direction: column; align-items: stretch; gap: 10px; }
+html.mobile .seg button { flex: 1; font-size: 11px; padding: 6px 4px; }
+html.mobile .lobby, html.mobile .hall { position: static; width: auto; margin: 12px; inset: auto; }
+html.mobile .lobby .row { flex-wrap: wrap; }
+html.mobile .role-cards { grid-template-columns: 1fr 1fr; }
+html.mobile .hrow { grid-template-columns: 26px 1fr 34px 60px; }
+html.mobile .hrow > :nth-child(3), html.mobile .hrow > :nth-child(6) { display: none; }
+
+/* desk */
+html.mobile #desk.active { display: flex; flex-direction: column; padding-bottom: 76px; }
+html.mobile .topbar { position: sticky; top: 0; height: auto; flex-wrap: wrap; gap: 4px 10px; padding: 6px 8px; font-size: 10px; }
+html.mobile .tb-center { order: 3; width: 100%; }
+html.mobile .mstatus { display: flex; order: 4; width: 100%; justify-content: space-between; gap: 4px; font-family: "VT323"; font-size: 17px; }
+html.mobile .ms { display: inline-flex; gap: 3px; align-items: center; padding: 0 4px; border: 1px solid #5d5349; }
+html.mobile .ms.warn { background: #6b4e14; } html.mobile .ms.bad { background: #6f1f19; }
+html.mobile .col-left, html.mobile .col-mid, html.mobile .col-right { position: static; width: auto; inset: auto; margin: 8px 8px 0; }
+html.mobile .booth { display: grid; grid-template-columns: 96px 1fr; gap: 6px; }
+html.mobile .booth-window { height: 116px; grid-row: span 2; }
+html.mobile .client { width: 80px; height: 96px; }
+html.mobile .booth-planet { width: 40px; height: 40px; }
+html.mobile .nameplate { margin-top: 0; }
+html.mobile .speech { margin-top: 0; min-height: 0; }
+html.mobile .speech::before { display: none; }
+html.mobile .request { flex: none; }
+html.mobile .goal .gl { width: 40%; }
+html.mobile .tabs { flex-wrap: nowrap; overflow-x: auto; padding-left: 0; scrollbar-width: none; }
+html.mobile .tab { flex: none; padding: 7px 8px 5px; }
+html.mobile .binder { flex: none; overflow: visible; }
+html.mobile .cards { grid-template-columns: 1fr; }
+html.mobile .blueprint { height: 180px; }
+html.mobile .review { flex: none; }
+html.mobile .issues { max-height: none; overflow: visible; }
+html.mobile .meter { grid-template-columns: 18px 58px 1fr 104px; }
+html.mobile .actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: #1f1b18; padding: 8px; border-top: 2px solid #000; }
+html.mobile .actions .btn { flex: 1; }
+html.mobile .approvals { position: absolute; bottom: 60px; left: 8px; }
+html.mobile .stamp-tool { width: 72px; height: 96px; }
+html.mobile .tut { position: fixed; left: 8px !important; right: 8px; top: auto !important; bottom: 70px; width: auto; grid-template-columns: 56px 1fr; }
+html.mobile .tut-img { width: 56px; height: 67px; }
+html.mobile .tut p { font-size: 18px; }
+html.mobile .toast { position: fixed; bottom: 80px; width: 90vw; }
+html.mobile .modal { position: fixed; }
+html.mobile .modal-box { width: 92vw; }
+html.mobile .handbook { width: 96vw; height: 90vh; }
+html.mobile .hb-wrap { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+html.mobile .hb-nav { display: flex; overflow-x: auto; border-right: none; border-bottom: 2px solid var(--ink); }
+html.mobile .hb-nav div { flex: none; border-bottom: none; border-right: 1px dashed var(--ink2); }
+
+/* launch */
+html.mobile #launch.active { display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 70px; }
+html.mobile .launch-canvas { position: static; width: 100%; height: auto; aspect-ratio: 16 / 9; margin: 0; }
+html.mobile .teletype { position: static; width: auto; height: 50vh; }
+html.mobile .skip { position: fixed; left: 8px; bottom: 8px; }
+
+/* newspaper */
+html.mobile #news.active { padding: 10px 8px 80px; }
+html.mobile .newspaper { position: relative; left: 0; top: 0; width: auto; height: auto; padding: 12px; }
+html.mobile .masthead { font-size: 24px; }
+html.mobile .dateline { font-size: 14px; }
+html.mobile .headline { font-size: 18px; padding-right: 90px; }
+html.mobile .subhead { font-size: 17px; padding-right: 0; }
+html.mobile .grade-stamp { right: 10px; top: 70px; width: 80px; height: 80px; border-width: 4px; }
+html.mobile .grade-stamp b { font-size: 36px; } html.mobile .grade-stamp span { font-size: 9px; }
+html.mobile .news-cols { grid-template-columns: 1fr; gap: 6px; }
+html.mobile .news-photo { height: 110px; }
+html.mobile .news-actions { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px; background: #1f1b18; justify-content: stretch; }
+html.mobile .news-actions .btn { flex: 1; font-size: 11px; padding: 6px 4px; }

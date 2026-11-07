@@ -41,6 +41,18 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   fuel per engine, downlink per antenna, radiation level), current choices and issues of that stage, button to open the tab.
 - Demo links added: `#hints=<scenario>`, `#stamp=<scenario>`. Self-test: 25 checks pass.
 
+- Guidance by difficulty (Franek, 2026-11-07): Cadet = advisor suggests the next part (NEXT STEP box + "Show me",
+  SUGGESTED card badge, client speech, handbook tips; can suggest RTGs); Engineer = exact problems with "why", no
+  suggestions, handbook without tips; Flight Director = only "incomplete / does not meet requirements / concerns",
+  meters uncoloured, no hints. Tutorial always runs at Cadet. Self-test proves the Cadet advisor alone builds a
+  flight-ready design for all 4 missions.
+- Mobile layout (`html.mobile`, set by fit() when width < 820 or narrow portrait): single scrolling column, sticky top bar
+  with mini status strip, fixed bottom action bar, full-screen modals, tutorial box docked at the bottom.
+  Self-test passes at phone size too (Chrome's minimum window is ~500 px, so screenshots below that are cropped).
+- More SFX: button click, card select/deselect, tab page flip, error buzz, flight-ready chime, goal-met ding,
+  countdown beeps, launch-failure boom, tutorial pop, suggestion jingle.
+- Auto-deploy: push to main -> GitHub Actions tests -> Hetzner (see README).
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.
