@@ -3,15 +3,18 @@
 A pixel-art space mission design game for the **NASA Space Apps Challenge 2026**, inspired by the desk-and-paperwork
 feel of *Papers, Please*.
 
-You sit at the Mission Review Board. A scientist steps up to your window with a mission request: watch wildfires,
-find lunar ice, study Mars' climate, or confirm the ocean under Europa's ice. You pick a rocket, an orbit, a spacecraft
-bus, power, pointing, engine, radio, computer and instruments from a parts binder. The review sheet shows mass, power,
+You sit at the Mission Review Board. A client's letter lands on your desk: watch wildfires and hurricanes,
+find lunar ice and safe landing sites, map an asteroid, see through Venus' clouds, study Mars' climate or confirm the
+ocean under Europa's ice. You pick a rocket, an orbit, a spacecraft
+bus, power, pointing, engine, radio, computer and instruments by walking between nine labs along one corridor
+(launch office, flight dynamics, integration hangar, power lab and so on). The review sheet shows mass, power,
 eclipse battery, data return, cost and science in real time, and explains every problem in plain language. Stamp the
 design, watch the launch and the mission unfold month by month on the teletype, then read the verdict in
 *The Orbital Times*.
 
 ## Features
-- 4 missions (Beginner to Expert), 3 difficulty levels, career mode with unlocks, free design + sandbox.
+- 8 missions (Earth, Moon, asteroid, Venus, Mars, Europa; Beginner to Expert), 3 difficulty levels, career mode with
+  unlocks, free design + sandbox. Each client writes an opening letter and is quoted in the newspaper afterwards.
 - Real trade-offs: rocket equation, inverse-square solar power and radio signal, eclipses and batteries, pointing
   accuracy, data downlink and on-board storage, radiation tolerance, budget reserves.
 - Seeded month-by-month simulation: launch failure, solar storms, safe modes, reaction-wheel failures,

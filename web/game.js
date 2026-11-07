@@ -7,20 +7,86 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const fmt = (n, d = 0) => (n == null || !isFinite(n) ? "∞" : Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d }));
 const pct = (x) => `${Math.round((x || 0) * 100)}%`;
 
-const ORDER = ["wildfire", "lunar_ice", "mars_climate", "europa"];
-const PLANET_OF = { earth: "earth", moon: "moon", mars: "mars", europa: "europa" };
+const ORDER = ["wildfire", "storm_watch", "lunar_ice", "landing_scout", "asteroid_prospector", "venus_clouds", "mars_climate", "europa"];
+const PLANET_OF = { earth: "earth", moon: "moon", mars: "mars", europa: "europa", venus: "venus", asteroid: "asteroid" };
+const DEGRADE = { venus: 0.03, europa: 0.04 }; // solar cell loss per year (mirrors engine/model.py)
 const GRADE_COL = { S: "#6a3d9a", A: "#3c6b25", B: "#1d4f8a", C: "#8a6410", F: "#a8322a" };
 const PASS = ["S", "A", "B", "C"];
 
+// Each client: who they are, the letter that opens the mission, and what they tell the press afterwards.
 const CLIENTS = {
   wildfire: { name: "Chief Dana Okafor", org: "Regional Fire Service",
-    look: { skin: "#a8724f", skinD: "#80543a", hair: "#1f1a17", hairStyle: "short", coat: "#7a3b26", shirt: "#d9cfb8", tie: "#2b2b2b", badge: true } },
+    look: { skin: "#a8724f", skinD: "#80543a", hair: "#1f1a17", hairStyle: "short", coat: "#7a3b26", shirt: "#d9cfb8", tie: "#2b2b2b", badge: true },
+    letter: ["Engineer, last summer we lost forty thousand hectares of forest because nobody saw the fire until the smoke was on the evening news.",
+      "I need eyes in orbit that pass over our forests every day, a heat sensor that finds hot spots while they are still small, and pictures to map the burn scars afterwards.",
+      "My budget is small and my patience is smaller. Keep it simple and get it flying."],
+    quotes: { good: "Our crews reached three fires before they grew past the size of a football field. This satellite pays for itself every week.",
+      ok: "It works. Not perfect, but my crews read the maps every morning.",
+      bad: "We needed eyes in the sky and got a very expensive lesson instead.",
+      lost: "Back to watchtowers and binoculars, I suppose." } },
+  storm_watch: { name: "Dr. Kofi Mensah", org: "Atlantic Storm Prediction Office",
+    look: { skin: "#6e4630", skinD: "#4f3122", hair: "#1a1716", hairStyle: "bald", coat: "#2f4a5e", shirt: "#e6e0d2", tie: "#c9a227", glasses: true },
+    letter: ["Hurricanes don't wait for a satellite to come back around. Between two passes a storm can double in strength, and we lose track of it.",
+      "I want to see the clouds move minute by minute, profile the air inside the storm and measure how much heat the ocean feeds it.",
+      "Think hard about where you park this thing. Some orbits never blink."],
+    quotes: { good: "We watched the eye form six hours before landfall. People left in time. That is what this satellite is for.",
+      ok: "Our forecasts are better. The coastal towns noticed.",
+      bad: "The storm moved faster than our data did.",
+      lost: "Hurricane season starts in June. Our satellite won't be there." } },
   lunar_ice: { name: "Dr. Mei Tanaka", org: "Lunar Resources Office",
-    look: { skin: "#e3c19c", skinD: "#b8957a", hair: "#16141a", hairStyle: "bun", coat: "#e8e4dc", shirt: "#3d6fa8", glasses: true } },
+    look: { skin: "#e3c19c", skinD: "#b8957a", hair: "#16141a", hairStyle: "bun", coat: "#e8e4dc", shirt: "#3d6fa8", glasses: true },
+    letter: ["Every litre of water we launch from Earth costs as much as a small car. If the ice in the polar craters is real, astronauts can drink it, breathe it and turn it into rocket fuel.",
+      "Those craters have not seen sunlight in two billion years. You cannot simply photograph the ice. You will have to find it some other way.",
+      "Map the ground around it too. Someone will have to drive there one day."],
+    quotes: { good: "We now know which crater to land next to. That map will hang on the wall of the first lunar base.",
+      ok: "We found ice. Not as much detail as I hoped, but it's there.",
+      bad: "The data is thin. We are still guessing where the ice is.",
+      lost: "The Moon keeps its secrets a little longer." } },
+  landing_scout: { name: "Cmdr. Jonah Reyes", org: "Artemis Crew Office",
+    look: { skin: "#c48d63", skinD: "#9a6a47", hair: "#2b2018", hairStyle: "short", coat: "#d06a2a", shirt: "#e9e3d6", badge: true },
+    letter: ["I'm the one who has to land there, so forgive me for being picky.",
+      "I need pictures sharp enough to show a boulder the size of a desk, and slope maps so our lander doesn't tip over. One rock in the wrong place and four people don't come home.",
+      "Sharp cameras need steady pointing and a big pipe for the data. Don't skimp on either."],
+    quotes: { good: "I've already picked my parking spot. Thank you, engineer. I'll wave.",
+      ok: "We have a landing zone. I'd still like a second option.",
+      bad: "I'm not landing on a guess.",
+      lost: "Looks like I'm landing with my eyes closed." } },
+  asteroid_prospector: { name: "Dr. Priya Raman", org: "Planetary Defense Office",
+    look: { skin: "#a87552", skinD: "#7f5638", hair: "#141012", hairStyle: "long", coat: "#5a3a6e", shirt: "#e9e3d6", glasses: true, badge: true },
+    letter: ["This rock is five hundred metres wide and passes closer to Earth than the Moon every few decades. I'd like to know what it is made of before it comes back.",
+      "Its gravity is a millionth of Earth's. You don't so much orbit it as tiptoe around it, so bring thrusters.",
+      "Minerals tell us how strong it is, its shape tells us how it spins, and any water would make it worth mining."],
+    quotes: { good: "We know its shape, its minerals and its water. If it ever heads our way, we'll know exactly how to push it.",
+      ok: "Good data on the surface. The inside is still a mystery.",
+      bad: "We flew all that way and came home with a blurry potato.",
+      lost: "The asteroid is fine. Our spacecraft, less so." } },
+  venus_clouds: { name: "Prof. Samuel Adeyemi", org: "Venus Atmosphere Group",
+    look: { skin: "#7a4e34", skinD: "#5a3826", hair: "#cfc9bf", hairStyle: "curly", coat: "#7a6a3a", shirt: "#e9e3d6", beard: true },
+    letter: ["Venus was once a lot like Earth. Then something went terribly wrong: 465 degrees on the ground and air thick enough to swim in.",
+      "Your cameras will see nothing but cloud tops. To map the surface you'll need radar, and to understand the greenhouse you'll need to study the air itself.",
+      "On the bright side, the Sun is twice as strong out there. Power should be the least of your problems."],
+    quotes: { good: "We can finally see the volcanoes under the clouds, and we know how the greenhouse runs. Earth should pay attention.",
+      ok: "The clouds gave up a few secrets. The ground, fewer.",
+      bad: "Venus is still a cloudy mystery. We needed more.",
+      lost: "Venus has eaten another spacecraft. She is very good at it." } },
   mars_climate: { name: "Dr. Luis Herrera", org: "Planetary Climate Lab",
-    look: { skin: "#c99a74", skinD: "#9e7454", hair: "#3b2a1e", hairStyle: "curly", coat: "#4b5a3a", shirt: "#e0d8c6", beard: true } },
+    look: { skin: "#c99a74", skinD: "#9e7454", hair: "#3b2a1e", hairStyle: "curly", coat: "#4b5a3a", shirt: "#e0d8c6", beard: true },
+    letter: ["Every few years a dust storm swallows the whole of Mars, and we still cannot predict when.",
+      "Profile the atmosphere from top to bottom, watch the storms grow and, if you can, find the ice buried under the dust.",
+      "Remember: the Sun is weaker there, Earth is far away and Mars eats spacecraft for breakfast."],
+    quotes: { good: "For the first time we saw a global dust storm being born. Future astronauts will thank this team.",
+      ok: "Solid climate data. The buried ice will have to wait.",
+      bad: "We learned more about our mistakes than about Mars.",
+      lost: "Mars wins this round." } },
   europa: { name: "Dr. Ingrid Solberg", org: "Outer Planets Program",
-    look: { skin: "#efd2bd", skinD: "#c9a891", hair: "#d8c27a", hairStyle: "long", coat: "#2c3b55", shirt: "#e9e3d6", glasses: true, badge: true } },
+    look: { skin: "#efd2bd", skinD: "#c9a891", hair: "#d8c27a", hairStyle: "long", coat: "#2c3b55", shirt: "#e9e3d6", glasses: true, badge: true },
+    letter: ["Under twenty kilometres of ice there may be more water than in all of Earth's oceans. Where there is water, there might be life.",
+      "Jupiter's radiation will try to fry your electronics every single day, and sunlight out there is twenty-seven times weaker than at home.",
+      "This is the flagship. The whole world will be watching. Take your time."],
+    quotes: { good: "There is an ocean under the ice and it is salty. This is the most important discovery of my career.",
+      ok: "We measured the ice shell. The ocean is real. Now we need to go back.",
+      bad: "The radiation won. We learned a lot, but not what we came for.",
+      lost: "Silence from Jupiter. The hardest kind of news." } },
 };
 
 const TABS = [
@@ -40,7 +106,7 @@ const TABS = [
     hint: "Data is useless until it reaches Earth. Signals weaken with distance squared." },
   { id: "computer", label: "Computer", icon: "chip", role: "comms", fields: ["computer"],
     hint: "Stores data between contacts and must survive the local radiation." },
-  { id: "instr", label: "Instruments", icon: "telescope", role: "science", fields: ["instruments"],
+  { id: "instr", label: "Instruments", door: "Science", icon: "telescope", role: "science", fields: ["instruments"],
     hint: "Pick instruments that serve the mission goals (dark tags). Watch mass, power and data volume." },
 ];
 
@@ -121,6 +187,12 @@ const SFX = (() => {
     boom() { burst({ type: "lowpass", freq: 900, vol: 0.8, decay: 2.2, sweep: 40 }); knock(60, 0.8, 0, 0.6); },
     pop() { rustle(0.09, 0.08, 0, 3500); },
     suggest() { knock(1400, 0.18, 0, 0.03); knock(1400, 0.18, 0.09, 0.03); },                      // pencil taps
+    door(steps = 2) {                                                                              // latch, footsteps, door shuts
+      snap(2200, 0.2); knock(700, 0.25, 0.01, 0.03);
+      for (let i = 0; i < steps; i++) { knock(140, 0.35, 0.12 + i * 0.16, 0.06); burst({ at: 0.12 + i * 0.16, type: "lowpass", freq: 400, vol: 0.15, decay: 0.04 }); }
+      knock(95, 0.5, 0.16 + steps * 0.16, 0.12); snap(1800, 0.12, 0.17 + steps * 0.16);
+    },
+    type() { snap(2800 + Math.random() * 900, 0.05); knock(1200 + Math.random() * 400, 0.06, 0.003, 0.015); }, // soft typewriter key
   };
 })();
 // every button gets a soft mechanical click
@@ -173,12 +245,14 @@ async function boot() {
   }
   if (location.hash === "#selftest") { const sc = document.createElement("script"); sc.src = "selftest.js"; document.body.appendChild(sc); }
   const [k, v] = location.hash.slice(1).split("=");
+  if (k === "career") { S.mode = "career"; if (v === "all") store.set("career", Object.fromEntries(ORDER.slice(0, 5).map((o) => [o, { grade: "B", score: 600 }]))); openSelect(); }
   if (k === "tutorial") { go("tutorial"); for (let n = 0; n < Number(v || 0); n++) tutAdvance(); }
   if (v && S.cat.SCENARIOS[v.split(":")[0]]) {
     S.mode = "free";
     if (k === "play") startMission(v);
     if (k === "design") { const [sc2, tab] = v.split(":"); startMission(sc2, S.cat.DEFAULTS[sc2]); if (tab) { S.tab = tab; renderTabs(); renderBinder(); } }
     if (k === "hints") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); openHints("power"); }
+    if (k === "letter") { S.mode = "career"; startMission(v); }
     if (k === "stamp") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); stampAnim("ok"); }
     if (k === "news") { startMission(v, S.cat.DEFAULTS[v]); showNews(await api("launch", { design: S.design, save: false, seed: 7 })); }
     if (k === "launch") { startMission(v, S.cat.DEFAULTS[v]); playLaunch(await api("launch", { design: S.design, save: false, seed: 7 })); }
@@ -189,7 +263,7 @@ function go(where) {
   stopPoll();
   if (where === "title") return show("title");
   if (where === "career" || where === "free") { S.mode = where; return openSelect(); }
-  if (where === "tutorial") { S.mode = "career"; startMission("wildfire"); S.design.difficulty = "easy"; renderAll(); evaluateSoon(0); return startTutorial(true); }
+  if (where === "tutorial") { S.mode = "career"; startMission("wildfire", null, { tutorial: true }); S.design.difficulty = "easy"; renderAll(); evaluateSoon(0); return; }
   if (where === "team") { if (!S.player) return nameFirst(); return openLobby(); }
   if (where === "hall") return openHall();
 }
@@ -226,7 +300,7 @@ function openSelect() {
   show("select");
 }
 
-function startMission(sc, design) {
+function startMission(sc, design, opts = {}) {
   const d = design ? { ...design } : { ...S.cat.BLANK[sc], instruments: [] };
   if (!design) {
     d.difficulty = store.get("difficulty", "normal");
@@ -234,7 +308,8 @@ function startMission(sc, design) {
   }
   S.design = d; S.tab = "orbit"; S.introShown = false; S.ev = null; S._prevOk = undefined; S._prevMet = null;
   openDesk();
-  if (!design && S.mode === "career" && sc === "wildfire" && !store.get("tutorialDone", false) && !S.tut) startTutorial(true);
+  const tut = () => { if (opts.tutorial || (!design && S.mode === "career" && sc === "wildfire" && !store.get("tutorialDone", false) && !S.tut)) startTutorial(true); };
+  if (!design && !S.noLetter) openLetter(tut); else tut();
 }
 
 // ---------------------------------------------------------------------------- desk
@@ -339,7 +414,7 @@ function recommend(f) {
     }
     case "solar": {
       if (!ev) return null;
-      const sunF = 1 / dest.sun_au ** 2, deg = (1 - (destKey() === "europa" ? 0.04 : 0.02)) ** life;
+      const sunF = 1 / dest.sun_au ** 2, deg = (1 - (DEGRADE[destKey()] || 0.02)) ** life;
       const ef = d.orbit ? curOrbit().eclipse_frac : 0.35, est = ev.power.load + (d.instruments.length ? 0 : 30) + 40;
       const need = Math.max(0, (est - ev.power.rtg) * 1.25 / (1 - ef) / sunF / deg);
       if (need === 0) return { key: "none", why: "your RTGs already cover the power" };
@@ -473,7 +548,58 @@ function renderClient() {
   if (renderClient._k !== key) { $("#clientImg").src = portrait(c.look, mood); renderClient._k = key; }
   $("#boothPlanet").src = planet(PLANET_OF[destKey()], 48);
   $("#clientName").textContent = `${c.name} · ${c.org}`;
-  $("#speech").textContent = text;
+  typeSpeech(text);
+}
+
+// The client speaks letter by letter with a soft typewriter patter; a click shows it all at once.
+function typeSpeech(text) {
+  const el = $("#speech");
+  if (el.dataset.full === text) return;
+  el.dataset.full = text;
+  clearInterval(typeSpeech._iv);
+  let n = 0;
+  const step = () => {
+    n = Math.min(text.length, n + 2);
+    el.textContent = text.slice(0, n);
+    if (n % 6 < 2 && text[n - 1] !== " ") SFX.type();
+    if (n >= text.length) clearInterval(typeSpeech._iv);
+  };
+  typeSpeech._iv = setInterval(step, 28); step();
+  el.onclick = () => { clearInterval(typeSpeech._iv); el.textContent = text; };
+}
+
+// ---------------------------------------------------------------------------- incoming letter (mission start)
+function openLetter(then) {
+  const c = CLIENTS[S.design.scenario], s = scen(), m = $("#letter");
+  $("#letterImg").src = portrait(c.look, "neutral");
+  $("#letterFrom").textContent = c.name;
+  $("#letterOrg").textContent = c.org;
+  $("#letterDay").textContent = S.mode === "career" ? `DAY ${ORDER.indexOf(S.design.scenario) + 1}` : "FREE DESIGN";
+  $("#letterPitch").innerHTML = `${icon("coin")} ${fmt(s.budget * S.cat.DIFFICULTY[S.design.difficulty].budget_mult)} M$ &middot; ${esc(S.cat.DESTINATIONS[s.destination].name)} &middot; ${s.min_years}+ yr`;
+  const body = $("#letterBody");
+  body.innerHTML = c.letter.map(() => "<p></p>").join("") + `<p class="sig">${esc(c.name)}</p>`;
+  m.classList.remove("hidden");
+  const box = m.querySelector(".letter"); box.classList.remove("slide"); void box.offsetWidth; box.classList.add("slide");
+  SFX.paper(); setTimeout(() => SFX.paper(), 250);
+  const token = (openLetter.token = (openLetter.token || 0) + 1);
+  const ps = $$("#letterBody p:not(.sig)");
+  let done = false;
+  const finish = () => { done = true; ps.forEach((p, i) => (p.textContent = c.letter[i])); };
+  body.onclick = finish;
+  (async () => {
+    await wait(450);
+    for (let i = 0; i < ps.length && !done; i++) {
+      for (let n = 0; n <= c.letter[i].length && !done; n += 2) {
+        if (token !== openLetter.token) return;
+        ps[i].textContent = c.letter[i].slice(0, n);
+        if (n % 6 === 0) SFX.type();
+        await wait(16);
+      }
+      await wait(160);
+    }
+    finish();
+  })();
+  $("#letterGo").onclick = () => { openLetter.token++; m.classList.add("hidden"); SFX.page(); if (then) then(); };
 }
 
 function renderRequest() {
@@ -496,12 +622,31 @@ function renderRequest() {
 
 function renderTabs() {
   $("#tabs").innerHTML = TABS.map((t) => {
-    const locked = S.mode === "team" && !S.myRoles.includes(t.role);
+    const locked = S.mode === "team" && !S.myRoles.includes(t.role), on = t.id === S.tab;
     const todo = t.fields.some((f) => f !== "rtg" && (f === "instruments" ? !S.design.instruments.length : S.design[f] == null));
-    return `<div class="tab ${t.id === S.tab ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}">${icon(locked ? "lock" : t.icon, 14)}${t.label}${todo ? '<span class="todo" title="still to choose"></span>' : ""}</div>`;
+    return `<div class="tab door ${on ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}" title="${esc(LABS[t.id].name)}">
+      <span class="lamp ${todo ? "todo" : "done"}" title="${todo ? "still to choose" : "done"}"></span>
+      <img class="px dimg" src="${doorSprite(t.id, on, locked)}" alt=""><span class="dicon">${icon(locked ? "lock" : t.icon, 12)}</span>
+      <span class="dl">${t.door || t.label}</span></div>`;
   }).join("");
-  $$("#tabs .tab").forEach((el) => el.onclick = () => { if (S.tab !== el.dataset.tab) SFX.page(); S.tab = el.dataset.tab; renderTabs(); renderBinder(); });
+  $$("#tabs .tab").forEach((el) => el.onclick = () => goLab(el.dataset.tab));
+  const cur = $("#tabs .tab.on"); if (cur && isMobile()) cur.scrollIntoView({ block: "nearest", inline: "center" });
 }
+
+// Walk down the corridor into another lab: door latch, footsteps, the room slides in from that side.
+function goLab(id) {
+  if (S.tab === id) return;
+  const from = TABS.findIndex((t) => t.id === S.tab), to = TABS.findIndex((t) => t.id === id);
+  S.tab = id; renderTabs(); renderBinder();
+  const b = $("#binder"); b.scrollTop = 0;
+  b.classList.remove("walk-l", "walk-r"); void b.offsetWidth; b.classList.add(to > from ? "walk-r" : "walk-l");
+  SFX.door(Math.min(4, Math.abs(to - from)));
+}
+let _labFrame = 0;
+setInterval(() => {
+  const c = document.getElementById("labCanvas");
+  if (c && $("#desk").classList.contains("active") && !document.hidden) drawLab(c, c.dataset.lab, ++_labFrame);
+}, 160);
 
 function optionsFor(field) {
   const c = S.cat;
@@ -541,7 +686,10 @@ function renderBinder() {
   const tab = TABS.find((t) => t.id === S.tab);
   const locked = S.mode === "team" && !S.myRoles.includes(tab.role);
   const goalTags = new Set(scen().goals.map((g) => g.tag));
-  let h = locked ? `<div class="lock-banner">${icon("lock")} Classified: this section belongs to the ${S.cat.ROLES[tab.role].name}. You can read it but not change it.</div>` : "";
+  const role = S.cat.ROLES[tab.role];
+  let h = `<div class="lab-banner"><canvas id="labCanvas" data-lab="${tab.id}" width="${LAB_W}" height="${LAB_H}" class="px"></canvas>
+    <div class="lab-plate"><b>${esc(LABS[tab.id].name)}</b><span>${esc(role.name)}'s lab</span></div></div>`;
+  h += locked ? `<div class="lock-banner">${icon("lock")} Classified: this section belongs to the ${S.cat.ROLES[tab.role].name}. You can read it but not change it.</div>` : "";
   h += `<p class="hint">${esc(tab.hint)}</p>`;
   if (tab.id === "power" && S.ev && S.ev.power.load) {
     const P = S.ev.power, rows = Object.entries(P.loads).filter(([, w]) => w >= 0.5);
@@ -578,6 +726,7 @@ function renderBinder() {
   const binder = $("#binder"), top = binder.scrollTop;
   binder.innerHTML = h;
   binder.scrollTop = top;
+  drawLab($("#labCanvas"), tab.id, _labFrame);
   $$("#binder .card[data-f]").forEach((el) => el.onclick = () => {
     const f = el.dataset.f, k = el.dataset.k;
     if (f === "instruments") {
@@ -911,8 +1060,8 @@ function stageTips(id) {
       break;
     }
     case "power": {
-      const sunF = 1 / dest.sun_au ** 2, deg = (1 - (destKey() === "europa" ? 0.04 : 0.02)) ** life;
-      T.push(`Sunlight here is <b>${pct(sunF)}</b> of Earth's and panels lose ~${destKey() === "europa" ? 4 : 2}% per year (${pct(deg)} left at end of mission).`);
+      const sunF = 1 / dest.sun_au ** 2, deg = (1 - (DEGRADE[destKey()] || 0.02)) ** life;
+      T.push(`Sunlight here is <b>${pct(sunF)}</b> of Earth's and panels lose ~${Math.round((DEGRADE[destKey()] || 0.02) * 100)}% per year (${pct(deg)} left at end of mission).`);
       if (ev && ev.power.load) {
         const rtgW = ev.power.rtg, ef = orb ? orb.eclipse_frac : 0.35, need = Math.max(0, (ev.power.load - rtgW) * 1.25 / (1 - ef) / sunF / deg);
         const arr = Object.values(c.SOLAR_ARRAYS).filter((a) => a.power_1au >= need && a.power_1au > 0).sort((a, b) => a.power_1au - b.power_1au)[0];
@@ -1191,7 +1340,12 @@ function showNews(res) {
   }
   const labels = { science: "Science", budget: "Budget left", margins: "Margins", reliability: "Reliability", team: "Team goals" };
   const day = ORDER.indexOf(res.design.scenario) + 1;
-  const highlights = sim.events.filter((e) => e.impact !== "neutral" && !["launch", "end"].includes(e.kind)).slice(0, 3);
+  const c = CLIENTS[res.design.scenario];
+  const lost = sim.events.some((e) => e.kind === "launch_failure") || sim.outcome === "lost";
+  const tone = lost ? "lost" : (["cancelled", "partial"].includes(sim.outcome) || sc.grade === "F") ? "bad" : ["S", "A"].includes(sc.grade) ? "good" : "ok";
+  const quote = `<div class="quote"><img class="px" src="${portrait(c.look, { good: "happy", ok: "neutral", bad: "angry", lost: "angry" }[tone])}" alt="">
+    <p>"${esc(c.quotes[tone])}"<i>${esc(c.name)}, ${esc(c.org)}</i></p></div>`;
+  const highlights = sim.events.filter((e) => e.impact !== "neutral" && !["launch", "end"].includes(e.kind)).slice(0, 2);
   $("#paper").innerHTML = `
     <div class="masthead">THE ORBITAL TIMES</div>
     <div class="dateline"><span>Vol. 1 · Day ${day}</span><span>${esc(S.cat.DIFFICULTY[res.design.difficulty].name)} edition</span><span>Seed ${res.seed}</span></div>
@@ -1201,6 +1355,7 @@ function showNews(res) {
     <div class="news-cols">
       <div>
         <canvas id="newsPhoto" width="240" height="75" class="px news-photo"></canvas>
+        ${quote}
         <h5>What the review board says</h5>
         ${sc.analysis.map((a) => `<p>${esc(a)}</p>`).join("")}
       </div>

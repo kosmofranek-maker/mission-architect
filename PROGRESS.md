@@ -59,6 +59,15 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   Power margin sweet spot now 20-100%. Power tab shows a live power budget. Desk sounds are physical (noise-based).
   Demo link `#design=<scenario>:<tab>`.
 
+- Career grows to 8 days (2026-11-07): + Hurricane Sentinel (GEO gets a 1.5x scenario `orbit_bonus`), Artemis Landing
+  Scout, Asteroid Prospector (new destination, survey/terminator/flyby orbits), Venus Cloud Diver (new destination;
+  `blind` instruments: lidar, HiRISE, thermal can't see through clouds). New Synthetic aperture radar instrument.
+  Launch vehicles got Venus and asteroid capacities. Presets for all 8 launchable; Cadet advisor builds all 8.
+- Each client has an opening letter (typed out, slides in) and a press quote in The Orbital Times depending on outcome.
+  Speech bubble types letter by letter with soft typewriter keys.
+- Tabs are now labs along a corridor (web/labs.js): pixel doors with a red/green lamp for missing parts, animated
+  lab scene banner per room, walking transition + door/footsteps sound. Demo links `#letter=<sc>`, `#career=all`.
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.

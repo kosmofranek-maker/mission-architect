@@ -18,6 +18,12 @@ DESTINATIONS = {
              "magnetic": False, "lv_target": "tli"},
     "mars": {"name": "Mars", "sun_au": 1.52, "earth_au": 1.5, "radiation": 2,
              "magnetic": False, "lv_target": "mars"},
+    "venus": {"name": "Venus", "sun_au": 0.72, "earth_au": 1.0, "radiation": 2,
+              "magnetic": False, "lv_target": "venus",
+              "blind": ["lidar", "hirise", "thermal"],
+              "blind_why": "Venus is wrapped in thick sulfuric-acid clouds: light and lasers never reach the ground."},
+    "asteroid": {"name": "Near-Earth asteroid", "sun_au": 1.1, "earth_au": 0.6, "radiation": 1,
+                 "magnetic": False, "lv_target": "asteroid"},
     "europa": {"name": "Europa (Jupiter)", "sun_au": 5.2, "earth_au": 5.0, "radiation": 4,
                "magnetic": False, "lv_target": "jupiter"},
 }
@@ -45,6 +51,22 @@ SCENARIOS = {
             {"tag": "climate", "label": "Track smoke & atmosphere", "weight": 25, "target": 20, "required": False},
         ],
     },
+    "storm_watch": {
+        "name": "Hurricane Sentinel",
+        "destination": "earth",
+        "difficulty": "Beginner",
+        "budget": 320,
+        "min_years": 5,
+        "pitch": "Watch hurricanes form and grow, around the clock.",
+        "orbit_bonus": {"geo": 1.5},
+        "story": ("Forecasters lose track of storms between satellite passes. They want to see the "
+                  "clouds move minute by minute and measure how warm the ocean beneath them is."),
+        "goals": [
+            {"tag": "climate", "label": "Profile storm atmosphere", "weight": 45, "target": 25, "required": True},
+            {"tag": "imaging", "label": "Track cloud motion", "weight": 35, "target": 20, "required": True},
+            {"tag": "thermal", "label": "Measure ocean heat", "weight": 20, "target": 20, "required": False},
+        ],
+    },
     "lunar_ice": {
         "name": "Lunar Ice Prospector",
         "destination": "moon",
@@ -60,10 +82,55 @@ SCENARIOS = {
             {"tag": "imaging", "label": "Image landing sites", "weight": 25, "target": 30, "required": False},
         ],
     },
+    "landing_scout": {
+        "name": "Artemis Landing Scout",
+        "destination": "moon",
+        "difficulty": "Intermediate",
+        "budget": 480,
+        "min_years": 2,
+        "pitch": "Find safe landing spots for astronauts near the lunar south pole.",
+        "story": ("A crew lander needs a flat patch the size of a tennis court, free of boulders. "
+                  "That takes the sharpest camera you can carry, steady pointing and a lot of data."),
+        "goals": [
+            {"tag": "imaging", "label": "Image boulders (sharp)", "weight": 45, "target": 45, "required": True},
+            {"tag": "topography", "label": "Measure slopes", "weight": 35, "target": 25, "required": True},
+            {"tag": "water", "label": "Check for nearby ice", "weight": 20, "target": 25, "required": False},
+        ],
+    },
+    "asteroid_prospector": {
+        "name": "Asteroid Prospector",
+        "destination": "asteroid",
+        "difficulty": "Intermediate",
+        "budget": 480,
+        "min_years": 2,
+        "pitch": "Map a near-Earth asteroid: its shape, its minerals and its water.",
+        "story": ("The rock is only 500 m wide, its gravity is almost zero and sunlight pushes you around. "
+                  "We want to know what it is made of, for planetary defense and future mining."),
+        "goals": [
+            {"tag": "composition", "label": "Identify minerals", "weight": 40, "target": 30, "required": True},
+            {"tag": "topography", "label": "Model its shape", "weight": 35, "target": 25, "required": True},
+            {"tag": "water", "label": "Find hydrated minerals", "weight": 25, "target": 20, "required": False},
+        ],
+    },
+    "venus_clouds": {
+        "name": "Venus Cloud Diver",
+        "destination": "venus",
+        "difficulty": "Advanced",
+        "budget": 600,
+        "min_years": 3,
+        "pitch": "See through Venus' clouds, map its surface and study its runaway greenhouse.",
+        "story": ("Venus is Earth's twin gone wrong: 465 C on the ground, clouds of acid above. Cameras "
+                  "only see the cloud tops, so the surface must be mapped with radar."),
+        "goals": [
+            {"tag": "topography", "label": "Radar-map the surface", "weight": 40, "target": 30, "required": True},
+            {"tag": "climate", "label": "Study the greenhouse air", "weight": 35, "target": 30, "required": True},
+            {"tag": "composition", "label": "Sample cloud chemistry", "weight": 25, "target": 30, "required": False},
+        ],
+    },
     "mars_climate": {
         "name": "Mars Climate Orbiter II",
         "destination": "mars",
-        "difficulty": "Intermediate",
+        "difficulty": "Advanced",
         "budget": 650,
         "min_years": 4,
         "pitch": "Study Mars' dust storms, seasons and buried ice from orbit.",
@@ -169,6 +236,46 @@ ORBITS = {
                            "learn": ("Mars' version of geostationary. Constant weather view and great for "
                                      "relaying data, but radar can't reach the surface from this far.")},
     },
+    "venus": {
+        "low": {"name": "Low polar orbit (250 km, aerobraking)", "lv_target": "venus", "dv_insert": 1100,
+                "dv_per_year": 20, "eclipse_h": 0.8, "eclipse_frac": 0.38, "coverage": 1.0, "earth_view": 0.6,
+                "cruise_years": 0.6, "max_years_no_prop": 3,
+                "science": {"topography": 1.3, "climate": 0.9, "composition": 1.0, "imaging": 1.1},
+                "learn": ("Circles close over the poles so radar maps every strip of the planet (Magellan, "
+                          "VERITAS). Aerobraking in the thick air takes months.")},
+        "elliptical": {"name": "Polar elliptical orbit (250 x 66,000 km)", "lv_target": "venus", "dv_insert": 900,
+                       "dv_per_year": 10, "eclipse_h": 1.0, "eclipse_frac": 0.05, "coverage": 0.7,
+                       "earth_view": 0.85, "cruise_years": 0.4, "max_years_no_prop": 15,
+                       "science": {"topography": 0.6, "climate": 1.3, "composition": 1.2, "imaging": 0.9},
+                       "learn": ("Venus Express' 24-hour orbit: a quick low pass, then a long look at the whole "
+                                 "cloud deck. Great for the atmosphere, weak for surface radar.")},
+        "equatorial": {"name": "Equatorial cloud-tracking orbit", "lv_target": "venus", "dv_insert": 1000,
+                       "dv_per_year": 15, "eclipse_h": 1.5, "eclipse_frac": 0.1, "coverage": 0.5,
+                       "earth_view": 0.9, "cruise_years": 0.5, "max_years_no_prop": 8,
+                       "science": {"topography": 0.3, "climate": 1.4, "composition": 1.0, "imaging": 1.2},
+                       "learn": ("Like Akatsuki: drifts with the super-rotating clouds that circle Venus in four "
+                                 "days. Best weather view, almost no surface mapping.")},
+    },
+    "asteroid": {
+        "survey": {"name": "Survey station (7 km, hovering)", "lv_target": "asteroid", "dv_insert": 600,
+                   "dv_per_year": 40, "eclipse_h": 0.0, "eclipse_frac": 0.0, "coverage": 0.9, "earth_view": 0.8,
+                   "cruise_years": 2.0, "max_years_no_prop": 0.2,
+                   "science": {"composition": 1.0, "topography": 0.9, "water": 1.0, "imaging": 0.9},
+                   "learn": ("Gravity is too weak to orbit far away, so you fly alongside the asteroid and keep "
+                             "nudging back. Never in shadow, but you need thrusters the whole time.")},
+        "orbit": {"name": "Terminator orbit (1 km)", "lv_target": "asteroid", "dv_insert": 620,
+                  "dv_per_year": 15, "eclipse_h": 0.0, "eclipse_frac": 0.0, "coverage": 1.0, "earth_view": 0.8,
+                  "cruise_years": 2.2, "max_years_no_prop": 0.5,
+                  "science": {"composition": 1.3, "topography": 1.4, "water": 1.3, "imaging": 1.3},
+                  "learn": ("OSIRIS-REx's record: the tiniest orbit ever, riding the line between day and night "
+                            "so sunlight pressure doesn't push you away. Sharp data, delicate flying.")},
+        "flyby": {"name": "Single fast flyby", "lv_target": "asteroid", "dv_insert": 50,
+                  "dv_per_year": 0, "eclipse_h": 0.0, "eclipse_frac": 0.0, "coverage": 0.4, "earth_view": 1.0,
+                  "cruise_years": 1.5, "max_years_no_prop": 99, "duty_mult": 0.05,
+                  "science": {"composition": 0.6, "topography": 0.5, "water": 0.6, "imaging": 0.8},
+                  "learn": ("Cheap and simple: rush past at 5 km/s and take what you can in a few hours. "
+                            "Almost no fuel, but very little data.")},
+    },
     "europa": {
         "flyby": {"name": "Jupiter orbit, ~50 Europa flybys", "lv_target": "jupiter", "dv_insert": 1000,
                   "dv_per_year": 60, "eclipse_h": 3.0, "eclipse_frac": 0.03, "coverage": 0.8,
@@ -190,25 +297,26 @@ ORBITS = {
 # --------------------------------------------------------------------------------------
 LAUNCH_VEHICLES = {
     "electron": {"name": "Electron (Rocket Lab)", "cost": 8,
-                 "capacity": {"leo": 300, "sso": 200, "gto": 0, "tli": 35, "mars": 0, "jupiter": 0},
+                 "capacity": {"leo": 300, "sso": 200, "gto": 0, "tli": 35, "mars": 0, "jupiter": 0, "venus": 0, "asteroid": 0},
                  "learn": "Tiny rocket for small satellites. Cheap, but only lifts a few hundred kg."},
     "falcon9": {"name": "Falcon 9 (SpaceX)", "cost": 70,
-                "capacity": {"leo": 17500, "sso": 12000, "gto": 5500, "tli": 2500, "mars": 1500, "jupiter": 0},
+                "capacity": {"leo": 17500, "sso": 12000, "gto": 5500, "tli": 2500, "mars": 1500, "jupiter": 0, "venus": 1800, "asteroid": 1100},
                 "learn": "Reusable workhorse. Great value near Earth, limited for deep space."},
     "vulcan": {"name": "Vulcan Centaur VC6 (ULA)", "cost": 115,
-               "capacity": {"leo": 27000, "sso": 20000, "gto": 14000, "tli": 11000, "mars": 5000, "jupiter": 900},
+               "capacity": {"leo": 27000, "sso": 20000, "gto": 14000, "tli": 11000, "mars": 5000, "jupiter": 900, "venus": 5500, "asteroid": 4000},
                "learn": "Powerful high-energy upper stage (Centaur). Good for the Moon and Mars."},
     "falcon_heavy": {"name": "Falcon Heavy expendable (SpaceX)", "cost": 180,
                      "capacity": {"leo": 63800, "sso": 45000, "gto": 26700, "tli": 16000, "mars": 16800,
-                                  "jupiter": 6500},
+                                  "jupiter": 6500, "venus": 17000, "asteroid": 13000},
                      "learn": "Launched Europa Clipper (6,065 kg) toward Jupiter with gravity assists."},
     "sls": {"name": "SLS Block 1 (NASA)", "cost": 2000,
-            "capacity": {"leo": 95000, "sso": 70000, "gto": 40000, "tli": 27000, "mars": 20000, "jupiter": 9000},
+            "capacity": {"leo": 95000, "sso": 70000, "gto": 40000, "tli": 27000, "mars": 20000, "jupiter": 9000, "venus": 21000, "asteroid": 17000},
             "learn": "Most powerful option and fastest to Jupiter, but extremely expensive."},
 }
 
 LV_TARGET_LABEL = {"leo": "LEO", "sso": "SSO", "gto": "GTO", "tli": "trans-lunar", "mars": "Mars transfer",
-                   "jupiter": "Jupiter transfer"}
+                   "jupiter": "Jupiter transfer",
+                   "venus": "Venus transfer", "asteroid": "asteroid rendezvous"}
 
 # --------------------------------------------------------------------------------------
 # Spacecraft subsystems. mass kg, power W (draw), cost M$.
@@ -357,6 +465,9 @@ INSTRUMENTS = {
     "radar": {"name": "Ice-penetrating radar", "mass": 50, "power": 110, "cost": 45, "data_mbps": 40,
               "duty": 0.05, "value": 40, "tags": ["subsurface", "water"], "pointing_deg": 1.0,
               "learn": "Radio waves pass through ice and bounce off layers below (SHARAD, REASON)."},
+    "sar": {"name": "Synthetic aperture radar", "mass": 60, "power": 180, "cost": 50, "data_mbps": 20,
+            "duty": 0.05, "value": 40, "tags": ["topography", "imaging"], "pointing_deg": 0.5,
+            "learn": "Side-looking radar that builds images through clouds and darkness (Magellan, VERITAS)."},
     "mag": {"name": "Magnetometer on boom", "mass": 5, "power": 4, "cost": 4, "data_mbps": 0.005, "duty": 1.0,
             "value": 15, "tags": ["fields"], "pointing_deg": 10,
             "learn": "A salty ocean changes Jupiter's magnetic field around Europa. That's how Galileo found it."},

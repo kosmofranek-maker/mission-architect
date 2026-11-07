@@ -229,8 +229,8 @@ function planet(kind, size = 48) {
     const R = size / 2 - 1, cx = size / 2, cy = size / 2, rnd = _rng(_hash(kind));
     const blobs = Array.from({ length: 14 }, () => [rnd() * size, rnd() * size, 3 + rnd() * 9]);
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      const dx = x + 0.5 - cx, dy = y + 0.5 - cy, d = Math.hypot(dx, dy);
-      if (d > R) continue;
+      const dx = x + 0.5 - cx, dy = y + 0.5 - cy, d = Math.hypot(dx, dy), th = Math.atan2(dy, dx);
+      if (kind === "asteroid" ? d > R * (0.78 + 0.13 * Math.sin(2 * th + 1) + 0.06 * Math.sin(5 * th)) * (Math.abs(dy) < R * 0.2 ? 1 : 0.97) : d > R) continue;
       let col;
       const inBlob = blobs.some(([bx, by, br]) => Math.hypot(x - bx, y - by) < br);
       if (kind === "earth") col = inBlob ? (y < 8 || y > size - 8 ? PAL.white : PAL.green) : PAL.blue;
@@ -240,6 +240,11 @@ function planet(kind, size = 48) {
         const band = Math.floor((y + Math.sin(x / 5) * 2) / 4) % 4;
         col = ["#c9a27a", "#e2cfb0", "#a8774f", "#ecdcc3"][band];
         if (Math.hypot(x - size * 0.66, y - size * 0.62) < size * 0.08) col = "#b5523a";
+      } else if (kind === "venus") {
+        const band = Math.floor((y + Math.sin(x / 4 + y / 9) * 3) / 5) % 3;
+        col = ["#e6c88a", "#d9b06a", "#f1dcaa"][band];
+      } else if (kind === "asteroid") {
+        col = inBlob ? "#5e564c" : (x * 7 + y * 3) % 11 === 0 ? "#4a443c" : "#7d7366";
       } else col = PAL.gray;
       // terminator shading + dithering
       const shade = (dx + dy) / (R * 1.6);

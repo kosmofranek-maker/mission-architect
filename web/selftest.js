@@ -30,7 +30,13 @@
     S.player = "tester"; S.noSave = true; store.set("difficulty", "normal");
     // ---- tutorial
     document.querySelector('[data-go="tutorial"]').click();
+    await until(() => !$("#letter").classList.contains("hidden"));
+    $("#letterBody").click();
+    ok(/forty thousand hectares/.test($("#letterBody").textContent) && $("#letterFrom").textContent === "Chief Dana Okafor", "client letter opens the mission");
+    $("#letterGo").click();
     await until(() => S.tut && S.ev);
+    ok($("#letter").classList.contains("hidden"), "letter closes, tutorial follows");
+    S.noLetter = true;
     ok($("#desk").classList.contains("active") && !$("#tut").classList.contains("hidden"), "tutorial opens on desk");
     ok(S.ev.issues.filter((i) => i.area === "missing").length === 11, "blank design: 11 parts to choose");
     ok(!S.design.bus && !S.design.orbit && !S.design.instruments.length, "no preset parts");
@@ -41,6 +47,11 @@
     ok(S.tab === "instr", "tutorial advances to instruments after the pick");
     $("#tutSkip").click();
     ok(!S.tut && $("#tut").classList.contains("hidden"), "skip closes tutorial");
+    ok($$("#tabs .tab.door").length === 9 && $("#labCanvas").dataset.lab === "instr", "corridor of 9 lab doors, lab scene shown");
+    document.querySelector('.tab[data-tab="power"]').click();
+    ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
+    S.mode = "career"; openSelect();
+    ok($$(".folder").length === 8 && $$(".folder.locked").length >= 1, "career has 8 mission files");
     // ---- solo, build from blank
     S.mode = "free"; openSelect();
     document.querySelector('.folder[data-sc="mars_climate"]').click();
@@ -72,10 +83,11 @@
     ok($("#paper").classList.contains("spin") && $(".news-actions").classList.contains("wait"), "newspaper spins in");
     await until(() => !$(".news-actions").classList.contains("wait") && $(".grade-stamp").classList.contains("slam"), 8000);
     ok($("#finalScore").textContent === String(S.result.score.total), "grade slams and score counts up");
+    ok(/Luis Herrera, Planetary Climate Lab/.test($(".quote").textContent), "client quoted in the newspaper");
     ok(/THE ORBITAL TIMES/.test($("#paper").textContent) && $(".grade-stamp b").textContent.length === 1, "launch + newspaper with grade");
     // ---- Cadet: follow the advisor's suggestions only, for every mission
     store.set("difficulty", "easy");
-    for (const sc of ["wildfire", "lunar_ice", "mars_climate", "europa"]) {
+    for (const sc of ORDER) {
       S.mode = "free"; openSelect();
       document.querySelector(`.folder[data-sc="${sc}"]`).click();
       await until(() => S.ev && S.ev.design.scenario === sc && S.advice);
@@ -108,7 +120,7 @@
     await pick("bus", "bus", "cubesat"); await pick("power", "solar", "small"); await pick("power", "battery", "b1000");
     await pick("adcs", "adcs", "wheels"); await pick("prop", "propulsion", "mono"); await pick("comms", "comms", "xlga");
     await pick("comms", "ground", "commercial"); await pick("computer", "computer", "radtol"); await pick("launch", "launch_vehicle", "falcon9");
-    const txt = $("#issues").textContent + $("#speech").textContent;
+    const txt = $("#issues").textContent + $("#speech").dataset.full;
     ok(/does not meet requirements/.test(txt) && !/slots|kg/.test(txt), "director: vague verdict, no details");
     ok(!document.querySelector("#meters .bar.bad, #meters .bar.warn, .card.suggest, .advice"), "director: no coloured meters or suggestions");
     store.set("difficulty", "normal");

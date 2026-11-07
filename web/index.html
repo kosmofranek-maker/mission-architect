@@ -136,6 +136,17 @@
         <div class="hb-foot"><button class="btn small" id="hbClose">Close</button></div>
       </div>
     </div>
+    <div id="letter" class="modal hidden">
+      <div class="letter">
+        <div class="letter-head">
+          <img id="letterImg" class="px" alt="">
+          <div class="lh-who"><div class="lt-from">INCOMING MESSAGE &middot; <span id="letterDay"></span></div><b id="letterFrom"></b><span id="letterOrg"></span></div>
+          <div class="lt-seal">MISSION<br>REQUEST</div>
+        </div>
+        <div id="letterBody" class="letter-body"></div>
+        <div class="letter-foot"><span id="letterPitch"></span><button class="btn" id="letterGo">Open the mission file</button></div>
+      </div>
+    </div>
     <div id="tut" class="tut hidden">
       <img id="tutImg" class="px tut-img" alt="">
       <div class="tut-body">
@@ -192,6 +203,7 @@
 
 </div>
 <script src="sprites.js"></script>
+<script src="labs.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

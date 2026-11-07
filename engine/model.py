@@ -18,7 +18,7 @@ DEFAULT_DESIGN = {
 
 RAD_RISK = {0: 0.0005, 1: 0.01, 2: 0.04, 3: 0.12, 4: 0.25}  # monthly fatal-hit risk by deficit
 ORBIT_RADIATION = {"flyby": 3, "europa_orbit": 4}
-SOLAR_DEGRADATION = {"earth": 0.02, "moon": 0.02, "mars": 0.02, "europa": 0.04}
+SOLAR_DEGRADATION = {"earth": 0.02, "moon": 0.02, "mars": 0.02, "venus": 0.03, "asteroid": 0.02, "europa": 0.04}
 RTG_DECAY = 0.04  # per year (MMRTG loses ~4-5 %/yr incl. thermocouple aging)
 BUS_OPS = {"cubesat": 0.5, "smallsat": 3, "medium": 10, "flagship": 30}
 INTEGRATION = 0.30
@@ -35,6 +35,17 @@ def default_design(scenario: str = "wildfire") -> dict:
         "wildfire": {"comms": "xlga", "solar": "compact"},
         "lunar_ice": {"orbit": "frozen", "launch_vehicle": "falcon9", "comms": "xlga", "ground": "dsn34",
                       "instruments": ["neutron", "lidar"], "years": 2},
+        "storm_watch": {"orbit": "geo", "launch_vehicle": "falcon9", "solar": "small",
+                        "battery": "b1000", "comms": "xlga", "propulsion": "biprop",
+                        "instruments": ["sounder", "wac", "thermal"], "years": 5},
+        "landing_scout": {"orbit": "llo", "launch_vehicle": "falcon9", "bus": "medium", "solar": "medium",
+                          "battery": "b1000", "adcs": "precision", "comms": "xhga", "ground": "dsn34",
+                          "propulsion": "biprop", "instruments": ["hirise", "lidar"], "years": 2},
+        "asteroid_prospector": {"orbit": "orbit", "launch_vehicle": "falcon9", "solar": "small", "comms": "xhga",
+                                "ground": "dsn34", "instruments": ["irspec", "lidar", "lamp"], "years": 2, "comms": "kahga"},
+        "venus_clouds": {"orbit": "low", "launch_vehicle": "falcon9", "bus": "medium", "solar": "small",
+                         "battery": "b3000", "comms": "kahga", "ground": "dsn34", "propulsion": "biprop",
+                         "instruments": ["sar", "sounder", "massspec"], "years": 3},
         "mars_climate": {"orbit": "elliptical", "launch_vehicle": "falcon9", "bus": "medium", "solar": "medium",
                          "battery": "b3000", "comms": "kahga", "ground": "dsn34", "propulsion": "biprop",
                          "instruments": ["sounder", "wac", "irspec"], "years": 4},
@@ -196,7 +207,7 @@ def evaluate(design: dict) -> dict:
 
     # ---------------------------------------------------------------- power
     life = cruise + years
-    sunlit = solar["power_1au"] / dest["sun_au"] ** 2 * (1 - SOLAR_DEGRADATION[dest_key]) ** life
+    sunlit = solar["power_1au"] / dest["sun_au"] ** 2 * (1 - SOLAR_DEGRADATION.get(dest_key, 0.02)) ** life
     rtg_w = C.RTG["power"] * d["rtg"] * (1 - RTG_DECAY) ** life
     gen = sunlit * (1 - orbit["eclipse_frac"]) + rtg_w
     dm = orbit.get("duty_mult", 1.0)
@@ -327,11 +338,17 @@ def evaluate(design: dict) -> dict:
     # ---------------------------------------------------------------- science
     contrib = {g["tag"]: 0.0 for g in sc["goals"]}
     instr_value = {}
+    bonus = sc.get("orbit_bonus", {}).get(d["orbit"], 1.0)
     for k, i in instr.items():
         v = 0.0
+        if k in dest.get("blind", []):
+            _issue(issues, "warning", "science", f"{i['name']} can't see the surface of {dest['name']}.",
+                   dest.get("blind_why", "Something blocks the view."))
+            instr_value[k] = 0.0
+            continue
         for tag in i["tags"]:
             if tag in contrib:
-                c = i["value"] * orbit["science"].get(tag, 1.0 if d["orbit"] else 0.0) * pointing[k] * ret[k]
+                c = i["value"] * orbit["science"].get(tag, 1.0 if d["orbit"] else 0.0) * pointing[k] * ret[k] * bonus
                 contrib[tag] += c
                 v += c
         instr_value[k] = v
