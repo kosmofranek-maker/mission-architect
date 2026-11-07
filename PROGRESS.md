@@ -53,6 +53,12 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   countdown beeps, launch-failure boom, tutorial pop, suggestion jingle.
 - Auto-deploy: push to main -> GitHub Actions tests -> Hetzner (see README).
 
+- Power model tied to the rest of the design (2026-11-07): heaters = BUS_HEATERS[bus] * (1 - 1/AU^2) minus 60 W waste
+  heat per RTG; wheels and engine power scale with bus size; transmitter at full power only during ground contact
+  (15% standby); instruments draw 10% when not observing; bus "power" is avionics only. New Compact array (250 W).
+  Power margin sweet spot now 20-100%. Power tab shows a live power budget. Desk sounds are physical (noise-based).
+  Demo link `#design=<scenario>:<tab>`.
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.

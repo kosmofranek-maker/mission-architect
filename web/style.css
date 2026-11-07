@@ -366,3 +366,8 @@ html.mobile .news-cols { grid-template-columns: 1fr; gap: 6px; }
 html.mobile .news-photo { height: 110px; }
 html.mobile .news-actions { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px; background: #1f1b18; justify-content: stretch; }
 html.mobile .news-actions .btn { flex: 1; font-size: 11px; padding: 6px 4px; }
+
+.pbudget { border: 2px solid var(--ink); background: var(--paperL); padding: 4px 8px; margin-bottom: 8px; font-size: 18px; }
+.pbudget b { font-family: "Silkscreen"; font-size: 11px; display: block; margin-bottom: 2px; }
+.pbudget div { display: flex; justify-content: space-between; border-bottom: 1px dotted var(--paper2); }
+.pbudget .tot { border-top: 2px solid var(--ink); font-weight: bold; }

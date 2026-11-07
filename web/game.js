@@ -174,9 +174,10 @@ async function boot() {
   if (location.hash === "#selftest") { const sc = document.createElement("script"); sc.src = "selftest.js"; document.body.appendChild(sc); }
   const [k, v] = location.hash.slice(1).split("=");
   if (k === "tutorial") { go("tutorial"); for (let n = 0; n < Number(v || 0); n++) tutAdvance(); }
-  if (v && S.cat.SCENARIOS[v]) {
+  if (v && S.cat.SCENARIOS[v.split(":")[0]]) {
     S.mode = "free";
     if (k === "play") startMission(v);
+    if (k === "design") { const [sc2, tab] = v.split(":"); startMission(sc2, S.cat.DEFAULTS[sc2]); if (tab) { S.tab = tab; renderTabs(); renderBinder(); } }
     if (k === "hints") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); openHints("power"); }
     if (k === "stamp") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); stampAnim("ok"); }
     if (k === "news") { startMission(v, S.cat.DEFAULTS[v]); showNews(await api("launch", { design: S.design, save: false, seed: 7 })); }
@@ -542,6 +543,15 @@ function renderBinder() {
   const goalTags = new Set(scen().goals.map((g) => g.tag));
   let h = locked ? `<div class="lock-banner">${icon("lock")} Classified: this section belongs to the ${S.cat.ROLES[tab.role].name}. You can read it but not change it.</div>` : "";
   h += `<p class="hint">${esc(tab.hint)}</p>`;
+  if (tab.id === "power" && S.ev && S.ev.power.load) {
+    const P = S.ev.power, rows = Object.entries(P.loads).filter(([, w]) => w >= 0.5);
+    h += `<div class="pbudget"><b>POWER BUDGET (average, end of mission)</b>
+      ${rows.map(([k, w]) => `<div><span>${esc(k)}</span><span>${fmt(w)} W</span></div>`).join("")}
+      <div class="tot"><span>Total need</span><span>${fmt(P.load)} W</span></div>
+      <div><span>Solar (avg incl. shadow)</span><span>${fmt(P.generation - P.rtg)} W</span></div>
+      ${P.rtg ? `<div><span>RTGs</span><span>${fmt(P.rtg)} W</span></div>` : ""}
+      <div class="tot"><span>Available</span><span>${fmt(P.generation)} W</span></div></div>`;
+  }
   for (const field of tab.fields) {
     h += `<h4>${FIELD_LABEL[field]}</h4>`;
     if (field === "rtg") {
@@ -966,7 +976,7 @@ function stageTips(id) {
         const nb = ev.issues.filter((i) => i.severity === "blocker").length, nw = ev.issues.filter((i) => i.severity === "warning").length;
         T.push(`Right now: <b>${nb}</b> blocker(s), <b>${nw}</b> warning(s). Cost ${fmt(ev.cost.total)} of ${fmt(ev.cost.budget)} M$ (reserve ${pct(ev.cost.reserve)}).`);
       }
-      T.push("Score (max 950): science 500, budget left 150 (full at 25% reserve), margins 100 (mass 10-40%, power 20-60%), reliability 100, team goals 100.");
+      T.push("Score (max 950): science 500, budget left 150 (full at 25% reserve), margins 100 (mass 10-40%, power 20-100%), reliability 100, team goals 100.");
       T.push("Use <b>Risk check</b> to fly the design 200 times before you stamp it.");
       T.push("Over-designing is penalised too: a huge power margin or a half-empty rocket wastes money.");
       break;

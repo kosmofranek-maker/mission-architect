@@ -32,14 +32,14 @@ def default_design(scenario: str = "wildfire") -> dict:
     d = dict(DEFAULT_DESIGN, instruments=list(DEFAULT_DESIGN["instruments"]))
     d["scenario"] = scenario
     presets = {
-        "wildfire": {"comms": "xlga"},
+        "wildfire": {"comms": "xlga", "solar": "compact"},
         "lunar_ice": {"orbit": "frozen", "launch_vehicle": "falcon9", "comms": "xlga", "ground": "dsn34",
                       "instruments": ["neutron", "lidar"], "years": 2},
-        "mars_climate": {"orbit": "elliptical", "launch_vehicle": "falcon9", "bus": "medium", "solar": "large",
+        "mars_climate": {"orbit": "elliptical", "launch_vehicle": "falcon9", "bus": "medium", "solar": "medium",
                          "battery": "b3000", "comms": "kahga", "ground": "dsn34", "propulsion": "biprop",
                          "instruments": ["sounder", "wac", "irspec"], "years": 4},
         "europa": {"orbit": "flyby", "launch_vehicle": "falcon_heavy", "bus": "flagship", "solar": "giant",
-                   "battery": "b8000", "rtg": 1, "comms": "kahga", "ground": "dsn70", "computer": "radhard",
+                   "battery": "b8000", "rtg": 2, "comms": "kahga", "ground": "dsn70", "computer": "radhard",
                    "propulsion": "biprop", "instruments": ["radar", "mag", "irspec", "wac"], "years": 4},
     }
     d.update(presets.get(scenario, {}))
@@ -200,9 +200,18 @@ def evaluate(design: dict) -> dict:
     rtg_w = C.RTG["power"] * d["rtg"] * (1 - RTG_DECAY) ** life
     gen = sunlit * (1 - orbit["eclipse_frac"]) + rtg_w
     dm = orbit.get("duty_mult", 1.0)
+    size = C.BUS_SIZE.get(d["bus"], 1.0)
+    cold = max(0.0, 1 - 1 / dest["sun_au"] ** 2)  # 0 at Earth, 0.57 at Mars, 0.96 at Jupiter
+    heaters = max(0.0, C.BUS_HEATERS.get(d["bus"], 0) * cold - C.RTG["waste_heat_w"] * d["rtg"])
+    contact = min(1.0, ground["hours"] * orbit["earth_view"] / 24)
     loads = {
-        "Bus": bus["power"], "Comms": comms["power"], "Computer": comp["power"], "ADCS": adcs["power"],
-        "Propulsion": prop["power"], "Instruments": sum(i["power"] * i["duty"] * dm for i in instr.values()),
+        "Bus avionics": bus["power"],
+        "Heaters": heaters,
+        "Comms": comms["power"] * (C.COMMS_STANDBY + (1 - C.COMMS_STANDBY) * contact),
+        "Computer": comp["power"],
+        "ADCS": adcs["power"] * size,
+        "Propulsion": prop["power"] * size,
+        "Instruments": sum(i["power"] * (i["duty"] * dm + C.INSTRUMENT_STANDBY * (1 - i["duty"] * dm)) for i in instr.values()),
     }
     load = sum(loads.values())
     power_margin = (gen - load) / load if load else 0
@@ -219,6 +228,10 @@ def evaluate(design: dict) -> dict:
     elif power_margin < 0.2:
         _issue(issues, "warning", "power", f"Power margin is only {power_margin:.0%}.",
                "NASA designs keep ~20-30% power margin: loads grow and panels age faster than planned.")
+    if heaters > 50:
+        _issue(issues, "info", "power", f"It is cold out here: heaters need {heaters:,.0f} W to keep the spacecraft alive.",
+               f"At {dest['sun_au']:g} AU sunlight is weak, so fuel lines, batteries and electronics must be heated. "
+               "Bigger spacecraft need more heat; RTG waste heat helps (Cassini and Curiosity used it).")
     if d["battery"] and eclipse_need > batt_usable:
         _issue(issues, "blocker", "power",
                f"Battery covers {batt_usable:,.0f} Wh, but eclipse needs {eclipse_need:,.0f} Wh.",

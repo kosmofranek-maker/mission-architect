@@ -38,7 +38,7 @@ def score(sim: dict) -> dict:
     parts = {
         "science": min(MAX["science"], sim["science_score"] * 5),
         "budget": MAX["budget"] * max(0.0, min(1.0, sim["reserve_end"] / 0.25)),
-        "margins": 50 * _sweet(ev["mass"]["margin"]) + 50 * _sweet(ev["power"]["margin"], 0.2, 0.6),
+        "margins": 50 * _sweet(ev["mass"]["margin"]) + 50 * _sweet(ev["power"]["margin"], 0.2, 1.0),
         "reliability": MAX["reliability"] * (sim["months_survived"] / max(1, sim["months_planned"]))
         * (1.0 if sim["outcome"] in ("success", "partial") else 0.5),
     }

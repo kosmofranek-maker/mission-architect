@@ -212,18 +212,20 @@ LV_TARGET_LABEL = {"leo": "LEO", "sso": "SSO", "gto": "GTO", "tli": "trans-lunar
 
 # --------------------------------------------------------------------------------------
 # Spacecraft subsystems. mass kg, power W (draw), cost M$.
+# Bus "power" = avionics and housekeeping only. The model adds heaters (colder far from the Sun,
+# bigger bus = more to keep warm, RTG waste heat helps) and scales wheels/engine power by bus size.
 # --------------------------------------------------------------------------------------
 BUSES = {
-    "cubesat": {"name": "12U CubeSat", "mass": 6, "power": 8, "cost": 4, "max_dry": 26, "slots": 2,
+    "cubesat": {"name": "12U CubeSat", "mass": 6, "power": 5, "cost": 4, "max_dry": 26, "slots": 2,
                 "rad_shield": 0,
                 "learn": "Shoebox-sized. Very cheap, but tiny volume, little power and few instruments."},
-    "smallsat": {"name": "SmallSat (ESPA-class)", "mass": 70, "power": 60, "cost": 30, "max_dry": 450,
+    "smallsat": {"name": "SmallSat (ESPA-class)", "mass": 70, "power": 40, "cost": 30, "max_dry": 450,
                  "slots": 3, "rad_shield": 0,
                  "learn": "Fridge-sized. Common for focused Earth and lunar missions."},
-    "medium": {"name": "Medium bus (MRO-class)", "mass": 320, "power": 180, "cost": 110, "max_dry": 2500,
+    "medium": {"name": "Medium bus (MRO-class)", "mass": 320, "power": 120, "cost": 110, "max_dry": 2500,
                "slots": 6, "rad_shield": 0,
                "learn": "Car-sized planetary orbiter. Room for a full instrument suite."},
-    "flagship": {"name": "Flagship bus (Clipper-class)", "mass": 900, "power": 250, "cost": 320, "max_dry": 7000,
+    "flagship": {"name": "Flagship bus (Clipper-class)", "mass": 900, "power": 180, "cost": 320, "max_dry": 7000,
                  "slots": 9, "rad_shield": 1,
                  "learn": "Huge and expensive. Includes a titanium radiation vault (+1 radiation tolerance)."},
 }
@@ -233,6 +235,8 @@ SOLAR_ARRAYS = {
              "learn": "Only possible if you carry RTGs."},
     "body": {"name": "Body-mounted cells (60 W)", "mass": 1, "power_1au": 60, "cost": 0.5,
              "learn": "Cells glued to the sides. Fine for CubeSats only."},
+    "compact": {"name": "Compact deployable array (250 W)", "mass": 4, "power_1au": 250, "cost": 2,
+                "learn": "Two small folding wings. The usual choice for SmallSats near Earth."},
     "small": {"name": "Small deployable array (500 W)", "mass": 8, "power_1au": 500, "cost": 4,
               "learn": "Folding panels. Power falls with distance squared from the Sun."},
     "medium": {"name": "Medium array (2 kW)", "mass": 30, "power_1au": 2000, "cost": 12,
@@ -243,9 +247,16 @@ SOLAR_ARRAYS = {
               "learn": "Europa Clipper-style 30 m wingspan. Only ~650 W left at Jupiter."},
 }
 
-RTG = {"name": "MMRTG (plutonium-238)", "mass": 45, "power": 110, "cost": 110, "max": 3,
-       "learn": ("Nuclear battery: steady 110 W anywhere, day or night. Very expensive and plutonium "
-                 "supply is limited, so max 3.")}
+RTG = {"name": "MMRTG (plutonium-238)", "mass": 45, "power": 110, "cost": 110, "max": 3, "waste_heat_w": 60,
+       "learn": ("Nuclear battery: steady 110 W anywhere, day or night, and its waste heat keeps the spacecraft warm "
+                 "(saves ~60 W of heaters). Very expensive and plutonium supply is limited, so max 3.")}
+
+# Survival heaters at the coldest point of the mission (W at Jupiter distance, scaled by 1 - 1/AU^2).
+BUS_HEATERS = {"cubesat": 4, "smallsat": 35, "medium": 140, "flagship": 220}
+# Wheels and engine valve/line heaters grow with the size of the spacecraft.
+BUS_SIZE = {"cubesat": 0.15, "smallsat": 0.5, "medium": 1.0, "flagship": 1.6}
+COMMS_STANDBY = 0.15      # receiver + standby share of transmitter power outside ground contacts
+INSTRUMENT_STANDBY = 0.10  # electronics/survival heaters while an instrument is not observing
 
 BATTERIES = {
     "b200": {"name": "200 Wh Li-ion", "mass": 2, "wh": 200, "cost": 0.5},

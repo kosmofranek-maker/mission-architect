@@ -141,3 +141,25 @@ def test_normalize_rejects_unknown_parts():
     from engine.model import normalize
     d = normalize({"scenario": "moon?", "bus": "deathstar", "orbit": "geo", "instruments": ["wac", "nope", "wac"]})
     assert d["scenario"] == "wildfire" and d["bus"] is None and d["orbit"] == "geo" and d["instruments"] == ["wac"]
+
+
+def _load(d, key):
+    return evaluate(d)["power"]["loads"][key]
+
+
+def test_heaters_grow_with_distance_and_size_and_rtg_heat_helps():
+    from engine.model import blank_design
+    base = {"bus": "medium", "solar": "large", "battery": "b3000", "comms": "xhga", "ground": "dsn34",
+            "computer": "radhard", "adcs": "wheels", "propulsion": "biprop", "instruments": ["wac"]}
+    earth = blank_design("wildfire") | base | {"orbit": "sso"}
+    mars = blank_design("mars_climate") | base | {"orbit": "elliptical"}
+    jup = blank_design("europa") | base | {"orbit": "flyby"}
+    assert _load(earth, "Heaters") == 0 < _load(mars, "Heaters") < _load(jup, "Heaters")
+    assert _load(jup | {"bus": "flagship"}, "Heaters") > _load(jup, "Heaters")
+    assert _load(jup | {"rtg": 1}, "Heaters") < _load(jup, "Heaters")
+
+
+def test_small_spacecraft_draw_less_for_wheels_and_comms_scale_with_contact():
+    d = default_design("wildfire")
+    assert _load(d | {"bus": "cubesat"}, "ADCS") < _load(d | {"bus": "medium"}, "ADCS")
+    assert _load(d | {"ground": "uni"}, "Comms") < _load(d | {"ground": "commercial"}, "Comms")
