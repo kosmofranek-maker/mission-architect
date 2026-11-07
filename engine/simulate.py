@@ -44,14 +44,16 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
     sch = ev["schedule"]
     tech = sch["risk_mult"]  # rushed projects are tested less, so glitches and launch failures are likelier
     delay = 0
-    if rng.random() < sch["slip"] * em:
+    late = [C.PARTNERS[p]["name"].split(" (")[0] for p in ev["partners"]["keys"] if rng.random() < C.PARTNERS[p]["delay"] * em]
+    if late or rng.random() < sch["slip"] * em:
         delay = sch["synodic"] or 4
         waste = budget * C.SLIP_COST_MONTH * delay
         reserve -= waste
         where = ev["destination"]["name"]
-        log(0, "slip", (f"Late hardware! The spacecraft missed the {where} window and waited {delay} months for the next one "
+        who = f"{' and '.join(late)} hardware arrived late! " if late else "Late hardware! "
+        log(0, "slip", (f"{who}The spacecraft missed the {where} window and waited {delay} months for the next one "
                         f"({waste:,.0f} M$)." if sch["synodic"] else
-                        f"Late hardware! Launch slipped {delay} months ({waste:,.0f} M$ to keep the team working)."),
+                        f"{who}Launch slipped {delay} months ({waste:,.0f} M$ to keep the team working)."),
             "Problems found in testing take time to fix. For planets you then wait for Earth and the target to line up again.",
             "bad")
         if reserve < 0:

@@ -5,7 +5,7 @@
   const until = async (fn, ms = 5000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) throw new Error("timeout: " + fn); await wait(50); } };
   const log = [];
   const ok = (cond, msg) => { if (!cond) throw new Error(msg); log.push(msg); };
-  const has = (f, k) => S.ev && (f === "instruments" ? S.ev.design.instruments.includes(k) : S.ev.design[f] === k);
+  const has = (f, k) => S.ev && (Array.isArray(S.ev.design[f]) ? S.ev.design[f].includes(k) : S.ev.design[f] === k);
   const pick = async (tab, f, k) => {
     if (f === "rtg") {
       document.querySelector('.tab[data-tab="power"]').click();
@@ -47,7 +47,7 @@
     ok(S.tab === "instr", "tutorial advances to instruments after the pick");
     $("#tutSkip").click();
     ok(!S.tut && $("#tut").classList.contains("hidden"), "skip closes tutorial");
-    ok($$("#tabs .tab").length === 9 && !$(".tab.door") && $("#labCanvas").dataset.lab === "instr", "9 plain tabs, lab scene shown");
+    ok($$("#tabs .tab").length === 10 && !$(".tab.door") && $("#labCanvas").dataset.lab === "instr", "9 plain tabs, lab scene shown");
     document.querySelector('.tab[data-tab="power"]').click();
     ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
     S.mode = "career"; openSelect();
@@ -56,7 +56,7 @@
     S.mode = "free"; openSelect();
     document.querySelector('.folder[data-sc="lunar_lander"]').click();
     await until(() => S.ev && S.ev.design.scenario === "lunar_lander");
-    ok($$("#tabs .tab").length === 10 && document.querySelector('.tab[data-tab="edl"]') && /Site/.test($("#tabs").textContent), "lander: Site + Landing tabs");
+    ok($$("#tabs .tab").length === 11 && document.querySelector('.tab[data-tab="edl"]') && /Site/.test($("#tabs").textContent), "lander: Site + Landing tabs");
     document.querySelector('.tab[data-tab="edl"]').click();
     ok(document.querySelector('.card[data-f="edl"][data-k="airbags"]').classList.contains("bad") && $("#labCanvas").dataset.lab === "edl", "airbags marked unusable on the airless Moon");
     document.querySelector('.tab[data-tab="instr"]').click();
@@ -76,12 +76,15 @@
     ok(true, "rejected stamp lands and tool lifts");
     // handbook from the in-game menu
     $("#menuBtn").click(); $("#mHints").click();
-    ok(!$("#hints").classList.contains("hidden") && $$("#hbNav [data-s]").length === 10, "handbook opens with 10 stages");
+    ok(!$("#hints").classList.contains("hidden") && $$("#hbNav [data-s]").length === 11, "handbook opens with 11 stages");
     ok(/only given at Cadet/.test($("#hbBody").textContent) && /Your design right now/.test($("#hbBody").textContent), "engineer handbook: status, no tips");
     $("#hbClose").click();
     await pick("launch", "launch_vehicle", "falcon9");
     ok(S.ev.ok, "design flight ready: " + S.ev.issues.filter((i) => i.severity === "blocker").map((i) => i.text).join("; "));
     ok(!document.querySelector(".tab .todo"), "no tab left with missing parts");
+    const before = S.ev.cost.total;
+    await pick("partners", "partners", "isro");
+    ok(S.ev.cost.total < before && S.ev.partners.tracking_h === 4, "partner pays part and lends antennas");
     await pick("instr", "instruments", "radar");
     ok(S.ev.science.goals.find((g) => g.tag === "subsurface").fraction > 0, "radar adds subsurface science");
     $("#yearsUp").click(); await until(() => S.ev.design.years === 5); ok(true, "years stepper");

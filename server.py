@@ -38,7 +38,7 @@ def clean(o):
 def catalog() -> dict:
     return {k: getattr(C, k) for k in ("DESTINATIONS", "SCENARIOS", "ORBITS", "LAUNCH_VEHICLES", "LV_TARGET_LABEL",
                                        "BUSES", "SOLAR_ARRAYS", "RTG", "BATTERIES", "COMMS", "GROUND", "COMPUTERS",
-                                       "ADCS", "PROPULSION", "INSTRUMENTS", "DIFFICULTY", "ROLES", "RADIATION_LABEL", "EDL")} | {
+                                       "ADCS", "PROPULSION", "INSTRUMENTS", "DIFFICULTY", "ROLES", "RADIATION_LABEL", "EDL", "PARTNERS", "MAX_PARTNERS")} | {
         "FIELD_OWNER": FIELD_OWNER,
         "DEFAULTS": {s: default_design(s) for s in C.SCENARIOS},
         "BLANK": {s: blank_design(s) for s in C.SCENARIOS},

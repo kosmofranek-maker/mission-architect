@@ -51,6 +51,34 @@ WINDOW_RULES = {
     "europa": {"synodic": 13, "first": 9, "cycle": 11, "shift": 3.0},
     "asteroid": {"synodic": 14, "first": 6, "cycle": 6, "shift": 2.1},
 }
+# --------------------------------------------------------------------------------------
+# International partners. Each pays part of the hardware and/or brings hardware of its own, but every interface
+# adds meetings, paperwork and a chance their part is late. Programs (stations, bases) get a flight instead.
+# --------------------------------------------------------------------------------------
+PARTNERS = {
+    "esa": {"name": "ESA (Europe)", "share": 0.12, "delay": 0.08,
+            "instrument": {"name": "European spectrometer", "mass": 16, "power": 18, "cost": 0, "data_mbps": 1.0,
+                           "duty": 0.2, "value": 18, "tags": ["composition", "climate", "water"], "pointing_deg": 0.5},
+            "gives": "Pays 12% of the hardware and adds a European spectrometer (uses one instrument slot).",
+            "learn": "ESA built instruments for Juno, Cassini and Europa Clipper and flew its own probes to Mars, Venus and a comet."},
+    "jaxa": {"name": "JAXA (Japan)", "share": 0.10, "delay": 0.06,
+             "instrument": {"name": "Japanese multiband camera", "mass": 9, "power": 12, "cost": 0, "data_mbps": 3.0,
+                            "duty": 0.1, "value": 18, "tags": ["imaging", "topography", "thermal"], "pointing_deg": 0.5},
+             "gives": "Pays 10% of the hardware and adds a Japanese multiband camera (uses one instrument slot).",
+             "learn": "JAXA's Hayabusa missions brought back samples from two asteroids."},
+    "csa": {"name": "CSA (Canada)", "share": 0.08, "delay": 0.05,
+            "instrument": {"name": "Canadian laser altimeter", "mass": 12, "power": 18, "cost": 0, "data_mbps": 0.1,
+                           "duty": 1.0, "value": 18, "tags": ["topography"], "pointing_deg": 0.1, "where": "orbit"},
+            "instrument_surface": {"name": "Canadian X-ray rock spectrometer", "mass": 2, "power": 6, "cost": 0,
+                                   "data_mbps": 0.05, "duty": 0.2, "value": 16, "tags": ["composition"], "pointing_deg": 10},
+            "gives": "Pays 8% of the hardware and adds a Canadian instrument (uses one instrument slot).",
+            "learn": "Canada built the laser that mapped asteroid Bennu, the X-ray spectrometer on Curiosity and the space station's robot arms."},
+    "isro": {"name": "ISRO (India)", "share": 0.06, "delay": 0.07, "tracking_h": 4,
+             "gives": "Pays 6% of the hardware and lends its deep-space antennas: +4 hours of contact per day.",
+             "learn": "India reached Mars orbit on its first try and landed near the Moon's south pole with Chandrayaan-3."},
+}
+MAX_PARTNERS = 2
+
 SLIP_COST_MONTH = 0.004  # share of the budget burned per month of waiting (the "standing army")
 
 # --------------------------------------------------------------------------------------

@@ -219,3 +219,13 @@ def test_slip_costs_money_and_months():
     sims = [simulate(d, s) for s in range(60)]
     slipped = [x for x in sims if x.get("launch_delay")]
     assert slipped and all(x["launch_delay"] == 19 for x in slipped)
+
+
+def test_partners_share_cost_add_hardware_and_delay():
+    a = evaluate(default_design("mars_climate"))
+    b = evaluate(default_design("mars_climate") | {"partners": ["esa", "isro", "jaxa"]})
+    assert b["design"]["partners"] == ["esa", "isro"]          # at most two
+    assert b["cost"]["total"] < a["cost"]["total"]
+    assert "partner_esa" in b["science"]["per_instrument"]
+    assert b["data"]["contact_hours"] > a["data"]["contact_hours"]
+    assert b["schedule"]["slip"] == a["schedule"]["slip"] and b["partners"]["delay"] > 0.1

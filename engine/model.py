@@ -146,7 +146,7 @@ def blank_design(scenario: str = "wildfire") -> dict:
     return {"scenario": scenario, "difficulty": "normal", "sandbox": False, "orbit": None, "launch_vehicle": None,
             "bus": None, "solar": None, "rtg": 0, "battery": None, "comms": None, "ground": None, "computer": None,
             "adcs": None, "propulsion": None, "edl": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"],
-            "window": None, "start_month": 0}
+            "window": None, "start_month": 0, "partners": []}
 
 
 def options_for(design: dict) -> dict:
@@ -171,6 +171,7 @@ def normalize(design: dict) -> dict:
         d["edl"] = None
     if d["ground"] == "relay" and not C.DESTINATIONS[dest].get("relay"):
         d["ground"] = None
+    d["partners"] = [p for p in dict.fromkeys(d.get("partners") or []) if p in C.PARTNERS][:C.MAX_PARTNERS]
     if d["window"] not in ("w1", "w2", "w3"):
         d["window"] = None
     try:
@@ -205,6 +206,14 @@ def evaluate(design: dict) -> dict:
     edl, use = part["edl"], edl_use(d["scenario"])
     kind = kind_of(d["scenario"])
     instr = {k: C.INSTRUMENTS[k] for k in d["instruments"]}
+    partners = [C.PARTNERS[p] for p in d["partners"]]
+    for pk in d["partners"]:  # partner hardware rides along and takes an instrument slot
+        p = C.PARTNERS[pk]
+        inst = p.get("instrument_surface") if C.DESTINATIONS[sc["destination"]].get("surface") and p.get("instrument_surface") else p.get("instrument")
+        if inst:
+            instr[f"partner_{pk}"] = inst
+    tracking = sum(p.get("tracking_h", 0) for p in partners)
+    partner_delay = 1 - math.prod(1 - p["delay"] for p in partners)
     diff = C.DIFFICULTY[d["difficulty"]]
     issues: list[dict] = []
     years = d["years"]
@@ -310,7 +319,7 @@ def evaluate(design: dict) -> dict:
     size = C.BUS_SIZE.get(d["bus"], 1.0)
     cold = max(0.0, 1 - 1 / dest["sun_au"] ** 2, orbit.get("cold", 0.0))  # 0 at Earth, 0.57 at Mars, 0.96 at Jupiter; surface nights are cold
     heaters = max(0.0, C.BUS_HEATERS.get(d["bus"], 0) * cold - C.RTG["waste_heat_w"] * d["rtg"])
-    contact = min(1.0, ground["hours"] * orbit["earth_view"] / 24)
+    contact = min(1.0, (ground["hours"] + (tracking if d["ground"] else 0)) * orbit["earth_view"] / 24)
     loads = {
         "Bus avionics": bus["power"],
         "Heaters": heaters,
@@ -376,7 +385,7 @@ def evaluate(design: dict) -> dict:
         rate = comms["max_mbps"] * ground["gain"]
     else:
         rate = min(comms["max_mbps"], comms["mbps_1au"] / dest["earth_au"] ** 2) * ground["gain"]
-    hours = ground["hours"] * (1.0 if relay else orbit["earth_view"])
+    hours = (ground["hours"] + (tracking if d["ground"] and not relay else 0)) * (1.0 if relay else orbit["earth_view"])
     down_gb = rate * hours * 3600 / 1000
     alloc, remaining = {}, down_gb
     for n, k in enumerate(sorted(gen_gb, key=gen_gb.get)):
@@ -424,6 +433,9 @@ def evaluate(design: dict) -> dict:
         **hw, "Integration & test (30%)": hardware * INTEGRATION, "Launch": lv["cost"],
         "Operations": ops_year * (years + cruise),
     }
+    partner_pay = hardware * sum(p["share"] for p in partners)
+    if partner_pay:
+        cost["Paid by partners"] = -partner_pay
     if schedule_cost > 0.05:
         cost["Rush overtime" if win["rush"] > 0 else "Waiting for the window"] = schedule_cost
     total_cost = sum(cost.values())
@@ -435,6 +447,11 @@ def evaluate(design: dict) -> dict:
     elif reserve < 0.1 and not d["sandbox"]:
         _issue(issues, "warning", "cost", f"Budget reserve only {reserve:.0%}.",
                "Projects keep 10-25% reserve for problems found during testing.")
+    if partners:
+        _issue(issues, "info", "partners", f"Partners pay {partner_pay:,.0f} M$, but their hardware must arrive on time "
+               f"({partner_delay:.0%} chance of a delay).",
+               "International missions share cost and science, but every interface between agencies adds meetings, "
+               "paperwork and the risk that one side is late.")
     if win and win["rush"] >= 0.34:
         _issue(issues, "warning", "window", f"Only {win['build_months']} months to build and test before {win['label']}.",
                f"Rushed projects skip tests: launch-failure and glitch odds x{win['risk_mult']:.1f}, overtime costs more, and there is a "
@@ -498,6 +515,7 @@ def evaluate(design: dict) -> dict:
         "design": d, "scenario": sc, "destination": dest, "orbit_info": orbit, "ok": not blockers,
         "issues": issues,
         "windows": windows,
+        "partners": {"keys": d["partners"], "saving": partner_pay, "delay": partner_delay, "tracking_h": tracking},
         "schedule": {"window": win, "risk_mult": win["risk_mult"] if win else 1.0, "slip": win["slip"] if win else 0.0,
                      "synodic": win["synodic"] if win else 0, "launch_month": win["month"] if win else d["start_month"]},
         "kind": kind, "edl": {"use": use, "mass": edl_mass, "landed": landed, "landing_risk": landing_risk,

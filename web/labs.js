@@ -13,6 +13,7 @@ const LABS = {
   comms:    { name: "Communications Center", door: "#2f7a6a" },
   computer: { name: "Avionics Lab", door: "#3c5c25" },
   instr:    { name: "Science Instrument Lab", door: "#5f666c" },
+  partners: { name: "International Office", door: "#1d3f8f" },
 };
 
 // ---------------------------------------------------------------------------- lab scenes (256 x 42)
@@ -180,6 +181,19 @@ function drawLab(canvas, id, t) {
       r(196, 14, 14, 12, "#1d1a17"); r(197, 15, 12, 10, t % 10 < 5 ? "#3d6fa8" : "#25456b");
       r(216, 14, 13, 11, "#e8cf52"); r(221, 18, 3, 3, "#1d1a17"); r(218, 16, 3, 2, "#1d1a17"); r(224, 16, 3, 2, "#1d1a17"); r(221, 22, 3, 2, "#1d1a17");
       person(160, "#e9e3d6", "#a87552", "#141012", t % 12 < 6 ? 0 : 1);
+      break;
+    }
+    case "partners": {
+      wall("#4a3b2e", "#3a2e24"); floor("#5a4632", "#634d37"); lights();
+      [["#1d3f8f", "#f4efe2"], ["#f4efe2", "#bc002d"], ["#d52b1e", "#f4efe2"], ["#ff9933", "#138808"], ["#3d6fa8", "#f4efe2"]].forEach(([a, b], i) => {
+        const x = 18 + i * 22, wave = (t + i) % 6 < 3 ? 0 : 1;                              // flags on poles
+        r(x, 4, 1, 24, "#9c9284"); r(x + 1, 5 + wave, 12, 4, a); r(x + 1, 9 + wave, 12, 3, b);
+      });
+      r(140, 22, 90, 4, "#6b4a33"); r(146, 26, 3, 8, "#4e3624"); r(222, 26, 3, 8, "#4e3624");    // conference table
+      [150, 172, 194, 214].forEach((x, i) => person(x, ["#2c3b55", "#5a3a6e", "#7a3b26", "#4b5a3a"][i], ["#e3c19c", "#8a5a3b", "#c99a74", "#efd2bd"][i], "#2b2018", (t + i * 3) % 10 < 5 ? 0 : 1));
+      r(150, 4, 80, 14, "#1d1a17"); r(151, 5, 78, 12, "#25456b");                              // world map on the wall
+      [[156, 8, 10, 5], [170, 7, 8, 7], [182, 6, 16, 6], [200, 10, 10, 5], [214, 7, 10, 6]].forEach(([x, y, w, h]) => r(x, y, w, h, "#3c5c25"));
+      if (t % 8 < 4) r(225, 21, 2, 2, "#e8cf52");                                              // a signed paper
       break;
     }
     case "instr": {

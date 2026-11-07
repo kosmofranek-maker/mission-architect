@@ -138,6 +138,8 @@ const TABS = [
     hint: "Data is useless until it reaches Earth. Signals weaken with distance squared." },
   { id: "computer", label: "Computer", icon: "chip", role: "comms", fields: ["computer"],
     hint: "Stores data between contacts and must survive the local radiation." },
+  { id: "partners", label: "Partners", icon: "globe", role: "manager", fields: ["partners"],
+    hint: "Other space agencies can share the cost and bring their own hardware. Every partner also adds meetings, interfaces and a chance that their part arrives late. Up to two." },
   { id: "instr", label: "Instruments", icon: "telescope", role: "science", fields: ["instruments"],
     hint: "Pick instruments that serve the mission goals (dark tags). Watch mass, power and data volume." },
 ];
@@ -162,7 +164,8 @@ function fieldLabel(f) {
 }
 const FIELD_LABEL = { window: "Launch date", launch_vehicle: "Launch vehicle", orbit: "Orbit", bus: "Spacecraft bus", solar: "Solar array",
   rtg: "Nuclear power (RTG)", battery: "Battery", adcs: "Attitude control", propulsion: "Propulsion", comms: "Antenna",
-  ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system" };
+  ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system", partners: "Partners" };
+const MULTI = new Set(["instruments", "partners"]); // fields that hold a list
 
 const S = {
   cat: null, design: null, ev: null, mode: "free", tab: "launch", player: "", started: false,
@@ -361,7 +364,7 @@ function openSelect() {
 }
 
 function startMission(sc, design, opts = {}) {
-  const d = design ? { ...design } : { ...S.cat.BLANK[sc], instruments: [] };
+  const d = { ...S.cat.BLANK[sc], instruments: [], partners: [], ...(design || {}) }; // older saved designs lack newer fields
   if (!design) {
     d.difficulty = store.get("difficulty", "normal");
     d.sandbox = S.mode === "free" && $("#sandbox").checked;
@@ -398,7 +401,7 @@ async function setField(field, value) {
     SFX.error();
     return toast(`${icon("lock")} Only the ${role.name} may change that.`);
   }
-  if (field === "instruments" && value.length < S.design.instruments.length) SFX.deselect(); else SFX.select();
+  if (MULTI.has(field) && value.length < S.design[field].length) SFX.deselect(); else SFX.select();
   S.introShown = true;
   $("#stampMark").classList.add("hidden");
   if (S.mode === "team") {
@@ -468,7 +471,7 @@ function recommend(f) {
       return null;
     }
     case "bus": {
-      const n = Math.max(1, d.instruments.length), base = ev && ev.mass.dry != null ? ev.mass.dry - (d.bus ? c.BUSES[d.bus].mass : 0) : 0;
+      const n = Math.max(1, d.instruments.length + d.partners.filter((p) => S.cat.PARTNERS[p].instrument).length), base = ev && ev.mass.dry != null ? ev.mass.dry - (d.bus ? c.BUSES[d.bus].mass : 0) : 0;
       const fit = Object.entries(c.BUSES).filter(([, b]) => b.slots >= n && b.max_dry >= (base + b.mass) * 1.25);
       return fit.length ? { key: cheapest(fit)[0], why: `it is the cheapest bus with ${n}+ slot(s) that holds your parts with room to spare` }
         : { key: "flagship", why: "only the biggest bus can hold all this" };
@@ -534,6 +537,12 @@ function recommend(f) {
       if (good.length) return { key: cheapest(good)[0], why: dest.earth_au ? "only the Deep Space Network can hear you this far, and it is enough" : "it gives enough contact time per day" };
       return { key: fit.sort((a, b) => downlinkGb(x, b[0]) - downlinkGb(x, a[0]))[0][0], why: "it collects the most data per day" };
     }
+    case "partners": {
+      if (ev) T.push(ev.partners.keys.length ? `Your partners pay <b>${fmt(ev.partners.saving)} M$</b>; chance that someone is late: <b>${pct(ev.partners.delay)}</b>.` : "No partners yet: you pay for everything, and nobody else can make you late.");
+      T.push("Partner instruments ride along for free but need an instrument slot, mass and power like any other.");
+      T.push("A late partner can make a planetary mission miss its launch window: the next one may be years away.");
+      break;
+    }
     case "edl": {
       if (kindNow() === "sample_return") {
         T.push("The capsule is a separate stage: it adds mass, and the trip home needs extra Δv from your engine.");
@@ -550,6 +559,10 @@ function recommend(f) {
       const env = ev ? ev.radiation.env : dest.radiation, shield = d.bus === "flagship" ? 1 : 0, store = ev ? ev.data.storage_need_gb : 0;
       const fit = Object.entries(c.COMPUTERS).filter(([, x]) => x.rad + shield >= env && x.storage_gb >= store);
       return { key: cheapest(fit.length ? fit : [["radhard", c.COMPUTERS.radhard]])[0], why: `radiation here is ${c.RADIATION_LABEL[env].toLowerCase()}, and it survives that` };
+    }
+    case "partners": {
+      const free = Object.entries(c.PARTNERS).filter(([k]) => !d.partners.includes(k)).sort((a, b) => b[1].share - a[1].share);
+      return free.length ? { key: free[0][0], why: `they pay ${pct(free[0][1].share)} of the hardware` } : null;
     }
     case "window": {
       const ws = Object.entries(optionsFor("window"));
@@ -571,6 +584,7 @@ function recommend(f) {
 function issueField(i) {
   const t = i.text;
   if (i.field) return i.field;
+  if (i.area === "cost" && /budget is/.test(t) && S.design.partners.length < S.cat.MAX_PARTNERS) return "partners";
   return { window: "window", launch: "launch_vehicle", propulsion: "propulsion", radiation: "computer", adcs: "adcs", edl: "edl", orbit: "orbit" }[i.area]
     || (i.area === "bus" ? (/slots/.test(t) ? "bus" : "bus") : null)
     || (i.area === "power" ? (/Battery|eclipse/i.test(t) ? "battery" : /RTG/.test(t) ? null : "solar") : null)
@@ -600,7 +614,7 @@ function advisor() {
         f = "rtg"; r = { key: d.rtg + 1, why: "the night here is too long for any battery; an RTG keeps you powered and warm until sunrise" };
       }
       if (f === "rtg") return { ...r, field: f, action: "swap", issue: i };
-      if (r && (f === "instruments" ? !d.instruments.includes(r.key) : d[f] !== r.key)) return { ...r, field: f, action: "swap", issue: i };
+      if (r && (MULTI.has(f) ? !d[f].includes(r.key) : d[f] !== r.key)) return { ...r, field: f, action: "swap", issue: i };
     }
   }
   return null;
@@ -711,7 +725,7 @@ function renderRequest() {
 function renderTabs() {
   $("#tabs").innerHTML = tabs().map((t) => {
     const locked = S.mode === "team" && !S.myRoles.includes(t.role);
-    const todo = t.fields.some((f) => f !== "rtg" && (f === "instruments" ? !S.design.instruments.length : S.design[f] == null));
+    const todo = t.fields.some((f) => f !== "rtg" && f !== "partners" && (f === "instruments" ? !S.design.instruments.length : S.design[f] == null));
     return `<div class="tab ${t.id === S.tab ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}" title="${esc(LABS[t.id].name)}">${icon(locked ? "lock" : t.icon, 14)}${t.label}${todo ? '<span class="todo" title="still to choose"></span>' : ""}</div>`;
   }).join("");
   $$("#tabs .tab").forEach((el) => el.onclick = () => goLab(el.dataset.tab));
@@ -737,6 +751,7 @@ function optionsFor(field) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], use = { lander: "land", rover: "land", sample_return: "return" }[kindNow()];
   const keep = (obj, fn) => Object.fromEntries(Object.entries(obj).filter(([k, o]) => fn(o, k)));
   if (field === "edl") return keep(c.EDL, (o) => o.use === use);
+  if (field === "partners") return Object.fromEntries(Object.entries(c.PARTNERS).map(([k, p]) => [k, { ...p, learn: `${p.gives} ${p.learn}` }]));
   if (field === "window") return Object.fromEntries(((S.ev && S.ev.windows) || []).map((w) => [w.key, { ...w, name: windowName(w), learn: windowLearn(w) }]));
   if (field === "ground") return keep(c.GROUND, (o) => !o.relay_mbps || dest.relay);
   if (field === "instruments") return keep(c.INSTRUMENTS, (o) => !o.where || (o.where === "surface") === !!dest.surface);
@@ -762,6 +777,7 @@ function statLine(field, k, o) {
   const tgt = curOrbit().lv_target;
   switch (field) {
     case "launch_vehicle": return `${fmt(o.capacity[tgt] * energy())} kg to ${c.LV_TARGET_LABEL[tgt]} · ${fmt(o.cost)} M$`;
+    case "partners": return `pays ${pct(o.share)} of hardware · delay risk ${pct(o.delay)}`;
     case "window": return `build ${o.build_months} mo · rocket ${o.energy >= 1 ? "+" : ""}${Math.round((o.energy - 1) * 100)}% · cost x${o.cost_mult} · risk x${o.risk_mult}`;
     case "orbit": return onSurface() ? `night ${o.eclipse_h ? `${o.eclipse_h} h` : "forever"} · sunlit ${pct(1 - o.eclipse_frac)} · landing risk ${pct(o.landing_risk)}`
       : `Δv ${o.dv_insert} m/s · covers ${pct(o.coverage)} · shadow ${o.eclipse_h} h`;
@@ -821,7 +837,7 @@ function renderBinder() {
     }
     const opts = optionsFor(field);
     h += `<div class="cards">` + Object.entries(opts).map(([k, o]) => {
-      const sel = field === "instruments" ? S.design.instruments.includes(k) : S.design[field] === k;
+      const sel = MULTI.has(field) ? S.design[field].includes(k) : S.design[field] === k;
       const tags = field === "instruments" ? `<div class="tagrow">${o.tags.map((t) => `<span class="tag ${goalTags.has(t) ? "hit" : ""}">${t}</span>`).join("")}</div>` : "";
       return `<div class="card ${sel ? "sel" : ""} ${level() !== "hard" && cardBad(field, k, o) ? "bad" : ""} ${locked ? "disabled" : ""}" data-f="${field}" data-k="${k}">
         <div class="ci">${icon(PART_ICON[field](k), 32)}</div>
@@ -835,8 +851,11 @@ function renderBinder() {
   drawLab($("#labCanvas"), tab.id, _labFrame);
   $$("#binder .card[data-f]").forEach((el) => el.onclick = () => {
     const f = el.dataset.f, k = el.dataset.k;
-    if (f === "instruments") {
-      const cur = S.design.instruments;
+    if (MULTI.has(f)) {
+      const cur = S.design[f];
+      if (f === "partners" && !cur.includes(k) && cur.length >= S.cat.MAX_PARTNERS) {
+        SFX.error(); return toast(`At most ${S.cat.MAX_PARTNERS} partners: each one adds meetings, interfaces and delay risk.`);
+      }
       setField(f, cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]);
     } else setField(f, k);
   });
@@ -989,7 +1008,7 @@ function drawBlueprint() {
     const o = S.cat.INSTRUMENTS[k], n = d.instruments.length, x = cx - s / 2 + ((i + 1) * s) / (n + 1);
     r(x - 1, cy + s / 2 - 5, 3, 3, COL[o.tags[0]] || L);
   });
-  const free = S.cat.BUSES[d.bus].slots - d.instruments.length;
+  const free = S.cat.BUSES[d.bus].slots - d.instruments.length - d.partners.filter((p) => S.cat.PARTNERS[p].instrument).length;
   $("#bpSlots").textContent = free >= 0 ? `${free} free instrument slot(s)` : `${-free} instrument(s) too many!`;
 }
 
@@ -1147,8 +1166,8 @@ async function openCompare(aId, bId) {
       ["Typical science", ra.science_median, rb.science_median, "high", (v) => fmt(v)]);
     const flight = (x) => (x.flight ? `${x.flight.grade} · ${x.flight.score} pts` : "not flown");
     const fields = [...tabs().flatMap((t) => t.fields), "years"];
-    const partName2 = (d, f) => f === "years" ? `${d.years} yr` : f === "rtg" ? `${d.rtg || 0}` : f === "instruments"
-      ? (d.instruments.length ? d.instruments.map((k) => S.cat.INSTRUMENTS[k].name).join(", ") : "-") : d[f] ? (optionsFor(f)[d[f]] || {}).name || "-" : "-";
+    const partName2 = (d, f) => f === "years" ? `${d.years} yr` : f === "rtg" ? `${d.rtg || 0}` : MULTI.has(f)
+      ? ((d[f] || []).length ? d[f].map((k) => optionsFor(f)[k].name).join(", ") : "-") : d[f] ? (optionsFor(f)[d[f]] || {}).name || "-" : "-";
     $("#cmpBody").innerHTML = `<table class="cmp"><tr><th></th><th class="cmp-a">A: ${esc(A.name)}</th><th class="cmp-b">B: ${esc(B.name)}</th></tr>
       ${num.map(([label, va, vb, dir, f]) => { const [wa, wb] = better(va, vb, dir);
         return `<tr><td>${label}</td><td class="${wa ? "win" : ""}">${f(va, ea)}</td><td class="${wb ? "win" : ""}">${f(vb, eb)}</td></tr>`; }).join("")}
@@ -1185,7 +1204,7 @@ function loadDesign(design) {
 // ---------------------------------------------------------------------------- engineer's handbook (hints per stage)
 function soundLabel() { $("#mSound").textContent = `Sound: ${store.get("sound", true) ? "on" : "off"}`; }
 const STAGE_AREAS = { launch: ["launch"], orbit: ["schedule"], bus: ["bus"], power: ["power"], adcs: ["adcs"],
-  prop: ["propulsion"], edl: ["edl"], comms: ["comms"], computer: ["radiation"], instr: ["science"], review: ["cost"] };
+  prop: ["propulsion"], edl: ["edl"], partners: ["partners"], comms: ["comms"], computer: ["radiation"], instr: ["science"], review: ["cost"] };
 const STAGES = () => [...tabs(), { id: "review", label: "Review & launch", icon: "check", fields: [],
   hint: "The review board only approves a design with zero blockers. Warnings are allowed but cost points." }];
 
@@ -1207,7 +1226,7 @@ function openHints(stageId) {
   const st = stages.find((x) => x.id === stageId);
   const chosen = st.fields.filter((f) => f !== "rtg").map((f) => {
     const v = S.design[f];
-    const name = f === "instruments" ? (v.length ? v.map((k) => S.cat.INSTRUMENTS[k].name).join(", ") : null) : v ? optionsFor(f)[v].name : null;
+    const name = MULTI.has(f) ? (v.length ? v.map((k) => optionsFor(f)[k].name).join(", ") : null) : v ? optionsFor(f)[v].name : null;
     return `<div class="line">${icon(name ? "check" : "none", 14)}<span>${fieldLabel(f)}: ${name ? esc(name) : "<i>not chosen yet</i>"}</span></div>`;
   }).join("");
   const iss = stageIssues(st);
