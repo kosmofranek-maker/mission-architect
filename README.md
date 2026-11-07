@@ -22,6 +22,8 @@ design, watch the launch and the mission unfold month by month on the teletype, 
   Each role edits only its own parts; every change cancels approvals; launch needs all four stamps.
 - Hall of fame per mission, design codes to share, all art drawn in code (no image files).
 
+**Play online:** https://mission-architect.178-105-110-45.sslip.io
+
 ## Run
 ```
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # only pytest is needed
@@ -32,6 +34,9 @@ The server uses only the Python standard library. Open `http://localhost:8600/#s
 click-through test of the UI (result appears in the tab title).
 
 Docker: `docker build -t mission-architect . && docker run -p 8600:8600 mission-architect`
+
+Production runs behind Caddy: `docker-compose.yml` joins the proxy's network, `deploy/Caddyfile.snippet` is the
+site block, `deploy/deploy.sh` redeploys.
 
 ## Code map
 - `engine/catalog.py` all game content (parts, orbits, missions), with the learning text.

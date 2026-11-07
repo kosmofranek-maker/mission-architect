@@ -1,0 +1,17 @@
+# Production: runs next to an existing Caddy reverse proxy on the same Docker network.
+# CADDY_NETWORK = the external network Caddy is attached to (on our Hetzner box: mylychi_mylychi).
+services:
+  game:
+    build: .
+    container_name: mission-architect
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data          # hall of fame survives rebuilds
+    networks: [proxy]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+networks:
+  proxy:
+    external: true
+    name: ${CADDY_NETWORK:-mylychi_mylychi}

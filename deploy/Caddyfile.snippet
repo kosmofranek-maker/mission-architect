@@ -1,0 +1,5 @@
+# Append to the Caddyfile of the reverse proxy (do not replace existing blocks).
+mission-architect.178-105-110-45.sslip.io {
+	encode zstd gzip
+	reverse_proxy mission-architect:8600
+}
