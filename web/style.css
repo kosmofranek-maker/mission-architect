@@ -268,6 +268,12 @@ html.mobile .hq-folder .f-planet { width: 34px; height: 34px; }
 html.mobile .rs-box { width: 96vw; max-height: 92vh; }
 html.mobile .agency-report { position: static; margin-top: 8px; }
 
+.hq-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.hq-invbox { max-height: 45%; display: flex; flex-direction: column; min-height: 0; }
+.hq-logbox { flex: 1; }
+.invite { display: grid; grid-template-columns: 18px 1fr; gap: 4px 6px; border-bottom: 1px dashed var(--ink2); padding: 4px 0; font-size: 15px; line-height: 1.05; }
+.invite .btn { grid-column: 2; justify-self: start; } .invite .btn.tiny { grid-column: 2; justify-self: end; margin-top: -26px; }
+
 /* ------------------------------------------------ design comparison */
 .cmp-box { width: 900px; max-height: 680px; display: flex; flex-direction: column; }
 .cmp-pick { display: flex; gap: 12px; align-items: center; padding: 8px 10px; flex-wrap: wrap; }

@@ -1,6 +1,7 @@
 // In-browser smoke test of the real UI. Open /#selftest; the result lands in document.title.
 "use strict";
 (async () => {
+  const errs = []; addEventListener("error", (e) => errs.push(e.message)); addEventListener("unhandledrejection", (e) => errs.push(String(e.reason)));
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const until = async (fn, ms = 5000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) throw new Error("timeout: " + fn); await wait(50); } };
   const log = [];
@@ -52,7 +53,7 @@
     ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
     // ---- career: an agency with calendar, money, reputation, research and contracts
     store.set("agency", null); go("career");
-    ok($("#hq").classList.contains("active") && $$("#hqContracts .folder").length === 14, "career opens agency HQ with 14 contracts");
+    ok($("#hq").classList.contains("active") && $$("#hqContracts .folder").length === 17, "career opens agency HQ with 17 contracts");
     ok(!document.querySelector('#hqContracts [data-sc="wildfire"]').classList.contains("locked") && document.querySelector('#hqContracts [data-sc="lunar_ice"]').classList.contains("locked"), "first contracts open, later ones locked");
     $("#hqResearch").click();
     const f0 = agency().funds;
@@ -78,6 +79,15 @@
     $("#nNext").click();
     ok($("#hq").classList.contains("active") && agency().month > 0, "back at HQ, the calendar moved on");
     if (passedNow) ok(!document.querySelector('#hqContracts [data-sc="lunar_ice"]').classList.contains("locked"), "success opens the next contract");
+    { const x = agency(); x.rep = 45; saveAgency(x); advanceTo(agency().month + 12); }
+    openHQ();
+    ok(agency().invites.length >= 1 && $$("#hqInvites [data-acc]").length >= 1, "high reputation brings invitations from other agencies");
+    const inv = agency().invites[0];
+    document.querySelector("#hqInvites [data-acc]").click();
+    await until(() => !$("#letter").classList.contains("hidden") || S.ev);
+    if (!$("#letter").classList.contains("hidden")) $("#letterGo").click();
+    await until(() => S.ev && S.ev.design.joint);
+    ok(S.ev.design.joint.partner === inv.partner && S.design.partners.includes(inv.partner), "accepted invitation becomes a joint mission");
     store.set("agency", null);
     // ---- surface mission: landing tab, sites, airbags need air
     S.mode = "free"; openSelect();
@@ -98,10 +108,28 @@
     ok(S.ev.issues.some((i) => i.area === "order"), "habitat before the core is blocked");
     document.querySelector('#binder [data-add="core"]').click();
     await until(() => S.ev && S.ev.program.flights.length === 2);
-    ok(!S.ev.issues.some((i) => i.area === "order") && S.ev.program.flights[1].lv === "vulcan", "core fixes the order; cheapest rocket that lifts it");
+    ok(!S.ev.issues.some((i) => i.area === "order") && S.ev.program.flights[1].lv === "new_glenn", "core fixes the order; cheapest rocket that lifts it");
     document.querySelector('#binder [data-del="0"]').click();
     await until(() => S.ev && S.ev.program.flights.length === 1);
     ok(true, "flight removed");
+    // ---- design your own crew vehicle
+    S.mode = "free"; openSelect();
+    document.querySelector('.folder[data-sc="crew_transport"]').click();
+    await until(() => S.ev && S.ev.design.scenario === "crew_transport");
+    ok($$("#tabs .tab").length === 4 && S.tab === "hull", "spaceship desk: hull, heat shield, escape and landing, launch");
+    await pick("hull", "shape", "winged"); await pick("hull", "seats", "s4");
+    document.querySelector('.tab[data-tab="safety"]').click();
+    ok(document.querySelector('.card[data-f="abort"][data-k="tower"]').classList.contains("bad"), "a winged shuttle cannot use an escape tower");
+    await pick("safety", "abort", "none"); await pick("safety", "landing", "runway"); await pick("shield", "heatshield", "tiles");
+    await pick("launch", "launch_vehicle", "falcon_heavy");
+    ok(S.ev.issues.some((i) => /not rated for crew/.test(i.text)) && /1 loss in/.test($("#meters").textContent), "crew rating enforced, safety shown as 1 in X");
+    // ---- the ISS is already in orbit
+    S.mode = "free"; openSelect();
+    document.querySelector('.folder[data-sc="iss_resupply"]').click();
+    await until(() => S.ev && S.ev.design.scenario === "iss_resupply");
+    document.querySelector('#binder [data-add="crew"]').click();
+    await until(() => S.ev && S.ev.program.flights.length === 1);
+    ok(!S.ev.issues.some((i) => i.area === "order"), "crew can fly straight to the existing ISS");
     // ---- solo, build from blank
     S.mode = "free"; openSelect();
     document.querySelector('.folder[data-sc="mars_climate"]').click();
@@ -218,6 +246,6 @@
     stopPoll();
     document.title = "SELFTEST PASS " + log.length;
   } catch (e) {
-    document.title = "SELFTEST FAIL " + e.message + " | passed: " + log.join(", ");
+    document.title = "SELFTEST FAIL " + e.message + (errs.length ? " | JS errors: " + errs.join("; ") : "") + " | passed: " + log.join(", ");
   }
 })();

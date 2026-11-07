@@ -110,6 +110,15 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
     tree (21 technologies) that locks parts in career only, partner trust (0-3, halves delay risk at 2), 9 milestone
     medals, agency log. Demo `#hq=wildfire`.
 
+- Reuse, invitations, ISS, own spaceship (2026-11-07): Falcon 9 and new New Glenn are reusable: boosters land
+  (92%), a flight-proven booster makes a launch 40% cheaper (programs re-fly automatically; career keeps a fleet of up
+  to 3 per rocket). From reputation 40 partner agencies invite you to joint missions (they pay 20-35%, bonus, trust).
+  New missions: ISS Supply and Crew Rotation (the ISS already exists), Design a Crew Shuttle (kind "vehicle",
+  engine/vehicle.py: hull shape, seats, heat shield, escape system, landing, crew-rated rocket; safety as 1 loss in N
+  flights vs NASA's 1-in-270, cost per seat, reuse), Exoplanet Hunter at Sun-Earth L2 (halo / Kepler-like drift /
+  TESS-like orbits, photometer, cold IR telescope, coronagraph). 17 missions. Station drawing redone (modules in one
+  line, truss across the core, wings at truss ends, auto-scaled), real ISS look.
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.

@@ -31,6 +31,13 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
                     "reserve_end": ev["cost"]["reserve"], "evaluation": ev}
         from .program import simulate_program
         return simulate_program(ev, seed)
+    if ev.get("kind") == "vehicle":
+        if not ev["ok"]:
+            return {"seed": seed, "launched": False, "outcome": "not_launched", "events": [], "timeline": [],
+                    "science_fraction": 0.0, "science_score": 0.0, "months_survived": 0, "months_planned": 0,
+                    "reserve_end": ev["cost"]["reserve"], "evaluation": ev}
+        from .vehicle import simulate_vehicle
+        return simulate_vehicle(ev, seed)
     rng = random.Random(seed)
     em = C.DIFFICULTY[d["difficulty"]]["event_mult"]
     cruise_m = round(ev["cruise_years"] * 12)
@@ -82,6 +89,15 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
                 "data_planned_gb": 0, "reserve_start": budget - ev["cost"]["total"]}
     log(0, "launch", f"Liftoff on {C.LAUNCH_VEHICLES[d['launch_vehicle']]['name']}!",
         "The spacecraft separates and unfolds its solar arrays and antennas.", "good")
+    recovered = {}
+    if C.LAUNCH_VEHICLES[d["launch_vehicle"]].get("reusable"):
+        if rng.random() < C.BOOSTER_LANDING:
+            recovered[d["launch_vehicle"]] = 1
+            log(0, "booster", "The first stage flew back and landed on the drone ship. It can fly again.",
+                "Reusable boosters are refuelled, checked and launched again, which makes the next launch much cheaper.", "good")
+        else:
+            log(0, "booster", "The first stage tipped over on the landing ship. The spacecraft is fine.",
+                "Landing a booster at sea is hard. This one is lost, but it was not needed any more.", "neutral")
 
     power_margin = ev["power"]["margin"]
     batt_ok_margin = ev["power"]["battery_usable_wh"] - ev["power"]["eclipse_need_wh"]
@@ -243,7 +259,8 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
             "science_fraction": frac, "science_score": ev["science"]["score"] * frac,
             "months_survived": months_done, "months_planned": total_m, "reserve_end": reserve / budget,
             "wheel_failures": wheel_fails, "evaluation": ev,
-            "data_planned_gb": data_month * sci_m_planned, "reserve_start": budget - ev["cost"]["total"], "launch_delay": delay}
+            "data_planned_gb": data_month * sci_m_planned, "reserve_start": budget - ev["cost"]["total"], "launch_delay": delay,
+            "boosters_recovered": recovered}
 
 
 def monte_carlo(design: dict, runs: int = 200, seed0: int = 1000) -> dict:

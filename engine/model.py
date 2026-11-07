@@ -28,7 +28,15 @@ TANK_FRACTION = 0.08
 HGA = {"xhga", "kahga"}
 
 
+PROBE_PRESETS_EXTRA = {
+    "exoplanet_hunter": {"orbit": "halo", "launch_vehicle": "falcon9", "bus": "medium", "solar": "medium", "battery": "b1000",
+                         "comms": "xhga", "ground": "dsn34", "adcs": "precision", "instruments": ["irtel", "photometer"], "years": 4},
+}
+VEHICLE_PRESETS = {"crew_transport": {"shape": "capsule", "seats": "s4", "heatshield": "metallic", "abort": "pusher",
+                                      "landing": "land_chutes", "launch_vehicle": "falcon9"}}
 PROGRAM_PRESETS = {
+    "iss_resupply": [("crew", "falcon9", 0), ("cargo", "falcon9", 1), ("cargo", "falcon9", 2), ("crew", "falcon9", 2),
+                     ("cargo", "falcon9", 4), ("crew", "falcon9", 4), ("cargo", "falcon9", 6), ("crew", "falcon9", 6)],
     "orbital_outpost": [("core", "vulcan", 0), ("truss", "falcon9", 1), ("hab", "falcon9", 1), ("lab", "falcon9", 2),
                         ("crew", "falcon9", 2), ("cargo", "falcon9", 3), ("crew", "falcon9", 4), ("cargo", "falcon9", 5),
                         ("cargo", "falcon9", 6)],
@@ -43,6 +51,8 @@ def default_design(scenario: str = "wildfire") -> dict:
     """A playable (not optimal) starting design for each scenario."""
     if C.SCENARIOS[scenario].get("kind") == "program":
         return blank_design(scenario) | {"manifest": [{"p": p, "lv": lv, "slot": s} for p, lv, s in PROGRAM_PRESETS[scenario]]}
+    if C.SCENARIOS[scenario].get("kind") == "vehicle":
+        return blank_design(scenario) | VEHICLE_PRESETS[scenario] | {"years": C.SCENARIOS[scenario]["min_years"]}
     d = dict(DEFAULT_DESIGN, instruments=list(DEFAULT_DESIGN["instruments"]))
     d["scenario"] = scenario
     presets = {
@@ -77,6 +87,7 @@ def default_design(scenario: str = "wildfire") -> dict:
                    "propulsion": "biprop", "instruments": ["radar", "mag", "irspec", "wac"], "years": 4},
     }
     d.update(presets.get(scenario, {}))
+    d.update(PROBE_PRESETS_EXTRA.get(scenario, {}))
     return d
 
 
@@ -164,7 +175,8 @@ def blank_design(scenario: str = "wildfire") -> dict:
     return {"scenario": scenario, "difficulty": "normal", "sandbox": False, "orbit": None, "launch_vehicle": None,
             "bus": None, "solar": None, "rtg": 0, "battery": None, "comms": None, "ground": None, "computer": None,
             "adcs": None, "propulsion": None, "edl": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"],
-            "window": None, "start_month": 0, "partners": [], "manifest": [], "trust": {}}
+            "window": None, "start_month": 0, "partners": [], "manifest": [], "trust": {}, "joint": None, "boosters": {},
+            "shape": None, "seats": None, "heatshield": None, "abort": None, "landing": None}
 
 
 def options_for(design: dict) -> dict:
@@ -192,6 +204,14 @@ def normalize(design: dict) -> dict:
     d["partners"] = [p for p in dict.fromkeys(d.get("partners") or []) if p in C.PARTNERS][:C.MAX_PARTNERS]
     raw_trust = d.get("trust") if isinstance(d.get("trust"), dict) else {}
     d["trust"] = {k: max(0, min(3, int(v))) for k, v in raw_trust.items() if k in C.PARTNERS and str(v).lstrip("-").isdigit()}
+    for f in ("shape", "seats", "heatshield", "abort", "landing"):
+        if C.SCENARIOS[sc].get("kind") != "vehicle" or d.get(f) not in C.VEHICLE[f]:
+            d[f] = None
+    j = d.get("joint") if isinstance(d.get("joint"), dict) else None
+    d["joint"] = ({"partner": j["partner"], "share": max(0.0, min(0.4, float(j.get("share") or 0)))}
+                  if j and j.get("partner") in C.PARTNERS else None)
+    raw_b = d.get("boosters") if isinstance(d.get("boosters"), dict) else {}
+    d["boosters"] = {k: max(0, min(9, int(v))) for k, v in raw_b.items() if k in C.LAUNCH_VEHICLES and str(v).isdigit()}
     if C.SCENARIOS[sc].get("kind") == "program":
         from .program import normalize_manifest
         d["manifest"] = normalize_manifest(design.get("manifest"), C.SCENARIOS[sc])
@@ -221,6 +241,8 @@ def evaluate(design: dict) -> dict:
     sc = C.SCENARIOS[d["scenario"]]
     if sc.get("kind") == "program":
         return _evaluate_program(d, sc)
+    if sc.get("kind") == "vehicle":
+        return _evaluate_vehicle(d, sc)
     dest_key = sc["destination"]
     dest = C.DESTINATIONS[dest_key]
     first_orbit = next(iter(C.ORBITS[dest_key].values()))
@@ -460,6 +482,14 @@ def evaluate(design: dict) -> dict:
         **hw, "Integration & test (30%)": hardware * INTEGRATION, "Launch": lv["cost"],
         "Operations": ops_year * (years + cruise),
     }
+    reused = bool(lv.get("reusable") and d["boosters"].get(d["launch_vehicle"], 0) > 0)
+    if reused:
+        cost["Launch"] = lv["cost"] * (1 - C.REUSE_DISCOUNT)
+        _issue(issues, "info", "launch", f"Flight-proven booster: this {lv['name']} launch is {C.REUSE_DISCOUNT:.0%} cheaper.",
+               "Your agency recovered this first stage on an earlier flight. Reusing rockets is how launch prices fell.")
+    if d["joint"]:
+        jp = C.PARTNERS[d["joint"]["partner"]]
+        cost[f"Joint mission: {jp['name'].split(' (')[0]} pays {d['joint']['share']:.0%}"] = -d["joint"]["share"] * sum(cost.values())
     partner_pay = hardware * sum(p["share"] for p in partners)
     if partner_pay:
         cost["Paid by partners"] = -partner_pay
@@ -543,6 +573,7 @@ def evaluate(design: dict) -> dict:
         "issues": issues,
         "windows": windows,
         "partners": {"keys": d["partners"], "saving": partner_pay, "delay": partner_delay, "tracking_h": tracking},
+        "reused_booster": reused,
         "schedule": {"window": win, "risk_mult": win["risk_mult"] if win else 1.0, "slip": win["slip"] if win else 0.0,
                      "synodic": win["synodic"] if win else 0, "launch_month": win["month"] if win else d["start_month"]},
         "kind": kind, "edl": {"use": use, "mass": edl_mass, "landed": landed, "landing_risk": landing_risk,
@@ -591,4 +622,39 @@ def _evaluate_program(d: dict, sc: dict) -> dict:
         "science": {"goals": pr["goals"], "base": pr["science"], "lifetime_factor": 1.0, "score": pr["science"],
                     "per_instrument": {}, "pointing": {}},
         "years": years, "effective_years": years, "cruise_years": 0,
+    }
+
+
+def _evaluate_vehicle(d: dict, sc: dict) -> dict:
+    """Design-your-own crew vehicle, wrapped in the common result shape."""
+    from .vehicle import evaluate_vehicle
+    diff = C.DIFFICULTY[d["difficulty"]]
+    issues: list[dict] = []
+    v = evaluate_vehicle(d, sc, diff, issues, _issue)
+    order = {"blocker": 0, "warning": 1, "info": 2}
+    issues.sort(key=lambda i: order[i["severity"]])
+    n = v["n"]
+    view = {k: v[k] for k in ("capacity", "flights", "vehicles", "per_vehicle", "reusable", "one_in", "seat_cost", "years")}
+    view.update(mass=n["mass"], seats=n["seats"], p_loss=n["p_loss"], p_launch=n["p_launch"], hull=n["hull"])
+    if d["joint"]:
+        jp = C.PARTNERS[d["joint"]["partner"]]
+        v["cost"][f"Joint program: {jp['name'].split(' (')[0]} pays {d['joint']['share']:.0%}"] = -d["joint"]["share"] * v["total"]
+        v["total"] = sum(v["cost"].values())
+        v["reserve"] = (v["budget"] - v["total"]) / v["budget"]
+    return {
+        "design": d, "scenario": sc, "destination": C.DESTINATIONS["earth"], "ok": not any(i["severity"] == "blocker" for i in issues),
+        "issues": issues, "kind": "vehicle", "vehicle": view, "program_frac": {g["tag"]: g["fraction"] for g in v["goals"]},
+        "orbit_info": {"name": "", "lv_target": "leo", "cruise_years": 0, "coverage": 1},
+        "windows": [], "schedule": {"window": None, "risk_mult": 1.0, "slip": 0.0, "synodic": 0, "launch_month": d["start_month"] + 12},
+        "partners": {"keys": d["partners"], "saving": 0, "delay": 0, "tracking_h": 0}, "reused_booster": False,
+        "edl": {"use": None, "mass": 0, "landed": 0, "landing_risk": 0, "capsule_risk": 0},
+        "mass": {"parts": {}, "propellant": 0, "tanks": 0, "dry": n["mass"], "wet": n["mass"], "capacity": v["capacity"],
+                 "margin": v["mass_margin"], "dv": 0, "bus_max_dry": 0, "edl": 0},
+        "power": {"sunlit": 0, "rtg": 0, "generation": 0, "loads": {}, "load": 0, "margin": 0.5, "eclipse_need_wh": 0, "battery_usable_wh": 1},
+        "data": {"generated_gb_day": 0, "downlink_gb_day": 0, "rate_mbps": 0, "contact_hours": 0, "return": 1.0,
+                 "per_instrument": {}, "storage_need_gb": 0, "storage_gb": 0},
+        "radiation": {"env": 1, "tolerance": 1, "deficit": 0, "monthly_risk": 0, "survival": 1},
+        "cost": {"items": v["cost"], "total": v["total"], "budget": v["budget"], "reserve": v["reserve"], "ops_year": 0},
+        "science": {"goals": v["goals"], "base": v["science"], "lifetime_factor": 1.0, "score": v["science"], "per_instrument": {}, "pointing": {}},
+        "years": v["years"], "effective_years": v["years"], "cruise_years": 0,
     }

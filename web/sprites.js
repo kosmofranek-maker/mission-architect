@@ -208,8 +208,10 @@ const PART_ICON = {
   instruments: (k) => ({ wac: "camera", hirise: "telescope", thermal: "flame", irspec: "prism", neutron: "atom",
     lamp: "uv", lidar: "laser", radar: "radar", mag: "magneto", massspec: "flask", sounder: "thermo",
     particles: "particles", pancam: "camera", drill: "drill", raman: "laser", seismo: "seismo", tagsam: "flask",
-    sar: "radar" }[k] || "star"),
+    sar: "radar", photometer: "telescope", irtel: "telescope", coronagraph: "camera" }[k] || "star"),
   partners: (k) => `flag_${k}`,
+  shape: (k) => (k === "capsule" ? "capsule" : "rocket"), seats: () => "person", heatshield: () => "flame",
+  abort: (k) => (k === "none" ? "none" : "rocket"), landing: (k) => (k === "runway" ? "rocket" : k === "propulsive" ? "nozzle" : "chute"),
   edl: (k) => (k.startsWith("capsule") ? "capsule" : ["airbags", "skycrane"].includes(k) ? "chute" : "nozzle"),
 };
 

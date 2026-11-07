@@ -188,7 +188,24 @@ def evaluate_program(d: dict, sc: dict, diff: dict, issues: list, _issue) -> dic
     # what must already be in place, in launch order
     rank = {"module": 0, "stage": 1, "cargo": 2, "crew": 3}  # in one slot: modules dock first, crews arrive last
     order = sorted(flights, key=lambda x: (x["launch"], rank[x["group"]], bool(C.PAYLOADS[x["p"]].get("requires")), x["i"]))
-    arrived: dict[str, int] = {k: -10**6 for k in P["existing"]}
+    # reusable first stages come back and fly again on later flights of the same rocket
+    flown, spare = {}, dict(d.get("boosters", {}))
+    for fl in order:
+        lv = C.LAUNCH_VEHICLES.get(fl["lv"]) if fl["lv"] and not fl["partner"] else None
+        if lv and lv.get("reusable"):
+            if flown.get(fl["lv"]) or spare.get(fl["lv"], 0) > 0:
+                if not flown.get(fl["lv"]):
+                    spare[fl["lv"]] -= 1
+                save = lv["cost"] * C.REUSE_DISCOUNT
+                fl["cost"] -= save
+                fl["reused"] = True
+                launch_cost -= save
+            flown[fl["lv"]] = flown.get(fl["lv"], 0) + 1
+    arrived: dict[str, int] = {}
+    for k in P["existing"]:
+        arrived[k] = -10**6
+        for alias in C.EXISTING[k].get("provides", []):
+            arrived[alias] = -10**6
     for fl in order:
         pay = C.PAYLOADS[fl["p"]]
         for req in pay.get("requires", []):
@@ -252,6 +269,9 @@ def evaluate_program(d: dict, sc: dict, diff: dict, issues: list, _issue) -> dic
             "Ground operations": P["ops_month"] * crewed_months + 2 * total_months}
     if share:
         cost["Paid by partners"] = -payload_cost * share
+    if d.get("joint"):
+        jp = C.PARTNERS[d["joint"]["partner"]]
+        cost[f"Joint program: {jp['name'].split(' (')[0]} pays {d['joint']['share']:.0%}"] = -d["joint"]["share"] * sum(cost.values())
     total_cost = sum(cost.values())
     budget = sc["budget"] * diff["budget_mult"]
     reserve = (budget - total_cost) / budget
@@ -291,7 +311,7 @@ def simulate_program(ev: dict, seed: int) -> dict:
     def log(month, kind, text, why, impact="neutral"):
         events.append({"month": month - m0 + 1 if month >= m0 else 0, "kind": kind, "text": text, "why": why, "impact": impact})
 
-    flights, shocks = [], {}
+    flights, shocks, recovered = [], {}, {}
     berth = C.MODULE_BERTH_RISK * (0.4 if prog["arm"] else 1.0)
     for fl in sorted(prog["flights"], key=lambda x: (x["launch"], x["i"])):
         fl = dict(fl)
@@ -315,6 +335,12 @@ def simulate_program(ev: dict, seed: int) -> dict:
             log(fl["arrival"], "landing_failure", f"{who} crashed while landing.",
                 "Landing near a base is precise work: rocks, dust and darkness all add risk.", "bad")
             continue
+        if not fl["partner"] and C.LAUNCH_VEHICLES.get(fl["lv"], {}).get("reusable"):
+            if rng.random() < C.BOOSTER_LANDING:
+                recovered[fl["lv"]] = recovered.get(fl["lv"], 0) + 1
+            else:
+                log(fl["launch"], "booster", f"Flight {fl['n']}: the first stage missed the landing ship. The payload is fine.",
+                    "Landing a rocket booster on a ship at sea is hard; not every attempt works.", "neutral")
         if pay.get("berth") and rng.random() < berth * em:
             log(fl["arrival"], "berth", f"{who} was damaged while docking and could not be used.",
                 "Joining two 15-tonne modules gently is hard. A robotic arm grabs and berths them safely (Canadarm2).", "bad")
@@ -327,7 +353,7 @@ def simulate_program(ev: dict, seed: int) -> dict:
             log(fl["arrival"], "module", f"{who} in place.", "One more piece of the outpost works.", "good")
         flights.append(fl)
     # crew-related checks again with the flights that actually made it
-    present_modules = {k for k in P["existing"]}
+    present_modules = {k for k in P["existing"]} | {a for k in P["existing"] for a in C.EXISTING[k].get("provides", [])}
     for fl in flights:
         pay = C.PAYLOADS[fl["p"]]
         if pay["group"] == "module":
@@ -400,4 +426,4 @@ def simulate_program(ev: dict, seed: int) -> dict:
             "science_fraction": sf, "science_score": ev["science"]["score"] * sf, "months_survived": len(timeline),
             "months_planned": len(prog["plan"]), "reserve_end": reserve / budget, "evaluation": ev, "launch_delay": 0,
             "data_planned_gb": 0, "reserve_start": budget - ev["cost"]["total"], "program": True,
-            "crew_months": plan["crew_months"], "shortage": plan["shortage"]}
+            "crew_months": plan["crew_months"], "shortage": plan["shortage"], "boosters_recovered": recovered}

@@ -126,6 +126,8 @@ def test_blank_design_evaluates_with_choose_blockers(scenario):
     missing = [i for i in ev["issues"] if i["area"] == "missing"]
     if C.SCENARIOS[scenario].get("kind") == "program":
         assert len(missing) == 1 and missing[0]["field"] == "manifest"
+    elif C.SCENARIOS[scenario].get("kind") == "vehicle":
+        assert {i["field"] for i in missing} == {"shape", "seats", "heatshield", "abort", "landing", "launch_vehicle"}
     else:
         assert len(missing) == len(COMPONENTS) - (0 if edl_use(scenario) else 1)
     assert ev["science"]["score"] == 0
@@ -278,3 +280,37 @@ def test_program_simulation_is_reproducible():
     from engine.simulate import simulate
     d = default_design("mars_base")
     assert simulate(d, 11)["events"] == simulate(d, 11)["events"]
+
+
+def test_reused_booster_is_cheaper_and_landings_are_reported():
+    from engine.simulate import simulate
+    a = evaluate(default_design("mars_climate"))
+    b = evaluate(default_design("mars_climate") | {"boosters": {"falcon9": 1}})
+    assert b["cost"]["total"] < a["cost"]["total"] and b["reused_booster"]
+    assert any(simulate(default_design("mars_climate"), s).get("boosters_recovered") for s in range(5))
+
+
+def test_iss_is_already_there():
+    ev = evaluate(_prog("iss_resupply", [("crew", "falcon9", 0)]))
+    assert not any(i["area"] == "order" for i in ev["issues"])   # the ISS provides the habitat
+
+
+def test_program_reflies_boosters():
+    ev = evaluate(_prog("iss_resupply", [("crew", "falcon9", 0), ("cargo", "falcon9", 1)]))
+    assert [f.get("reused", False) for f in ev["program"]["flights"]] == [False, True]
+
+
+def test_crew_vehicle_rules():
+    base = default_design("crew_transport")
+    assert evaluate(base)["ok"]
+    assert any(i["area"] == "abort" for i in evaluate(base | {"shape": "winged", "abort": "tower"})["issues"])
+    assert any(i["area"] == "landing" for i in evaluate(base | {"landing": "runway"})["issues"])
+    assert any(i["area"] == "abort" for i in evaluate(base | {"abort": "seats"})["issues"])   # 4 seats, ejection seats
+    safe = evaluate(base | {"abort": "tower", "heatshield": "ablative", "landing": "ocean"})
+    assert safe["vehicle"]["one_in"] > 270 and safe["vehicle"]["seat_cost"] > evaluate(base)["vehicle"]["seat_cost"]
+
+
+def test_joint_mission_partner_pays():
+    a = evaluate(default_design("mars_climate"))
+    b = evaluate(default_design("mars_climate") | {"joint": {"partner": "jaxa", "share": 0.25}})
+    assert b["cost"]["total"] < a["cost"]["total"] * 0.8

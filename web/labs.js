@@ -15,6 +15,9 @@ const LABS = {
   instr:    { name: "Science Instrument Lab", door: "#5f666c" },
   partners: { name: "International Office", door: "#1d3f8f" },
   manifest: { name: "Program Planning Office", door: "#3b5a6e" },
+  hull:     { name: "Crew Vehicle Hangar", door: "#7a6a3a" },
+  shield:   { name: "Heat Shield Arc-Jet Lab", door: "#8a5a2c" },
+  safety:   { name: "Escape and Landing Test Range", door: "#a8322a" },
 };
 
 // ---------------------------------------------------------------------------- lab scenes (256 x 42)
@@ -38,7 +41,7 @@ function drawLab(canvas, id, t) {
   const screen = (x, y, w, h, c = "#0f1a14") => { r(x - 1, y - 1, w + 2, h + 2, "#1d1a17"); r(x, y, w, h, c); };
   const blink = (x, y, c, on) => r(x, y, 1, 1, on ? c : "#1d1a17");
 
-  switch (id) {
+  switch ({ hull: "bus", shield: "prop", safety: "edl" }[id] || id) {
     case "launch": {
       wall("#6b5a45", "#4e4133"); floor("#3e352c", "#463c31"); lights();
       // window with the pad

@@ -13,8 +13,8 @@ design, watch the launch and the mission unfold month by month on the teletype, 
 *The Orbital Times*.
 
 ## Features
-- 14 missions: orbiters, a lunar lander, a Mars rover, an asteroid sample return and three crewed programs built from
-  many launches (space station, Moon base supply line, first crew to Mars), 3 difficulty levels, career as a space agency
+- 17 missions: orbiters, a space telescope at L2, a lunar lander, a Mars rover, an asteroid sample return, your own
+  crew spaceship design, and crewed programs built from many launches (ISS supply, own station, Moon base, crew to Mars), 3 difficulty levels, career as a space agency
   (calendar, funds, reputation, research tree, partner trust, milestones), free design + sandbox. Each client writes an opening letter and is quoted in the newspaper afterwards.
 - Real trade-offs: rocket equation, inverse-square solar power and radio signal, eclipses and batteries, pointing
   accuracy, data downlink and on-board storage, radiation tolerance, budget reserves.

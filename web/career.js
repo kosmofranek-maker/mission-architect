@@ -8,9 +8,12 @@ const CONTRACTS = {
   wildfire: { req: [], rep: 0, reward: 60 },
   storm_watch: { req: [], rep: 0, reward: 80 },
   lunar_ice: { req: [["wildfire", "storm_watch"]], rep: 0, reward: 110 },
+  iss_resupply: { req: [["wildfire", "storm_watch"]], rep: 12, reward: 180 },
+  crew_transport: { req: [["iss_resupply"]], rep: 20, reward: 300 },
+  exoplanet_hunter: { req: [["storm_watch", "lunar_ice"]], rep: 20, reward: 200 },
   landing_scout: { req: [["lunar_ice"]], rep: 0, reward: 120 },
   lunar_lander: { req: [["landing_scout"]], rep: 15, reward: 150 },
-  orbital_outpost: { req: [["wildfire", "storm_watch"]], rep: 25, reward: 400 },
+  orbital_outpost: { req: [["iss_resupply"]], rep: 25, reward: 400 },
   asteroid_prospector: { req: [["lunar_ice"]], rep: 10, reward: 130 },
   asteroid_sample: { req: [["asteroid_prospector"]], rep: 25, reward: 200 },
   venus_clouds: { req: [["asteroid_prospector", "mars_climate"]], rep: 25, reward: 160 },
@@ -25,7 +28,10 @@ const MILESTONES = [
   { k: "orbit", name: "First satellite", sc: ["wildfire", "storm_watch"], icon: "orbit" },
   { k: "moon", name: "Reached the Moon", sc: ["lunar_ice", "landing_scout"], icon: "camera" },
   { k: "landing", name: "First landing", sc: ["lunar_lander"], icon: "chute" },
+  { k: "iss", name: "Crew at the ISS", sc: ["iss_resupply"], icon: "person" },
+  { k: "ship", name: "Own spaceship", sc: ["crew_transport"], icon: "capsule" },
   { k: "station", name: "Space station", sc: ["orbital_outpost"], icon: "bus" },
+  { k: "telescope", name: "Space telescope", sc: ["exoplanet_hunter"], icon: "telescope" },
   { k: "sample", name: "Sample returned", sc: ["asteroid_sample"], icon: "capsule" },
   { k: "planets", name: "Planetary explorer", sc: ["venus_clouds", "mars_climate", "europa"], icon: "telescope" },
   { k: "rover", name: "Rover on Mars", sc: ["mars_rover"], icon: "wheel" },
@@ -38,7 +44,7 @@ const TECH = {
     solar: ["none", "body", "compact", "small"], battery: ["b200", "b1000"], comms: ["uhf", "xlga"], ground: ["uni", "commercial"],
     computer: ["cubesat", "radtol"], adcs: ["magnetorquer", "wheels"], propulsion: ["none", "coldgas", "mono"],
     instruments: ["wac", "thermal", "sounder", "neutron", "lamp"] } },
-  heavy: { name: "Heavy launchers", cost: 80, unlocks: { launch_vehicle: ["vulcan", "falcon_heavy"] } },
+  heavy: { name: "Heavy launchers", cost: 80, unlocks: { launch_vehicle: ["vulcan", "falcon_heavy", "new_glenn"] } },
   superheavy: { name: "Super-heavy launcher", cost: 150, unlocks: { launch_vehicle: ["sls"] } },
   bigbus: { name: "Large spacecraft buses", cost: 70, unlocks: { bus: ["medium", "flagship"] } },
   power: { name: "Big solar arrays and batteries", cost: 50, unlocks: { solar: ["medium", "large", "giant"], battery: ["b3000", "b8000"] } },
@@ -50,13 +56,18 @@ const TECH = {
   precision: { name: "Precision pointing", cost: 60, unlocks: { adcs: ["precision"] } },
   biprop: { name: "Planetary engines", cost: 50, unlocks: { propulsion: ["biprop"] } },
   optics: { name: "Telescopes and spectrometers", cost: 80, unlocks: { instruments: ["hirise", "irspec", "massspec"] } },
+  astronomy: { name: "Space astronomy", cost: 90, unlocks: { instruments: ["photometer", "irtel", "coronagraph"] } },
   radar: { name: "Radar and lasers", cost: 70, unlocks: { instruments: ["lidar", "radar", "sar"] } },
   fields: { name: "Fields and particles", cost: 30, unlocks: { instruments: ["mag", "particles"] } },
   landing: { name: "Landing systems", cost: 90, unlocks: { edl: ["airbags", "retro"] } },
   precland: { name: "Precision landing", cost: 120, unlocks: { edl: ["hazard", "skycrane"] } },
   surface: { name: "Surface science", cost: 70, unlocks: { instruments: ["pancam", "drill", "raman", "seismo"] } },
   samples: { name: "Sample return", cost: 90, unlocks: { edl: ["capsule_s", "capsule_l"], instruments: ["tagsam"] } },
-  human: { name: "Human spaceflight", cost: 150, unlocks: { payloads: ["core", "hab", "lab", "truss", "cargo", "cargo_l", "crew"] } },
+  human: { name: "Human spaceflight", cost: 150, unlocks: { payloads: ["cargo", "cargo_l", "crew"], shape: ["capsule"], seats: ["s2", "s4"],
+    heatshield: ["ablative"], abort: ["tower", "none"], landing: ["ocean"] } },
+  stations: { name: "Station modules", cost: 120, unlocks: { payloads: ["core", "hab", "lab", "truss"] } },
+  reusecrew: { name: "Reusable crew vehicles", cost: 100, unlocks: { heatshield: ["metallic"], abort: ["pusher"], landing: ["land_chutes", "propulsive"] } },
+  spaceplanes: { name: "Spaceplanes", cost: 160, unlocks: { shape: ["lifting_body", "winged"], seats: ["s7"], heatshield: ["tiles"], abort: ["seats"], landing: ["runway"] } },
   moonbase: { name: "Lunar surface outpost", cost: 150, unlocks: { payloads: ["lcargo", "lcargo_l", "lpower", "lrover", "lcrew_s", "lcrew"] } },
   marsbase: { name: "Mars expedition hardware", cost: 250, unlocks: { payloads: ["mhab", "mpower", "mcargo", "mtransit", "mcrew"] } },
 };
@@ -64,7 +75,8 @@ const TECH_OF = {};
 for (const [t, o] of Object.entries(TECH)) for (const [f, keys] of Object.entries(o.unlocks)) for (const k of keys) TECH_OF[`${f}:${k}`] = t;
 
 const newAgency = (difficulty = "normal") => ({ v: 1, month: 0, funds: 150, rep: 5, difficulty, tech: ["basics"], trust: {},
-  done: {}, log: [], medals: [], seen: [] });
+  done: {}, log: [], medals: [], seen: [], boosters: {}, invites: [] });
+const INVITE_REP = 40;   // from this reputation other agencies start inviting you to joint missions
 const agency = () => store.get("agency", null);
 const saveAgency = (a) => store.set("agency", a);
 const inCareer = () => S.mode === "career" && !!agency();
@@ -83,7 +95,8 @@ function partnerOpen(pk) { return !inCareer() || agency().rep >= (PARTNER_REP[pk
 function researchNeeded(sc) {
   const a = agency(), d = S.cat.DEFAULTS[sc], need = new Set();
   const add = (f, k) => { const t = TECH_OF[`${f}:${k}`]; if (t && !a.tech.includes(t)) need.add(t); };
-  for (const f of ["launch_vehicle", "bus", "solar", "battery", "comms", "ground", "computer", "adcs", "propulsion", "edl"]) if (d[f]) add(f, d[f]);
+  for (const f of ["launch_vehicle", "bus", "solar", "battery", "comms", "ground", "computer", "adcs", "propulsion", "edl",
+    "shape", "seats", "heatshield", "abort", "landing"]) if (d[f]) add(f, d[f]);
   (d.instruments || []).forEach((k) => add("instruments", k));
   if (d.rtg) add("rtg", "rtg");
   (d.manifest || []).forEach((f) => { add("payloads", f.p); add("launch_vehicle", f.lv); });
@@ -117,6 +130,21 @@ function openHQ() {
     return `<div class="hq-partner ${open ? "" : "locked"}">${icon(`flag_${k}`, 16)}<b>${esc(p.name)}</b>
       <span>${open ? `trust ${"&#9679;".repeat(t)}${"&#9675;".repeat(3 - t)}` : `opens at reputation ${PARTNER_REP[k]}`}</span></div>`;
   }).join("");
+  const fleet = Object.entries(a.boosters || {}).filter(([, n]) => n > 0);
+  $("#hqFleet").innerHTML = fleet.length ? fleet.map(([k, n]) => `<div class="hq-partner">${icon("rocket", 16)}<b>${esc(S.cat.LAUNCH_VEHICLES[k].name.split(" (")[0])}</b>
+    <span>${n} flight-proven booster${n > 1 ? "s" : ""}: next launch ${pct(S.cat.REUSE_DISCOUNT)} cheaper</span></div>`).join("")
+    : `<p class="req-small">Fly a reusable rocket (Falcon 9, New Glenn) and land its first stage to build a fleet.</p>`;
+  $("#hqInvites").innerHTML = (a.invites || []).length ? a.invites.map((v, i) => {
+    const p = S.cat.PARTNERS[v.partner], s = S.cat.SCENARIOS[v.sc];
+    return `<div class="invite">${icon(`flag_${v.partner}`, 16)}<div><b>${esc(p.name)} invites you</b> to fly <b>${esc(s.name)}</b> together:
+      they pay ${pct(v.share)} of the cost, bonus ${fmt(v.bonus)} M$. Until ${esc(monthName(v.until))}.</div>
+      <button class="btn small" data-acc="${i}">Accept</button><button class="btn tiny" data-dec="${i}">x</button></div>`;
+  }).join("") : `<p class="req-small">${a.rep >= INVITE_REP ? "No invitations right now. New ones arrive every January." : `Reach reputation ${INVITE_REP} and other agencies will invite you to joint missions.`}</p>`;
+  $$("#hqInvites [data-acc]").forEach((b) => b.onclick = () => {
+    const v = agency().invites[+b.dataset.acc]; SFX.chime();
+    S.mode = "career"; store.set("difficulty", a.difficulty); startMission(v.sc, null, { invite: v });
+  });
+  $$("#hqInvites [data-dec]").forEach((b) => b.onclick = () => { const x = agency(); x.invites.splice(+b.dataset.dec, 1); saveAgency(x); openHQ(); });
   $("#hqLog").innerHTML = a.log.length ? a.log.slice(-14).reverse().map((l) => `<div class="hl"><span>${esc(monthName(l.month))}</span><span>${esc(l.text)}</span></div>`).join("")
     : `<p class="req-small">Nothing has flown yet. Pick a contract.</p>`;
   $("#hqContracts").innerHTML = ORDER.filter((k) => CONTRACTS[k]).map((k) => {
@@ -155,6 +183,8 @@ function advanceTo(month) {
     const grant = Math.round(40 + a.rep * 1.5);
     a.funds += grant;
     a.log.push({ month: a.month, text: `Annual budget: +${grant} M$` });
+    a.invites = (a.invites || []).filter((v) => v.until > a.month);
+    maybeInvite(a);
   }
   a.month = Math.max(a.month, month);
   saveAgency(a);
@@ -183,6 +213,23 @@ function openResearch(focus) {
   $("#rsClose").onclick = () => m.classList.add("hidden");
 }
 
+// A well-known agency gets invitations: a partner offers to share a mission it wants to fly with you.
+function maybeInvite(a) {
+  if (a.rep < INVITE_REP || (a.invites || []).length >= 2) return;
+  const open = ORDER.filter((k) => CONTRACTS[k] && !(a.done[k] && PASS.includes(a.done[k].grade)) && contractStateFor(a, k));
+  const partners = Object.keys(S.cat.PARTNERS).filter((p) => a.rep >= PARTNER_REP[p] && !(a.invites || []).some((v) => v.partner === p));
+  if (!open.length || !partners.length) return;
+  const sc = open.sort((x, y) => CONTRACTS[y].reward - CONTRACTS[x].reward)[a.month % Math.min(3, open.length)];
+  const partner = partners.sort((x, y) => (a.trust[y] || 0) - (a.trust[x] || 0))[0];
+  const share = Math.round((0.2 + 0.05 * (a.trust[partner] || 0)) * 100) / 100;
+  a.invites = [...(a.invites || []), { partner, sc, share, bonus: Math.round(CONTRACTS[sc].reward * 0.5), until: a.month + 12 }];
+  a.log.push({ month: a.month, text: `${S.cat.PARTNERS[partner].name} invited us to fly ${S.cat.SCENARIOS[sc].name} together` });
+}
+function contractStateFor(a, sc) {
+  const c = CONTRACTS[sc], ok = (k) => a.done[k] && PASS.includes(a.done[k].grade);
+  return c.req.every((grp) => grp.some(ok)) && a.rep >= c.rep;
+}
+
 // After a flight: reputation, money back, contract reward, partner trust, medals, calendar.
 function applyCareerResult(res) {
   const a = agency(); if (!a || a.seen.includes(res.seed)) return null;
@@ -195,6 +242,19 @@ function applyCareerResult(res) {
   const ok = PASS.includes(sco.grade) && sim.outcome !== "lost";
   for (const p of res.design.partners || []) a.trust[p] = Math.max(0, Math.min(3, (a.trust[p] || 0) + (ok ? 1 : -1)));
   if (!a.done[sc] || sco.total > a.done[sc].score) a.done[sc] = { grade: sco.grade, score: sco.total };
+  // reusable rockets: a used booster is spent, landed boosters join the fleet (up to 3 per rocket type)
+  a.boosters = a.boosters || {};
+  const usedLv = res.design.launch_vehicle && ev.reused_booster ? [res.design.launch_vehicle] :
+    ev.program ? [...new Set(ev.program.flights.filter((f) => f.reused).map((f) => f.lv))].filter((k) => (res.design.boosters || {})[k]) : [];
+  usedLv.forEach((k) => { a.boosters[k] = Math.max(0, (a.boosters[k] || 0) - 1); });
+  Object.entries(sim.boosters_recovered || {}).forEach(([k, n]) => { a.boosters[k] = Math.min(3, (a.boosters[k] || 0) + n); });
+  // joint missions: the partner's bonus and extra trust
+  let jointBonus = 0;
+  if (res.design.joint) {
+    const p = res.design.joint.partner, inv = (a.invites || []).find((v) => v.partner === p && v.sc === sc);
+    if (inv && ok) { jointBonus = inv.bonus; a.funds += jointBonus; a.trust[p] = Math.min(3, (a.trust[p] || 0) + 1); }
+    a.invites = (a.invites || []).filter((v) => v !== inv);
+  }
   const newMedals = MILESTONES.filter((m) => !a.medals.includes(m.k) && ok && m.sc.includes(sc));
   newMedals.forEach((m) => a.medals.push(m.k));
   const launchMonth = (ev.schedule && ev.schedule.launch_month) || a.month;
@@ -203,6 +263,7 @@ function applyCareerResult(res) {
   saveAgency(a);
   // development of the next mission overlaps this one: the clock moves to a year before this launch, at least 6 months on
   advanceTo(Math.max(a.month + 6, launchMonth - 12 + (sim.launch_delay || 0)));
-  return { repGain, savings, reward, rep: agency().rep, funds: agency().funds, medals: newMedals.map((m) => m.name),
+  const after = agency(); maybeInvite(after); saveAgency(after);
+  return { repGain, savings, reward: reward + jointBonus, rep: agency().rep, funds: agency().funds, medals: newMedals.map((m) => m.name),
     unlocked: ORDER.filter((k) => CONTRACTS[k] && contractState(k).open && !a.done[k]).map((k) => S.cat.SCENARIOS[k].name) };
 }

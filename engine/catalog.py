@@ -26,6 +26,8 @@ DESTINATIONS = {
                  "magnetic": False, "lv_target": "asteroid"},
     "europa": {"name": "Europa (Jupiter)", "sun_au": 5.2, "earth_au": 5.0, "radiation": 4,
                "magnetic": False, "lv_target": "jupiter"},
+    "l2": {"name": "Sun-Earth L2 (deep space)", "sun_au": 1.01, "earth_au": 0.01, "radiation": 1,
+           "magnetic": False, "lv_target": "l2"},
     # Surface missions: the "orbit" choice becomes a landing site. "atmosphere" decides which landing
     # systems work; "relay" means orbiters can forward data (Mars).
     "moon_surface": {"name": "Lunar south pole (surface)", "sun_au": 1.0, "earth_au": 0.00257, "radiation": 2,
@@ -153,9 +155,62 @@ PAYLOADS = {
               "cruise": 7, "needs_stages": 2, "requires": ["mhab"], "predeploy": True, "land_risk": 0.03,
               "learn": "Docks with two transit stage segments in Earth orbit, flies seven months to Mars and lands next to the habitat."},
 }
-EXISTING = {"base_hab": {"name": "Lunar habitat (already built)", "group": "module", "beds": 4, "stock": 0, "power_use": 8}}
+EXISTING = {"base_hab": {"name": "Lunar habitat (already built)", "group": "module", "beds": 4, "stock": 0, "power_use": 8},
+            "iss": {"name": "International Space Station", "group": "module", "beds": 7, "stock": 2500, "power_gen": 90,
+                    "power_use": 40, "research": 1, "provides": ["core", "hab", "lab", "truss"]}}
+# --------------------------------------------------------------------------------------
+# Crew vehicles you design yourself: capsule, lifting body or winged shuttle. Masses in kg, costs in M$.
+# frac = share of the hull mass; risk = chance per flight that this part loses the crew; reuse = flights per vehicle.
+# --------------------------------------------------------------------------------------
+VEHICLE = {
+    "shape": {
+        "capsule": {"name": "Capsule", "base": 5000, "per_seat": 900, "dev": 900, "build": 120, "risk": 0.001,
+                    "fits": ["tower", "pusher", "seats", "none", "ocean", "land_chutes", "propulsive"],
+                    "learn": "A blunt cone that falls back like a meteor (Apollo, Soyuz, Dragon, Orion). Simple, light and tough."},
+        "lifting_body": {"name": "Lifting body (mini shuttle)", "base": 7500, "per_seat": 1000, "dev": 1400, "build": 180, "risk": 0.0015,
+                         "fits": ["pusher", "seats", "none", "runway"],
+                         "learn": "A wingless glider shaped to fly on its body (Dream Chaser). Gentle re-entry and lands on a runway."},
+        "winged": {"name": "Winged shuttle", "base": 18000, "per_seat": 1200, "dev": 2600, "build": 450, "risk": 0.0025, "cargo": 6000,
+                   "fits": ["seats", "none", "runway"],
+                   "learn": "A spaceplane with wings and a cargo bay (Space Shuttle, Buran). Carries cargo too, but heavy and complex."},
+    },
+    "seats": {
+        "s2": {"name": "2 seats", "n": 2, "learn": "Small and light. Needs twice as many flights to rotate a crew of four."},
+        "s4": {"name": "4 seats", "n": 4, "learn": "One flight carries a whole station crew."},
+        "s7": {"name": "7 seats", "n": 7, "learn": "Lots of people per flight, like the Space Shuttle, but a heavier vehicle."},
+    },
+    "heatshield": {
+        "ablative": {"name": "Ablative shield (burns away)", "frac": 0.08, "reusable": False, "refurb": 0, "risk": 0.0005,
+                     "learn": "Chars and flakes off, carrying the heat away. Very safe, but it must be replaced after every flight."},
+        "tiles": {"name": "Ceramic tiles", "frac": 0.12, "reusable": True, "refurb": 30, "risk": 0.002,
+                  "learn": "30,000 tiles like the Shuttle's. Reusable, but each one must be checked, and a damaged tile can be fatal (Columbia, 2003)."},
+        "metallic": {"name": "Metallic heat shield", "frac": 0.15, "reusable": True, "refurb": 8, "risk": 0.0008,
+                     "learn": "Hot-structure metal plates that survive many re-entries. Heaviest, but quick to turn around."},
+    },
+    "abort": {
+        "tower": {"name": "Launch escape tower", "mass": 4000, "save": 0.97, "learn": "A rocket on top that yanks the capsule away from a failing launcher (Apollo, Soyuz, Orion)."},
+        "pusher": {"name": "Built-in abort engines", "mass": 1500, "save": 0.95, "learn": "Engines in the vehicle's sides push it clear, and can be reused (Dragon, Starliner)."},
+        "seats": {"name": "Ejection seats", "mass_per_seat": 300, "save": 0.6, "max_seats": 2, "learn": "Like a fighter jet. Only works for two people and at low altitude (early Shuttle flights, Vostok)."},
+        "none": {"name": "No escape system", "mass": 0, "save": 0.0, "learn": "Lightest. If the rocket fails, the crew is lost. The Shuttle flew this way for 30 years (Challenger, 1986)."},
+    },
+    "landing": {
+        "ocean": {"name": "Parachutes + ocean splashdown", "frac": 0.05, "ship": 12, "reuse": 0.6, "risk": 0.0008,
+                  "learn": "Soft and simple, but salt water damages the vehicle and a recovery ship must wait at sea."},
+        "land_chutes": {"name": "Parachutes + airbags on land", "frac": 0.07, "ship": 4, "reuse": 0.85, "risk": 0.001,
+                        "learn": "Lands on dry ground (Soyuz, Starliner). Easier to reuse, a bit heavier."},
+        "propulsive": {"name": "Rocket-powered landing", "frac": 0.10, "ship": 3, "reuse": 1.0, "risk": 0.0015,
+                       "learn": "Engines fire at the last second for a pinpoint landing on a pad. Reusable, but complex."},
+        "runway": {"name": "Glide to a runway", "frac": 0.0, "ship": 3, "reuse": 1.0, "risk": 0.0008,
+                   "learn": "Wings or a lifting body glide to an airport like a plane. Only possible for winged vehicles."},
+    },
+}
+SAFETY_TARGET = 1 / 270    # NASA's commercial crew goal: no more than 1 loss of crew in 270 flights
+
 PLACE_LABEL = {"station": "the station", "moon": "the Moon base", "mars": "the Mars base"}
 
+
+REUSE_DISCOUNT = 0.4       # a flight-proven first stage makes the next launch this much cheaper
+BOOSTER_LANDING = 0.92     # chance the first stage lands and can fly again
 
 SLIP_COST_MONTH = 0.004  # share of the budget burned per month of waiting (the "standing army")
 
@@ -348,6 +403,58 @@ SCENARIOS = {
             {"tag": "supplied", "label": "Never run out of supplies", "weight": 30, "target": 1, "required": True},
         ],
     },
+    "iss_resupply": {
+        "name": "ISS Supply and Crew Rotation",
+        "kind": "program",
+        "destination": "earth",
+        "difficulty": "Intermediate",
+        "budget": 2400,
+        "min_years": 2,
+        "pitch": "Keep the International Space Station crewed and supplied for two years.",
+        "story": ("The ISS is already up there: 420 tonnes, as big as a football field. Your job is the supply line: "
+                  "crews of four every six months and cargo ships so nobody goes hungry."),
+        "program": {"place": "station", "slot_months": 3, "slots": 8, "stay": 6,
+                    "payloads": ["cargo", "cargo_l", "crew"],
+                    "need": [], "existing": ["iss"], "base_power": 0, "stock0": 0,
+                    "crew_goal": 80, "research_goal": 60, "ops_month": 8},
+        "goals": [
+            {"tag": "crew", "label": "Crew-months aboard the ISS", "weight": 40, "target": 1, "required": True},
+            {"tag": "supplied", "label": "Never run out of supplies", "weight": 30, "target": 1, "required": True},
+            {"tag": "research", "label": "Research in the ISS labs", "weight": 30, "target": 1, "required": False},
+        ],
+    },
+    "crew_transport": {
+        "name": "Design a Crew Shuttle",
+        "kind": "vehicle",
+        "destination": "earth",
+        "difficulty": "Advanced",
+        "budget": 4200,
+        "min_years": 5,
+        "pitch": "Design your own spaceship to fly astronauts to the space station for five years.",
+        "story": ("Capsule or spaceplane? Throw it away after each flight, or fly it again and again? Forty seats to "
+                  "the station over five years, and every crew must come home."),
+        "vehicle": {"seats_needed": 40, "years": 5, "target": "leo"},
+        "goals": [
+            {"tag": "safety", "label": "Crew safety (1 in 270 or better)", "weight": 40, "target": 1, "required": True},
+            {"tag": "seat_cost", "label": "Low cost per seat", "weight": 35, "target": 1, "required": True},
+            {"tag": "cargo", "label": "Bring cargo too", "weight": 25, "target": 1, "required": False},
+        ],
+    },
+    "exoplanet_hunter": {
+        "name": "Exoplanet Hunter",
+        "destination": "l2",
+        "difficulty": "Advanced",
+        "budget": 1300,
+        "min_years": 4,
+        "pitch": "A space telescope that finds planets around other stars and reads their air.",
+        "story": ("Thousands of planets orbit other stars. Catch them passing in front of their suns, then look at "
+                  "their atmospheres in infrared. That needs a cold, dark, perfectly steady place."),
+        "goals": [
+            {"tag": "exoplanets", "label": "Find new planets", "weight": 40, "target": 40, "required": True},
+            {"tag": "infrared", "label": "Infrared atmospheres", "weight": 40, "target": 35, "required": True},
+            {"tag": "imaging", "label": "Image planets directly", "weight": 20, "target": 25, "required": False},
+        ],
+    },
     "mars_climate": {
         "name": "Mars Climate Orbiter II",
         "destination": "mars",
@@ -513,6 +620,23 @@ ORBITS = {
                   "learn": ("Cheap and simple: rush past at 5 km/s and take what you can in a few hours. "
                             "Almost no fuel, but very little data.")},
     },
+    "l2": {
+        "halo": {"name": "Halo orbit around L2 (like JWST)", "lv_target": "l2", "dv_insert": 150, "dv_per_year": 4,
+                 "eclipse_h": 0, "eclipse_frac": 0.0, "coverage": 1.0, "earth_view": 0.5, "cruise_years": 0.08,
+                 "max_years_no_prop": 0.5, "science": {"exoplanets": 1.2, "infrared": 1.4, "imaging": 1.1},
+                 "learn": ("1.5 million km away, with the Sun, Earth and Moon all on one side: a sunshield keeps the telescope "
+                           "at -230 C, perfect for infrared. The orbit is unstable, so small burns every few weeks.")},
+        "trailing": {"name": "Earth-trailing drift orbit (like Kepler)", "lv_target": "l2", "dv_insert": 0, "dv_per_year": 0,
+                     "eclipse_h": 0, "eclipse_frac": 0.0, "coverage": 0.8, "earth_view": 0.35, "cruise_years": 0.0,
+                     "max_years_no_prop": 99, "science": {"exoplanets": 1.3, "infrared": 0.9, "imaging": 1.0},
+                     "learn": ("Follow Earth around the Sun and stare at one patch of sky for years. No fuel needed, but you "
+                               "drift away and the radio link gets weaker every year.")},
+        "heo": {"name": "High Earth orbit, lunar resonance (like TESS)", "lv_target": "tli", "dv_insert": 300, "dv_per_year": 2,
+                "eclipse_h": 4, "eclipse_frac": 0.02, "coverage": 0.9, "earth_view": 0.25, "cruise_years": 0.1,
+                "max_years_no_prop": 20, "science": {"exoplanets": 1.0, "infrared": 0.6, "imaging": 1.0},
+                "learn": ("A stretched 13.7-day orbit kept stable by the Moon. Cheap to reach, sweeps the whole sky, but sends "
+                          "data home only once per orbit and gets warm near Earth.")},
+    },
     "moon_surface": {
         "rim": {"name": "Sunlit crater rim", "lv_target": "tli", "dv_insert": 900, "dv_per_year": 0,
                 "eclipse_h": 30, "eclipse_frac": 0.15, "coverage": 0.6, "earth_view": 0.5, "cruise_years": 0.02,
@@ -574,26 +698,30 @@ ORBITS = {
 # --------------------------------------------------------------------------------------
 LAUNCH_VEHICLES = {
     "electron": {"name": "Electron (Rocket Lab)", "cost": 8,
-                 "capacity": {"leo": 300, "sso": 200, "gto": 0, "tli": 35, "mars": 0, "jupiter": 0, "venus": 0, "asteroid": 0},
+                 "capacity": {"leo": 300, "sso": 200, "gto": 0, "tli": 35, "mars": 0, "jupiter": 0, "venus": 0, "asteroid": 0, "l2": 0},
                  "learn": "Tiny rocket for small satellites. Cheap, but only lifts a few hundred kg."},
-    "falcon9": {"name": "Falcon 9 (SpaceX)", "cost": 70,
-                "capacity": {"leo": 17500, "sso": 12000, "gto": 5500, "tli": 2500, "mars": 1500, "jupiter": 0, "venus": 1800, "asteroid": 1100},
+    "falcon9": {"name": "Falcon 9 (SpaceX)", "cost": 70, "reusable": True,
+                "capacity": {"leo": 17500, "sso": 12000, "gto": 5500, "tli": 2500, "mars": 1500, "jupiter": 0, "venus": 1800, "asteroid": 1100, "l2": 4000},
                 "learn": "Reusable workhorse. Great value near Earth, limited for deep space."},
     "vulcan": {"name": "Vulcan Centaur VC6 (ULA)", "cost": 115,
-               "capacity": {"leo": 27000, "sso": 20000, "gto": 14000, "tli": 11000, "mars": 5000, "jupiter": 900, "venus": 5500, "asteroid": 4000},
+               "capacity": {"leo": 27000, "sso": 20000, "gto": 14000, "tli": 11000, "mars": 5000, "jupiter": 900, "venus": 5500, "asteroid": 4000, "l2": 9000},
                "learn": "Powerful high-energy upper stage (Centaur). Good for the Moon and Mars."},
     "falcon_heavy": {"name": "Falcon Heavy expendable (SpaceX)", "cost": 180,
                      "capacity": {"leo": 63800, "sso": 45000, "gto": 26700, "tli": 16000, "mars": 16800,
-                                  "jupiter": 6500, "venus": 17000, "asteroid": 13000},
+                                  "jupiter": 6500, "venus": 17000, "asteroid": 13000, "l2": 15000},
                      "learn": "Launched Europa Clipper (6,065 kg) toward Jupiter with gravity assists."},
+    "new_glenn": {"name": "New Glenn (Blue Origin)", "cost": 110, "reusable": True,
+                  "capacity": {"leo": 45000, "sso": 35000, "gto": 13000, "tli": 7000, "mars": 4000, "jupiter": 0, "venus": 4500,
+                               "asteroid": 3500, "l2": 7000},
+                  "learn": "Big reusable rocket: its first stage lands on a ship and flies again."},
     "sls": {"name": "SLS Block 1 (NASA)", "cost": 2000,
-            "capacity": {"leo": 95000, "sso": 70000, "gto": 40000, "tli": 27000, "mars": 20000, "jupiter": 9000, "venus": 21000, "asteroid": 17000},
+            "capacity": {"leo": 95000, "sso": 70000, "gto": 40000, "tli": 27000, "mars": 20000, "jupiter": 9000, "venus": 21000, "asteroid": 17000, "l2": 25000},
             "learn": "Most powerful option and fastest to Jupiter, but extremely expensive."},
 }
 
 LV_TARGET_LABEL = {"leo": "LEO", "sso": "SSO", "gto": "GTO", "tli": "trans-lunar", "mars": "Mars transfer",
                    "jupiter": "Jupiter transfer",
-                   "venus": "Venus transfer", "asteroid": "asteroid rendezvous"}
+                   "venus": "Venus transfer", "asteroid": "asteroid rendezvous", "l2": "Sun-Earth L2"}
 
 # --------------------------------------------------------------------------------------
 # Spacecraft subsystems. mass kg, power W (draw), cost M$.
@@ -803,6 +931,15 @@ INSTRUMENTS = {
     "tagsam": {"name": "Touch-and-go sampler arm", "mass": 40, "power": 30, "cost": 30, "data_mbps": 0.1,
                "duty": 0.01, "value": 35, "tags": ["sample"], "pointing_deg": 0.5,
                "learn": "Taps the surface for five seconds and blows gas to push dust into a collector (OSIRIS-REx)."},
+    "photometer": {"name": "Transit photometer (Kepler-style)", "mass": 30, "power": 25, "cost": 25, "data_mbps": 2,
+                   "duty": 1.0, "value": 35, "tags": ["exoplanets"], "pointing_deg": 0.005, "where": "orbit",
+                   "learn": "Watches 100,000 stars at once for the tiny dip when a planet passes in front. Needs rock-steady pointing."},
+    "irtel": {"name": "Cold infrared telescope", "mass": 400, "power": 120, "cost": 250, "data_mbps": 25, "duty": 0.5,
+              "value": 45, "tags": ["infrared", "exoplanets", "imaging"], "pointing_deg": 0.005, "where": "orbit",
+              "learn": "A mirror behind a sunshield, colder than -200 C, sees the heat of the first galaxies and planet atmospheres."},
+    "coronagraph": {"name": "Coronagraph (starlight blocker)", "mass": 60, "power": 40, "cost": 60, "data_mbps": 5, "duty": 0.2,
+                    "value": 30, "tags": ["exoplanets", "imaging"], "pointing_deg": 0.005, "where": "orbit",
+                    "learn": "Blocks a star's glare so the faint planet next to it can be photographed directly."},
     "particles": {"name": "Plasma & particle detector", "mass": 4, "power": 5, "cost": 3, "data_mbps": 0.02,
                   "duty": 1.0, "value": 10, "tags": ["fields"], "pointing_deg": 10,
                   "learn": "Counts charged particles. Helps interpret the magnetometer signal."},

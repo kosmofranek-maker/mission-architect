@@ -7,12 +7,12 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const fmt = (n, d = 0) => (n == null || !isFinite(n) ? "∞" : Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d }));
 const pct = (x) => `${Math.round((x || 0) * 100)}%`;
 
-const ORDER = ["wildfire", "storm_watch", "lunar_ice", "landing_scout", "lunar_lander", "orbital_outpost", "asteroid_prospector",
-  "asteroid_sample", "venus_clouds", "lunar_base", "mars_climate", "mars_rover", "europa", "mars_base"];
+const ORDER = ["wildfire", "storm_watch", "iss_resupply", "lunar_ice", "crew_transport", "landing_scout", "lunar_lander", "orbital_outpost",
+  "asteroid_prospector", "exoplanet_hunter", "asteroid_sample", "venus_clouds", "lunar_base", "mars_climate", "mars_rover", "europa", "mars_base"];
 const PLANET_OF = { earth: "earth", moon: "moon", mars: "mars", europa: "europa", venus: "venus", asteroid: "asteroid",
-  moon_surface: "moon", mars_surface: "mars" };
+  moon_surface: "moon", mars_surface: "mars", l2: "earth" };
 const DEGRADE = { venus: 0.03, europa: 0.04, mars_surface: 0.08 }; // solar cell loss per year (mirrors engine/model.py)
-const KIND_LABEL = { orbiter: "Orbiter", lander: "Lander", rover: "Rover", sample_return: "Sample return", program: "Crewed program" };
+const KIND_LABEL = { orbiter: "Orbiter", lander: "Lander", rover: "Rover", sample_return: "Sample return", program: "Crewed program", vehicle: "Design a spaceship" };
 const GRADE_COL = { S: "#6a3d9a", A: "#3c6b25", B: "#1d4f8a", C: "#8a6410", F: "#a8322a" };
 const PASS = ["S", "A", "B", "C"];
 
@@ -135,6 +135,33 @@ const CLIENTS = {
       ok: "The crew made it and came home. Not everything went to plan, but humanity has been to Mars.",
       bad: "We reached Mars, but the crew spent the mission rationing instead of exploring.",
       lost: "The program ended before anyone set foot on Mars. We will try again in the next window." } },
+  iss_resupply: { name: "Cmdr. Yuki Sato", org: "ISS Program Office",
+    look: { skin: "#e3c19c", skinD: "#b8957a", hair: "#16141a", hairStyle: "short", coat: "#2c3b55", shirt: "#e9e3d6", tie: "#a8322a", badge: true },
+    letter: ["The International Space Station has had people aboard every single day since the year 2000. I would like to keep that record going.",
+      "Every six months a new crew of four must arrive, and cargo ships must bring food, water, air and spare parts. The station is big, but its pantry is not.",
+      "Plan the flights so there is always a reserve. Cargo ships do fail sometimes, and the crew should never notice."],
+    quotes: { good: "Two more years of people living in space, without one empty shelf. The record lives on.",
+      ok: "The station stayed crewed. A few anxious weeks, but we made it.",
+      bad: "We had to bring people home early. The station is empty for the first time in decades.",
+      lost: "Today the station is dark. That has not happened since the year 2000." } },
+  crew_transport: { name: "Eng. Marta Kowalczyk", org: "Commercial Crew Program",
+    look: { skin: "#efd2bd", skinD: "#c9a891", hair: "#c9a86a", hairStyle: "long", coat: "#4b5a3a", shirt: "#e9e3d6", glasses: true, badge: true },
+    letter: ["We need our own way to fly astronauts to the space station: forty seats over five years.",
+      "You design the vehicle. A capsule or a spaceplane, thrown away or flown again, ocean or runway. The Space Shuttle was beautiful and lost two crews; capsules are plain but tough.",
+      "My only hard rule: no more than one loss of crew in 270 flights. Everything else is your call."],
+    quotes: { good: "Forty seats, five years, every crew home safe, at a price people said was impossible.",
+      ok: "It flies and it is safe. It could be cheaper, but it works.",
+      bad: "The vehicle works on paper. In practice it was slow, expensive and nervous.",
+      lost: "We lost a crew. The program is grounded while we find out why." } },
+  exoplanet_hunter: { name: "Dr. Aisha Bello", org: "Exoplanet Science Institute",
+    look: { skin: "#7a4e34", skinD: "#5a3826", hair: "#1a1716", hairStyle: "bun", coat: "#3d3550", shirt: "#e9e3d6", glasses: true },
+    letter: ["When I was a girl we knew of zero planets around other stars. Now we know thousands, and I want to know what their air is made of.",
+      "Watch stars for the tiny dip when a planet passes in front, then look at those planets in infrared to read their atmospheres.",
+      "Infrared telescopes must be very cold and very still. Find them a dark, quiet place, far from Earth's warmth."],
+    quotes: { good: "We found water vapour in the air of a planet light-years away. My younger self would not believe it.",
+      ok: "We found new planets. Their atmospheres will have to wait for the next telescope.",
+      bad: "The telescope worked, but it was too warm or too shaky to see what we hoped.",
+      lost: "Our telescope is silent. The planets are still out there, waiting." } },
   europa: { name: "Dr. Ingrid Solberg", org: "Outer Planets Program",
     look: { skin: "#efd2bd", skinD: "#c9a891", hair: "#d8c27a", hairStyle: "long", coat: "#2c3b55", shirt: "#e9e3d6", glasses: true, badge: true },
     letter: ["Under twenty kilometres of ice there may be more water than in all of Earth's oceans. Where there is water, there might be life.",
@@ -176,6 +203,15 @@ const onSurface = () => !!S.cat.DESTINATIONS[destKey()].surface;
 // The tab list for the current mission: orbiters have no landing tab, surface missions pick a site instead of an orbit.
 function tabs() {
   const k = kindNow();
+  if (k === "vehicle") return [
+    { id: "hull", label: "Hull", icon: "capsule", role: "systems", fields: ["shape", "seats"],
+      hint: "Your own crew vehicle. The shape decides how it comes home, what escape system fits and how heavy it is. More seats mean fewer flights." },
+    { id: "shield", label: "Heat shield", icon: "flame", role: "systems", fields: ["heatshield"],
+      hint: "Coming home at 28,000 km/h heats the nose to 1,600 C. A shield that burns away is safe but single-use; reusable ones need care." },
+    { id: "safety", label: "Escape & landing", icon: "chute", role: "systems", fields: ["abort", "landing"],
+      hint: "If the rocket fails, the escape system saves the crew. The landing decides whether the vehicle can fly again." },
+    { id: "launch", label: "Launch", icon: "rocket", role: "manager", fields: ["launch_vehicle"],
+      hint: "Only rockets rated for crew may carry astronauts. Reusable rockets get cheaper with every flight." }];
   if (k === "program") return [
     { id: "manifest", label: "Manifest", icon: "calendar", role: "systems", fields: ["manifest"],
       hint: "Plan every launch: which payload, on which rocket, in which slot. Order matters, crews need somewhere to live and something to eat, and every rocket has a limit." },
@@ -195,7 +231,8 @@ function fieldLabel(f) {
 }
 const FIELD_LABEL = { window: "Launch date", launch_vehicle: "Launch vehicle", orbit: "Orbit", bus: "Spacecraft bus", solar: "Solar array",
   rtg: "Nuclear power (RTG)", battery: "Battery", adcs: "Attitude control", propulsion: "Propulsion", comms: "Antenna",
-  ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system", partners: "Partners" };
+  ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system", partners: "Partners",
+  shape: "Hull shape", seats: "Seats", heatshield: "Heat shield", abort: "Launch escape system", landing: "Landing" };
 const MULTI = new Set(["instruments", "partners"]); // fields that hold a list
 
 const S = {
@@ -346,6 +383,7 @@ async function boot() {
       x.done = { wildfire: { grade: "A", score: 700 }, storm_watch: { grade: "B", score: 560 }, lunar_ice: { grade: "S", score: 820 } }; x.medals = ["orbit", "moon"];
       x.log = [{ month: 18, text: "Wildfire Watch: A (success)" }, { month: 24, text: "Annual budget: +97 M$" }, { month: 29, text: "Lunar Ice Prospector: S (success)" }];
       saveAgency(x); S.mode = "career"; openHQ(); if (v === "research") openResearch("bigbus"); }
+    if (k === "station") { startMission(v, S.cat.DEFAULTS[v]); const g = document.createElement("canvas"); }
     if (k === "compare") {
       startMission(v, S.cat.DEFAULTS[v]); const e = drawer.add({ name: "Preset design", scenario: v, design: S.cat.DEFAULTS[v] });
       S.design = { ...S.design, launch_vehicle: "falcon_heavy", years: S.design.years + 2 }; renderAll(); openCompare("current", e.id);
@@ -405,8 +443,11 @@ function startMission(sc, design, opts = {}) {
     d.difficulty = store.get("difficulty", "normal");
     d.sandbox = S.mode === "free" && $("#sandbox").checked;
   }
-  if (S.mode === "career" && agency()) {                       // the agency calendar and partner trust shape the plan
+  if (S.mode === "career" && agency()) {                       // the agency calendar, partner trust and booster fleet shape the plan
     const a = agency(); d.start_month = a.month; d.trust = { ...a.trust }; d.difficulty = a.difficulty; d.sandbox = false;
+    d.boosters = { ...(a.boosters || {}) };
+    if (opts.invite) { d.joint = { partner: opts.invite.partner, share: opts.invite.share };
+      if (!d.partners.includes(opts.invite.partner) && d.partners.length < S.cat.MAX_PARTNERS) d.partners = [...d.partners, opts.invite.partner]; }
   }
   S.design = d; S.tab = S.cat.SCENARIOS[sc].kind === "program" ? "manifest" : "orbit"; S.introShown = false; S.ev = null; S._prevOk = undefined; S._prevMet = null;
   openDesk();
@@ -477,8 +518,8 @@ function renderTop() {
 }
 
 // ---------------------------------------------------------------------------- Cadet advisor
-const PICK_ORDER = ["orbit", "window", "instruments", "bus", "solar", "battery", "adcs", "propulsion", "edl", "comms", "ground", "computer", "launch_vehicle"];
-const FIELD_TAB = { window: "launch", orbit: "orbit", instruments: "instr", bus: "bus", solar: "power", battery: "power", adcs: "adcs", edl: "edl",
+const PICK_ORDER = ["shape", "seats", "heatshield", "abort", "landing", "orbit", "window", "instruments", "bus", "solar", "battery", "adcs", "propulsion", "edl", "comms", "ground", "computer", "launch_vehicle"];
+const FIELD_TAB = { shape: "hull", seats: "hull", heatshield: "shield", abort: "safety", landing: "safety", window: "launch", orbit: "orbit", instruments: "instr", bus: "bus", solar: "power", battery: "power", adcs: "adcs", edl: "edl",
   propulsion: "prop", comms: "comms", ground: "comms", computer: "computer", launch_vehicle: "launch", rtg: "power" };
 
 function downlinkGb(commsKey, groundKey) {
@@ -611,9 +652,22 @@ function recommend(f) {
       const [k, w] = ws.sort((a, b) => val(b[1]) - val(a[1]))[0];
       return { key: k, why: `it leaves ${w.build_months} months to build${w.synodic && w.energy >= 1.04 ? " and the planets line up well" : ""}` };
     }
+    case "shape": return { key: "capsule", why: "capsules are the simplest, lightest and safest way to bring people home" };
+    case "seats": return { key: "s4", why: "one flight then carries a whole station crew" };
+    case "heatshield": return { key: "metallic", why: "it survives many re-entries and needs little work between flights" };
+    case "abort": {
+      const fits = c.VEHICLE.shape[d.shape || "capsule"].fits;
+      const k = ["tower", "pusher", "seats", "none"].find((x) => fits.includes(x) && (x !== "seats" || (c.VEHICLE.seats[d.seats || "s4"].n <= 2)));
+      return { key: k, why: k === "tower" ? "an escape tower saves the crew 97% of the time" : "it is the best escape system this shape allows" };
+    }
+    case "landing": {
+      const fits = c.VEHICLE.shape[d.shape || "capsule"].fits;
+      const k = ["land_chutes", "runway", "ocean", "propulsive"].find((x) => fits.includes(x));
+      return { key: k, why: k === "runway" ? "a winged vehicle can glide home to an airport" : "landing on dry ground keeps the vehicle reusable" };
+    }
     case "launch_vehicle": {
       if (!ev || ev.mass.wet == null) return null;
-      const tgt = curOrbit().lv_target, fit = Object.entries(avail("launch_vehicle", c.LAUNCH_VEHICLES)).filter(([, v]) => v.capacity[tgt] * energy() >= ev.mass.wet * 1.15);
+      const tgt = curOrbit().lv_target, fit = Object.entries(avail("launch_vehicle", c.LAUNCH_VEHICLES)).filter(([k, v]) => v.capacity[tgt] * energy() >= ev.mass.wet * 1.15 && (kindNow() !== "vehicle" || c.CREW_RATED.includes(k)));
       return fit.length ? { key: cheapest(fit)[0], why: `it is the cheapest rocket that lifts your ${fmt(ev.mass.wet)} kg with margin` }
         : { key: "sls", why: "nothing smaller can lift it; better cut mass" };
     }
@@ -637,8 +691,9 @@ function advisor() {
   if (isProgram()) return programAdvisor();
   const d = S.design, ev = S.ev;
   if (!ev) return null;
+  const fieldsHere = new Set(tabs().flatMap((t) => t.fields));
   for (const f of PICK_ORDER) {
-    if (f === "edl" && kindNow() === "orbiter") continue;
+    if (!fieldsHere.has(f)) continue;
     if (f === "instruments" ? !d.instruments.length : d[f] == null) {
       const r = recommend(f);
       if (r) return { ...r, field: f, action: "pick" };
@@ -763,7 +818,8 @@ function renderRequest() {
   const o = S.cat.ORBITS[destKey()][S.design.orbit];
   $("#reqCruise").textContent = `Scientists ask for ${s.min_years}+ years. ` + (!o ? "Cruise time depends on the orbit." : o.cruise_years ? `Plus ${o.cruise_years} yr cruise first.` : "Science starts right after launch.");
   $("#yearsDown").disabled = !canEdit("years"); $("#yearsUp").disabled = !canEdit("years");
-  $("#reqYears").closest(".req-line").classList.toggle("hidden", isProgram());
+  $("#reqYears").closest(".req-line").classList.toggle("hidden", isProgram() || kindNow() === "vehicle");
+  if (kindNow() === "vehicle") $("#reqCruise").textContent = `Fly ${s.vehicle.seats_needed} astronaut seats to the space station over ${s.vehicle.years} years.`;
   if (isProgram()) {
     const P = s.program, sl = ev && ev.kind === "program" ? ev.program.slots : null;
     $("#reqCruise").textContent = `${P.slots} launch slots${P.windows ? " (Mars windows, 26 months apart)" : `, one every ${P.slot_months} months`}${sl ? ` from ${sl[0].label}` : ""}. Crews stay ${P.stay} months.`;
@@ -804,6 +860,7 @@ function optionsForAll(field) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], use = { lander: "land", rover: "land", sample_return: "return" }[kindNow()];
   const keep = (obj, fn) => Object.fromEntries(Object.entries(obj).filter(([k, o]) => fn(o, k)));
   if (field === "edl") return keep(c.EDL, (o) => o.use === use);
+  if (["shape", "seats", "heatshield", "abort", "landing"].includes(field)) return c.VEHICLE[field];
   if (field === "partners") return Object.fromEntries(Object.entries(c.PARTNERS).map(([k, p]) => [k, { ...p,
     learn: `${kindNow() === "program" ? p.program_gives || p.gives : p.gives} ${p.learn}` }]));
   if (field === "window") return Object.fromEntries(((S.ev && S.ev.windows) || []).map((w) => [w.key, { ...w, name: windowName(w), learn: windowLearn(w) }]));
@@ -831,6 +888,11 @@ function statLine(field, k, o) {
   const tgt = curOrbit().lv_target;
   switch (field) {
     case "launch_vehicle": return `${fmt(o.capacity[tgt] * energy())} kg to ${c.LV_TARGET_LABEL[tgt]} · ${fmt(o.cost)} M$`;
+    case "shape": return `${fmt(o.base / 1000, 1)} t + ${o.per_seat} kg/seat · design ${fmt(o.dev)} M$ · build ${o.build} M$${o.cargo ? ` · ${kt(o.cargo)} cargo` : ""}`;
+    case "seats": return `${o.n} astronauts per flight · ${Math.ceil(40 / o.n)} flights for 40 seats`;
+    case "heatshield": return `${o.reusable ? "reusable" : "single use"} · +${Math.round(o.frac * 100)}% mass · loses 1 crew in ${fmt(1 / o.risk)}`;
+    case "abort": return `saves the crew ${pct(o.save)} of the time · ${o.mass_per_seat ? `${o.mass_per_seat} kg/seat` : `${fmt(o.mass)} kg`}`;
+    case "landing": return `${o.reuse >= 1 ? "fully reusable" : `reuse ${pct(o.reuse)}`} · ${o.ship} M$/flight · loses 1 crew in ${fmt(1 / o.risk)}`;
     case "partners": {
       if (kindNow() === "program") { const off = o.program && o.program[progSpec().place];
         return off ? `builds ${S.cat.PAYLOADS[off.p].name} · delay risk ${pct(o.delay)}` : o.arm ? `robotic arm · pays ${pct(o.share)}` : `pays ${pct(o.share)} of hardware`; }
@@ -856,6 +918,8 @@ function statLine(field, k, o) {
 
 function cardBad(field, k, o) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], tgt = curOrbit().lv_target;
+  if (field === "launch_vehicle" && kindNow() === "vehicle" && !S.cat.CREW_RATED.includes(k)) return true;
+  if (["abort", "landing"].includes(field) && S.design.shape) return !c.VEHICLE.shape[S.design.shape].fits.includes(k) || (field === "abort" && o.max_seats && S.design.seats && c.VEHICLE.seats[S.design.seats].n > o.max_seats);
   if (field === "launch_vehicle") return !o.capacity[tgt] || (S.ev && S.design.orbit && S.ev.mass.wet > o.capacity[tgt] * energy());
   if (field === "adcs") return o.needs_magnetic && !dest.magnetic;
   if (field === "ground") return !o.relay_mbps && dest.earth_au > o.max_earth_au;
@@ -949,7 +1013,7 @@ function renderReview() {
   const pf = p.generation ? p.load / p.generation : 1;
   const D = S.design, battBad = D.battery && p.eclipse_need_wh > p.battery_usable_wh;
   const pending = (ic, label, need) => meter(ic, label, 0, `needs ${need}`, "", null);
-  if (ev.kind === "program") $("#meters").innerHTML = programMeters(ev); else $("#meters").innerHTML =
+  if (ev.kind === "program") $("#meters").innerHTML = programMeters(ev); else if (ev.kind === "vehicle") $("#meters").innerHTML = vehicleMeters(ev); else $("#meters").innerHTML =
     (!D.launch_vehicle || !D.orbit ? pending("weight", "MASS", !D.orbit ? "orbit" : "rocket") :
       meter("weight", "MASS", mf, m.capacity ? `${fmt(m.wet)}/${fmt(m.capacity)} kg` : "can't reach",
         mf > 1 ? "bad" : m.margin < req ? "warn" : "", 1 - req)) +
@@ -1023,6 +1087,8 @@ function drawBlueprint() {
   const L = "#dce9f8", M = "#9cc0ea", D = "#5b86b8";
   let empty = $(".blueprint .bp-empty");
   if (isProgram()) { if (empty) empty.remove(); return drawProgramBlueprint(g, W, H); }
+  if (kindNow() === "vehicle") { if (empty) empty.remove(); drawVehicle(g, d, W / 2, H / 2 + 6, d.shape === "winged" ? 2.4 : 3, "blue");
+    $("#bpSlots").textContent = S.ev && S.ev.vehicle ? `${fmt(S.ev.vehicle.mass / 1000, 1)} t · ${S.ev.vehicle.seats} seats · ${S.ev.vehicle.flights} flights` : "Your crew vehicle"; return; }
   if (!d.bus) {
     if (!empty) { empty = document.createElement("div"); empty.className = "bp-empty"; $(".blueprint").appendChild(empty); }
     empty.textContent = "No bus selected. Pick one in the BUS tab.";
@@ -1565,8 +1631,25 @@ const DASH_PROGRAM = [
   { k: "crew", label: "CREW ABOARD", ic: "person" }, { k: "modules", label: "ASSEMBLED", ic: "bus" },
   { k: "budget", label: "RESERVE", ic: "coin" }, { k: "science", label: "GOALS", ic: "star" },
 ];
+const DASH_VEHICLE = [
+  { k: "flights", label: "FLIGHTS", ic: "rocket" }, { k: "seats", label: "SEATS FLOWN", ic: "person" },
+  { k: "safety", label: "SAFETY GOAL", ic: "chute" }, { k: "fleet", label: "FLEET", ic: "capsule" },
+  { k: "budget", label: "RESERVE", ic: "coin" }, { k: "science", label: "GOALS", ic: "star" },
+];
 function dashValues(res, e) {
   const ev = res.evaluation, sim = res.sim, rs = sim.reserve_start || 0;
+  if (sim.vehicle) {
+    const v = (f, text, st) => ({ f: Math.max(0, Math.min(1, f)), text, st }), V = ev.vehicle, need = ev.scenario.vehicle.seats_needed;
+    e = e || { flights_done: 0, seats_flown: 0, reserve: rs, science_fraction: 0, alive: true };
+    return {
+      flights: v(e.flights_done / V.flights, `${e.flights_done} / ${V.flights}`, ""),
+      seats: v(e.seats_flown / need, `${e.seats_flown} / ${need}`, ""),
+      safety: v(e.alive === false ? 0 : Math.min(1, V.one_in / 270), e.alive === false ? "crew lost" : `1 in ${fmt(V.one_in)}`, e.alive === false ? "bad" : V.one_in < 270 ? "warn" : ""),
+      fleet: v(1, `${V.vehicles} built, ${V.reusable ? `up to ${V.per_vehicle} flights each` : "single use"}`, ""),
+      budget: v(rs > 0 ? e.reserve / rs : 0, `${fmt(e.reserve)} M$`, e.reserve < 0 ? "bad" : ""),
+      science: v(e.science_fraction, pct(e.science_fraction), ""),
+    };
+  }
   if (sim.program) {
     const v = (f, text, st) => ({ f: Math.max(0, Math.min(1, f)), text, st });
     e = e || { power_margin: 1, stock_kg: 0, crew: 0, beds: 0, assembled: 0, reserve: rs, science_fraction: 0 };
@@ -1604,7 +1687,7 @@ function renderDash(res, mi, stage) {
   const status = last ? `<span class="${last.impact}">M${String(last.month).padStart(2, "0")} ${esc(last.text)}</span>`
     : `<span>${stage === "COUNTDOWN" ? "All stations: go for launch." : "All systems nominal."}</span>`;
   box.innerHTML = `<div class="fd-head"><span>${icon("dish", 14)} MISSION CONTROL &middot; RESOURCES</span><span>${clock}</span></div>
-    <div class="fd-grid">${(sim.program ? DASH_PROGRAM : DASH).map((g) => {
+    <div class="fd-grid">${(sim.vehicle ? DASH_VEHICLE : sim.program ? DASH_PROGRAM : DASH).map((g) => {
       const x = vals[g.k], lit = Math.round(x.f * 20), hit = prev[g.k] != null && x.f < prev[g.k] - 0.03 && g.k !== "fuel";
       return `<div class="fd-g ${x.st} ${hit ? "hit" : ""}"><div class="fd-l">${icon(g.ic, 14)}${g.label}</div>
         <div class="leds">${Array.from({ length: 20 }, (_, i) => `<i class="${i < lit ? "on" : ""}"></i>`).join("")}</div>
@@ -1649,6 +1732,7 @@ function playLaunch(res, skipTo = 0) {
   let dashKey = "";
   const d = res.design, dest = destKeyOf(d), atEarth = dest === "earth", isProg = !!res.sim.program;
   const lv = isProg ? ((res.evaluation.program.flights.find((f) => f.lv) || {}).lv || "falcon9") : d.launch_vehicle;
+  const isVeh = !!res.sim.vehicle, landed = res.sim.boosters_recovered && Object.keys(res.sim.boosters_recovered).length > 0;
   const failAtLaunch = !isProg && res.sim.events.some((e) => e.kind === "launch_failure");
   const pImg = new Image(); pImg.src = planet(PLANET_OF[dest], 64);
   const eImg = new Image(); eImg.src = planet("earth", 32);
@@ -1730,6 +1814,13 @@ function playLaunch(res, skipTo = 0) {
     } else if (rise < 1.4 && !failAtLaunch) text("LIFTOFF", W / 2, 50, 20, "#f4efe2", "center");
     else if (boom && rise < 4) text("VEHICLE LOST", W / 2, 50, 18, "#ff6b5b", "center");
     else if (rise > 4.3 && rise < 5.3 && LV_SHAPE[lv] && LV_SHAPE[lv].boosters) text("BOOSTER SEPARATION", W / 2, 30, 10, "#9cc0ea", "center");
+    else if (landed && rise > 3.6 && rise < 5.4) {                          // reusable first stage flies home and lands
+      const f = (rise - 3.6) / 1.8, bx = 40 + f * 10, by = 30 + f * 112;
+      g.fillStyle = "#2b3a67"; g.fillRect(14, 150, 70, 6); g.fillStyle = "#e8cf52"; g.fillRect(44, 149, 10, 1);
+      g.fillStyle = "#f4efe2"; g.fillRect(bx - 2, by - 22, 4, 22); g.fillStyle = "#1d1a17"; g.fillRect(bx - 2, by - 14, 4, 2);
+      if (f < 0.97) flame(g, bx, by, Math.random(), 0.6); else { g.fillStyle = "#7d7d7d"; g.fillRect(bx - 4, by - 1, 2, 2); g.fillRect(bx + 2, by - 1, 2, 2); }
+      text(f < 0.97 ? "FIRST STAGE RETURNING" : "FIRST STAGE LANDED", W / 2, 30, 10, "#8fe07a", "center");
+    }
     else if (rise > 1.5) text(`ALT ${Math.round(climb * 0.35)} KM`, 8, 16, 8, "#9cc0ea");
   }
 
@@ -1833,9 +1924,19 @@ function playLaunch(res, skipTo = 0) {
     const tl = res.sim.timeline, mi = Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length));
     const e = tl[Math.max(0, mi)] || { modules: S.cat.SCENARIOS[d.scenario].program.existing, crew: 0, stock_kg: 0, month: 0 };
     const abs = res.evaluation.program.start + e.month - 1;
-    drawOutpost(g, place, outpostState(e.modules, e.crew, res.evaluation.program.flights, abs), 160, place === "station" ? 70 : gyS - 12, 2, "real", t * 10);
+    drawOutpost(g, place, outpostState(e.modules, e.crew, res.evaluation.program.flights, abs), 160, place === "station" ? 80 : gyS - 12, place === "station" ? 1.5 : 2, "real", t * 10);
     text(`MONTH ${e.month}  CREW ${e.crew}`, 8, 16, 8, "#f4efe2");
     text(`SUPPLIES ${fmt((e.stock_kg || 0) / 1000, 1)} T`, 8, 28, 8, "#e9e3d6");
+  }
+  // Your crew vehicle flies to the space station again and again.
+  function vehiclePhase(t) {
+    g.drawImage(starCv, 0, 0); g.drawImage(limbCv, 0, 40);
+    drawOutpost(g, "station", { modules: ["iss"], crew: 4 }, 200, 80, 1.3, "real");
+    const k = ((t - LT.space) % 4) / 4, x = 20 + Math.min(1, k * 1.3) * 120, y = 70 + Math.sin(k * 3) * 4;
+    drawVehicle(g, d, x, y, 1.2, "real");
+    const tl = res.sim.timeline, mi = Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length)), e = tl[Math.max(0, mi)] || {};
+    text(`FLIGHT ${e.flights_done || 0} / ${res.evaluation.vehicle.flights}`, 8, 16, 8, "#f4efe2");
+    text(`SEATS ${e.seats_flown || 0} / ${S.cat.SCENARIOS[d.scenario].vehicle.seats_needed}`, 8, 28, 8, "#e9e3d6");
   }
   const tracks = [];
   function surfacePhase(t) {
@@ -1894,6 +1995,7 @@ function playLaunch(res, skipTo = 0) {
     if (failAtLaunch && t - LT.lift > 1.6 && !frame._boom) { frame._boom = true; SFX.boom(); }
     if (failAtLaunch || t < LT.space) rocketPhase(t);
     else if (isProg) programPhase(t);
+    else if (isVeh) vehiclePhase(t);
     else if (t < LT.transfer) deployPhase(t);
     else if (!atEarth && t < LT.orbit) transferPhase(t);
     else if (surfaceMission) surfacePhase(t);
@@ -1905,7 +2007,7 @@ function playLaunch(res, skipTo = 0) {
       const key = `${stage}|${mi}`;
       if (key !== dashKey) { dashKey = key; renderDash(res, mi, stage || (mi == null ? (failAtLaunch ? "VEHICLE LOST" : "ASCENT") : null)); }
     }
-    if (li >= lines.length && t > nextLine + 1.2 && (failAtLaunch || t > (isProg ? LT.space + 4 : atEarth ? LT.transfer : LT.orbit) + 2)) return finish();
+    if (li >= lines.length && t > nextLine + 1.2 && (failAtLaunch || t > (isProg || isVeh ? LT.space + 4 : atEarth ? LT.transfer : LT.orbit) + 2)) return finish();
     requestAnimationFrame(frame);
   }
   function finish() { if (done) return; done = true; showNews(res); }
@@ -1934,7 +2036,7 @@ function buildTeletype(res) {
     const evs = byMonth[t.month] || [];
     evs.forEach((e) => L.push({ text: `M${String(t.month).padStart(2, "0")} ${e.text}`, cls: e.impact, pause: e.impact === "fatal" ? 1.6 : 0.9 }));
     if (!evs.length && t.month % 6 === 0)
-      L.push({ text: `M${String(t.month).padStart(2, "0")} ${sim.program ? `crew ${t.crew}, supplies ${fmt(t.stock_kg / 1000, 1)} t` : t.phase === "cruise" ? "cruising, all systems nominal" : `science ${pct(t.science_fraction)} collected`}`, cls: "month", pause: 0.18 });
+      L.push({ text: `M${String(t.month).padStart(2, "0")} ${sim.vehicle ? `flights ${t.flights_done}, ${t.seats_flown} seats flown` : sim.program ? `crew ${t.crew}, supplies ${fmt(t.stock_kg / 1000, 1)} t` : t.phase === "cruise" ? "cruising, all systems nominal" : `science ${pct(t.science_fraction)} collected`}`, cls: "month", pause: 0.18 });
   });
   L.push({ text: `END OF TRANSMISSION · OUTCOME: ${sim.outcome.toUpperCase()}`, pause: 0.8 });
   return L;
@@ -1992,7 +2094,7 @@ function showNews(res) {
     </div>`;
   const pc = $("#newsPhoto"), g = pc.getContext("2d");
   stars(pc, 60, res.seed);
-  const im = new Image(); im.onload = () => { g.imageSmoothingEnabled = false; g.drawImage(im, 150, 4, 68, 68); if (res.sim.program) { const ls = res.sim.timeline[res.sim.timeline.length - 1] || {}; drawOutpost(g, S.cat.SCENARIOS[res.design.scenario].program.place, outpostState(ls.modules || [], ls.crew || 0, res.evaluation.program.flights, null), 80, 40, 1); } else drawCraft(g, 90, 38, res.design); };
+  const im = new Image(); im.onload = () => { g.imageSmoothingEnabled = false; g.drawImage(im, 150, 4, 68, 68); if (res.sim.vehicle) { drawOutpost(g, "station", { modules: ["iss"], crew: 4 }, 110, 38, 0.72); drawVehicle(g, res.design, 40, 38, 0.9); } else if (res.sim.program) { const ls = res.sim.timeline[res.sim.timeline.length - 1] || {}; drawOutpost(g, S.cat.SCENARIOS[res.design.scenario].program.place, outpostState(ls.modules || [], ls.crew || 0, res.evaluation.program.flights, null), 90, 38, S.cat.SCENARIOS[res.design.scenario].program.place === "station" ? 0.72 : 1); } else drawCraft(g, 90, 38, res.design); };
   im.src = planet(PLANET_OF[destKeyOf(res.design)], 48);
   animateNews(sc);
   const idx = ORDER.indexOf(res.design.scenario);

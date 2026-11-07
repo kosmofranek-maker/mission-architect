@@ -42,7 +42,7 @@ function renderManifest(head) {
     const slot = fl.partner ? `<span class="m-fixed">${esc(fl.slot_label)}</span>` :
       `<span class="m-slot"><button class="btn tiny" data-sd="-1" data-i="${fl.i}" ${locked || fl.slot === 0 ? "disabled" : ""}>-</button><b>${esc(fl.slot_label)}</b><button class="btn tiny" data-sd="1" data-i="${fl.i}" ${locked || fl.slot >= P.slots - 1 ? "disabled" : ""}>+</button></span>`;
     const st = fl.problems.length ? `<span class="m-bad">${esc(fl.problems.join(", "))}</span>` :
-      `<span class="m-ok">${icon("check", 12)} ${fl.margin != null ? `${pct(1 - fl.margin)} of the rocket` : "partner flight"}</span>`;
+      `<span class="m-ok">${icon("check", 12)} ${fl.margin != null ? `${pct(1 - fl.margin)} of the rocket` : "partner flight"}${fl.reused ? " · reused booster" : ""}</span>`;
     return `<div class="mrow ${fl.partner ? "partner" : ""} ${fl.problems.length ? "bad" : ""}">
       <span class="m-n">${fl.n}</span>${icon(fl.partner ? `flag_${fl.partner}` : PAYLOAD_ICON[fl.p] || "star", 16)}
       <span class="m-name"><b>${esc(fl.name)}</b><small>${kt(fl.mass)}${fl.cost ? ` · ${fmt(fl.cost)} M$` : " · free"}</small></span>
@@ -137,27 +137,7 @@ function drawOutpost(g, place, state, cx, cy, s = 1, pal = "real", t = 0) {
   const col = (real, blue) => (B ? blue : real);
   const r = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(cx + x * s), Math.round(cy + y * s), Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))); };
   const mods = state.modules || [], count = (k) => mods.filter((m) => m === k).length;
-  if (place === "station") {
-    const trusses = count("truss");
-    if (trusses) {
-      r(-50, -16, 100, 2, col("#9c9284", "#9cc0ea"));
-      for (let k = 0; k < trusses; k++) for (const side of [-1, 1]) {
-        const x = side * (22 + k * 16) - (side < 0 ? 12 : 0);
-        r(x, -34, 12, 16, col("#25456b", "#5b86b8")); r(x, -34, 12, 1, col("#8fb3e8", "#dce9f8")); r(x + 6, -34, 1, 16, col("#3d6fa8", "#9cc0ea"));
-        r(x, -14, 12, 16, col("#25456b", "#5b86b8")); r(x, -14, 12, 1, col("#8fb3e8", "#dce9f8"));
-      }
-    }
-    const order = mods.filter((k) => ["hab", "lab"].includes(k));
-    if (mods.includes("core")) { r(-10, -5, 20, 10, col("#d8aa45", "#c9a24a")); r(-10, -5, 20, 1, col("#f4e7b0", "#dce9f8")); r(-2, -9, 4, 4, col("#b9b9b9", "#9cc0ea")); }
-    order.forEach((k, i) => {
-      const side = i % 2 ? -1 : 1, slot = Math.floor(i / 2), x = side > 0 ? 10 + slot * 18 : -28 - slot * 18;
-      r(x, -4, 18, 8, col(k === "hab" ? "#e9e3d6" : "#c9d3c3", k === "hab" ? "#dce9f8" : "#9cc0ea"));
-      r(x, -4, 18, 1, col("#ffffff", "#ffffff")); if (k === "lab") r(x + 4, -1, 10, 2, col("#3d6fa8", "#5b86b8"));
-    });
-    if (state.crew) { const x = 10 + Math.ceil(order.length / 2) * 18; r(x, -3, 5, 6, col("#f4efe2", "#ffffff")); r(x + 5, -2, 2, 4, col("#1d1a17", "#5b86b8")); }
-    if (state.cargo) { const x = -28 - Math.ceil(order.length / 2) * 18 - 8; r(x, -3, 8, 6, col("#7d7d7d", "#9cc0ea")); }
-    return;
-  }
+  if (place === "station") return drawStation(g, mods, state, cx, cy, s, B, t);
   // surface bases (moon / mars)
   const ground = col(place === "mars" ? "#b8703f" : "#8d8a84", "#5b86b8");
   r(-80, 12, 160, 2, ground);
@@ -174,6 +154,63 @@ function drawOutpost(g, place, state, cx, cy, s = 1, pal = "real", t = 0) {
   for (let k = 0; k < (state.landers || 0); k++) { const x = -40 - k * 12; r(x, 4, 8, 5, col("#9c9284", "#9cc0ea")); r(x - 2, 9, 2, 3, col("#7d7d7d", "#9cc0ea")); r(x + 8, 9, 2, 3, col("#7d7d7d", "#9cc0ea")); }
   for (let k = 0; k < Math.min(6, state.crew || 0); k++) { const x = 18 + k * 5 + ((t + k * 7) % 20 < 10 ? 0 : 1); r(x, 6, 3, 3, col("#f4efe2", "#ffffff")); r(x, 9, 3, 3, col("#e9e3d6", "#dce9f8")); }
 }
+// A tidy station layout, like the ISS seen from above:
+// pressurised modules in one line along x, the truss crossing the core along y, solar wings at the truss ends.
+// Nothing overlaps however many modules or trusses there are (drawing caps at 4 trusses and 6 modules).
+function drawStation(g, mods, state, cx, cy, s, B, t) {
+  const col = (real, blue) => (B ? blue : real);
+  const r = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(cx + x * s), Math.round(cy + y * s), Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))); };
+  const iss = mods.includes("iss");
+  const trusses = iss ? 4 : Math.min(4, mods.filter((m) => m === "truss").length);
+  const chain = iss ? ["hab", "lab", "lab", "hab", "lab", "hab"] : mods.filter((m) => m === "hab" || m === "lab").slice(0, 6);
+  const core = iss || mods.includes("core");
+  const line = col("#9c9284", "#9cc0ea"), light = col("#ffffff", "#ffffff");
+  // truss along y with solar wings at each step
+  if (trusses) {
+    const reach = 12 + (trusses - 1) * 10 + 4;
+    r(-1, -reach, 3, reach * 2, line);
+    for (let k = 0; k < trusses; k++) {
+      const yo = 12 + k * 10;
+      for (const side of [-1, 1]) {
+        const y = side * yo - 3;
+        for (const dir of [-1, 1]) {
+          const x0 = dir < 0 ? -34 : 4;
+          r(x0, y, 30, 7, col("#25456b", "#5b86b8"));
+          r(x0, y, 30, 1, col("#8fb3e8", "#dce9f8")); r(x0, y + 6, 30, 1, col("#1d3a5e", "#9cc0ea"));
+          for (let x = x0 + 5; x < x0 + 30; x += 5) r(x, y, 1, 7, col("#3d6fa8", "#9cc0ea"));
+        }
+        r(-3, side * yo - 1, 7, 3, line);                                   // joint on the truss
+      }
+      if (k === 0) { r(4, -9, 6, 3, col("#e9e3d6", "#dce9f8")); r(-9, 6, 6, 3, col("#e9e3d6", "#dce9f8")); }  // radiators
+    }
+  }
+  // pressurised modules along x: right, left, right, left...
+  const pos = (i) => (i % 2 === 0 ? 10 + Math.floor(i / 2) * 21 : -10 - (Math.floor(i / 2) + 1) * 21);
+  chain.forEach((k, i) => {
+    const x = pos(i);
+    r(i % 2 === 0 ? x : x + 18, -2, 3, 4, line);                              // docking ring between modules
+    const xm = i % 2 === 0 ? x + 3 : x;
+    r(xm, -4, 18, 8, col(k === "hab" ? "#e9e3d6" : "#cfd8c8", "#dce9f8"));
+    r(xm, -4, 18, 1, light); r(xm, 3, 18, 1, col("#9c9284", "#9cc0ea"));
+    if (k === "hab") { r(xm + 3, -1, 2, 2, col("#3d6fa8", "#5b86b8")); r(xm + 8, -1, 2, 2, col("#3d6fa8", "#5b86b8")); r(xm + 13, -1, 2, 2, col("#3d6fa8", "#5b86b8")); }
+    else { r(xm + 3, -1, 12, 2, col("#5d8a3c", "#5b86b8")); }
+  });
+  if (core) { r(-10, -5, 20, 10, col("#d8aa45", "#c9a24a")); r(-10, -5, 20, 1, col("#f4e7b0", "#dce9f8")); r(-10, 4, 20, 1, col("#9a7428", "#9cc0ea"));
+    r(-3, -2, 6, 4, col("#9a7428", "#9cc0ea")); }
+  // visiting vehicles at the two ends of the module line
+  const right = chain.length ? pos(chain.length % 2 === 0 ? chain.length - 2 : chain.length - 1) + 21 : 10;
+  const left = chain.length > 1 ? pos(chain.length % 2 === 0 ? chain.length - 1 : chain.length - 2) - 9 : -18;
+  if (state.crew && core) { r(right + 1, -3, 6, 6, col("#f4efe2", "#ffffff")); r(right + 7, -2, 2, 4, col("#1d1a17", "#5b86b8")); r(right, -1, 1, 2, line); }
+  if (state.cargo && core) { r(left, -3, 8, 6, col("#7d7d7d", "#9cc0ea")); r(left + 8, -1, 1, 2, line); }
+}
+
+// biggest scale at which the whole station fits the given box
+function stationScale(mods, W, H) {
+  const iss = mods.includes("iss"), tr = iss ? 4 : Math.min(4, mods.filter((m) => m === "truss").length);
+  const n = iss ? 6 : Math.min(6, mods.filter((m) => m === "hab" || m === "lab").length);
+  const halfH = tr ? 12 + (tr - 1) * 10 + 4 : 8, halfW = Math.max(tr ? 34 : 12, 10 + Math.ceil(n / 2) * 21 + 10);
+  return Math.min(2, W / 2 / halfW, H / 2 / halfH);
+}
 function outpostState(modules, crew, flights, upto) {
   const cargo = (flights || []).filter((f) => ["cargo", "cargo_l"].includes(f.p) && (upto == null || f.arrival <= upto)).length;
   const landers = (flights || []).filter((f) => ["lcargo", "lcargo_l", "mcargo"].includes(f.p) && (upto == null || f.arrival <= upto)).length;
@@ -183,7 +220,7 @@ function drawProgramBlueprint(g, W, H) {
   const ev = S.ev, place = progSpec().place;
   const flights = ev && ev.kind === "program" ? ev.program.flights : [];
   const mods = [...progSpec().existing, ...flights.filter((f) => S.cat.PAYLOADS[f.p].group === "module").map((f) => f.p)];
-  drawOutpost(g, place, outpostState(mods, flights.some((f) => S.cat.PAYLOADS[f.p].group === "crew") ? 4 : 0, flights, null), W / 2, H / 2 + (place === "station" ? 14 : 4), place === "station" ? 1.1 : 1.0, "blue");
+  drawOutpost(g, place, outpostState(mods, flights.some((f) => S.cat.PAYLOADS[f.p].group === "crew") ? 4 : 0, flights, null), W / 2, H / 2 + 4, place === "station" ? stationScale(mods, W - 16, H - 24) : 1.0, "blue");
   const crewMo = ev && ev.kind === "program" ? ev.program.crew_months : 0;
   $("#bpSlots").textContent = `${flights.length} flight(s) planned · ${fmt(crewMo)} crew-months`;
 }
@@ -247,4 +284,47 @@ function programTips() {
   if (ev && ev.kind === "program" && ev.program.min_reserve_months != null) T.push(`Spare supplies at the tightest moment: <b>${fmt(ev.program.min_reserve_months, 1)} months</b>. Two or more lets you survive one failed cargo flight.`);
   T.push("Partners (Partners tab) build and launch some flights for free on their own dates, and a robotic arm makes docking safer.");
   return T;
+}
+
+// ---------------------------------------------------------------------------- crew vehicles you design
+function vehicleMeters(ev) {
+  const V = ev.vehicle, c = ev.cost, m = ev.mass, D = S.design;
+  const done = ["shape", "seats", "heatshield", "abort", "landing"].every((f) => D[f]);
+  return meter("weight", "MASS", m.capacity ? m.wet / m.capacity : 0, m.capacity ? `${fmt(m.wet / 1000, 1)}/${fmt(m.capacity / 1000, 1)} t` : `${fmt(m.wet / 1000, 1)} t`,
+      m.capacity && m.wet > m.capacity ? "bad" : m.margin < 0.1 ? "warn" : "", 0.9) +
+    meter("chute", "SAFETY", done ? Math.min(1, V.one_in / 270) : 0, done ? `1 loss in ${fmt(V.one_in)}` : "incomplete", done && V.one_in < 270 ? "warn" : "", 1) +
+    meter("coin", "PER SEAT", done ? Math.min(1, 70 / V.seat_cost) : 0, done ? `${fmt(V.seat_cost)} M$` : "-", done && V.seat_cost > 100 ? "warn" : "", 1) +
+    meter("rocket", "FLIGHTS", Math.min(1, V.flights / 20), `${V.flights} flights · ${V.vehicles} vehicle${V.vehicles > 1 ? "s" : ""}`, "", null) +
+    meter("coin", "COST", c.total / c.budget, `${fmt(c.total)}/${fmt(c.budget)} M$`, c.total > c.budget && !D.sandbox ? "bad" : c.reserve < 0.1 ? "warn" : "", 0.9) +
+    meter("star", "GOALS", ev.science.score / 100, `${fmt(ev.science.score)} / 100`, ev.science.score < 40 ? "bad" : ev.science.score < 70 ? "warn" : "", 0.7);
+}
+
+// Side view of the vehicle: capsule, lifting body or winged shuttle, with its shield, escape system and landing gear.
+function drawVehicle(g, d, cx, cy, s = 1, pal = "real") {
+  const B = pal === "blue", col = (a, b) => (B ? b : a);
+  const r = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(cx + x * s), Math.round(cy + y * s), Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))); };
+  const seats = d.seats ? S.cat.VEHICLE.seats[d.seats].n : 4, grow = seats === 7 ? 1.3 : seats === 2 ? 0.8 : 1;
+  const shield = { ablative: "#6b4a33", tiles: "#2e2925", metallic: "#9c9284" }[d.heatshield] || "#5b534b";
+  const hull = col("#e9e3d6", "#dce9f8"), dark = col("#7d7d7d", "#9cc0ea");
+  if (!d.shape) { r(-12, -8, 24, 16, col("#3b342d", "#2b5c8a")); return; }
+  if (d.shape === "capsule") {
+    const w = 18 * grow, h = 14 * grow;
+    for (let i = 0; i < h; i++) r(-w / 2 + i * 0.35, -h / 2 + i, w - i * 0.7, 1, hull);       // cone, nose to the right
+    r(-w / 2 - 2, -h / 2, 2, h, col(shield, "#5b86b8"));                                         // heat shield at the back
+    r(-2, -3, 3, 2, col("#3d6fa8", "#9cc0ea"));
+    if (d.abort === "tower") { r(w / 2 - 2, -1, 14, 2, dark); r(w / 2 + 10, -3, 4, 6, col("#b3372d", "#9cc0ea")); }
+    if (d.abort === "pusher") { r(-2, -h / 2 - 1, 4, 2, col("#b3372d", "#9cc0ea")); r(-2, h / 2 - 1, 4, 2, col("#b3372d", "#9cc0ea")); }
+    if (d.landing === "propulsive") r(-w / 2 - 4, -2, 2, 4, dark);
+    if (d.landing === "ocean" || d.landing === "land_chutes") r(w / 2 - 4, -2, 3, 4, col("#e8cf52", "#dce9f8"));
+  } else {
+    const L = (d.shape === "winged" ? 40 : 26) * grow;
+    r(-L / 2, -4, L, 8, hull); r(L / 2, -3, 4, 6, hull); r(L / 2 + 4, -2, 2, 4, hull);           // fuselage + nose
+    r(-L / 2, 3, L + 4, 2, col(shield, "#5b86b8"));                                              // belly heat shield
+    r(L / 2 - 6, -3, 3, 2, col("#1d1a17", "#5b86b8"));                                           // cockpit window
+    r(-L / 2, -10, 6, 6, hull);                                                                    // tail fin
+    if (d.shape === "winged") { r(-L / 4, 2, L / 2, 3, col("#d8d0bc", "#9cc0ea")); r(-L / 2 + 6, -4, L / 2, 1, dark); }
+    else { r(-L / 2 + 2, 1, L / 3, 2, col("#d8d0bc", "#9cc0ea")); }
+    if (d.abort === "pusher") r(-L / 2 - 3, -2, 3, 4, col("#b3372d", "#9cc0ea"));
+    if (d.landing === "runway") { r(-4, 5, 1, 3, dark); r(L / 3, 5, 1, 3, dark); }
+  }
 }
