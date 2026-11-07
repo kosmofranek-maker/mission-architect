@@ -55,8 +55,9 @@ function flame(g, x, y, f, s = 1) {
   for (let k = 1; k < 4; k++) r(x - 1, y + k * L / 4, 2, 1, "#fff6c8");                            // shock diamonds
 }
 
-// Launch pad scene; gy = ground line on screen.
-function drawPad(g, W, gy, armOut, blinkOn) {
+// Launch pad scene; gy = ground line on screen. The tower, its swing arms and the hold-down clamps are sized to
+// the rocket on the pad (lv), so even a small Electron is held until liftoff. armOut: 1 = attached, 0 = swung away.
+function drawPad(g, W, gy, armOut, blinkOn, lv = "falcon9", clamped = true) {
   const r = (a, b, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(a), Math.round(b), w, h); };
   for (let x = 0; x < W; x += 2) {                                                                 // far hills
     const h = 8 + Math.sin(x / 23) * 5 + Math.sin(x / 7.3) * 2;
@@ -64,10 +65,20 @@ function drawPad(g, W, gy, armOut, blinkOn) {
   }
   r(0, gy, W, 60, "#34402a"); r(0, gy, W, 1, "#4a5a3a");
   r(120, gy - 2, 80, 3, "#7d7d7d"); r(150, gy + 1, 20, 6, "#1d1a17");                                // pad + flame trench
-  r(136, gy - 74, 8, 72, "#5b534b");                                                               // tower
-  for (let y = gy - 72; y < gy - 4; y += 6) { r(136, y, 8, 1, "#3b342d"); r(137, y + 1, 1, 4, "#7d7d7d"); r(142, y + 1, 1, 4, "#7d7d7d"); }
-  r(134, gy - 78, 12, 4, "#3b342d"); r(139, gy - 82, 2, 4, blinkOn ? "#ff3b2b" : "#5a1a14");
-  if (armOut > 0) r(144, gy - 60, armOut, 2, "#7d7d7d");                                           // crew/umbilical arm
+  const S = LV_SHAPE[lv] || LV_SHAPE.falcon9, top = gy - 4 - S.h, th = S.h + 14;
+  const left = 160 - Math.floor(S.w / 2) - (S.boosters ? (S.bw || 3) + 1 : 0), right = 160 - Math.floor(S.w / 2) + S.w + (S.boosters ? (S.bw || 3) + 1 : 0);
+  r(136, gy - th, 8, th - 2, "#5b534b");                                                           // tower, as tall as the rocket
+  for (let y = gy - th + 2; y < gy - 4; y += 6) { r(136, y, 8, 1, "#3b342d"); r(137, y + 1, 1, 4, "#7d7d7d"); r(142, y + 1, 1, 4, "#7d7d7d"); }
+  r(134, gy - th - 4, 12, 4, "#3b342d"); r(139, gy - th - 8, 2, 4, blinkOn ? "#ff3b2b" : "#5a1a14");
+  const reach = left - 144;                                                                         // swing arms grab the rocket
+  [top + 6, top + Math.round(S.h * 0.55)].forEach((ay, i) => {
+    const len = Math.max(0, Math.round(reach * armOut)), droop = armOut < 1 ? Math.round((1 - armOut) * 3) : 0;
+    if (len > 0) { r(144, ay + droop * (i + 1), len, 2, "#7d7d7d"); r(144 + len - 2, ay - 1 + droop * (i + 1), 2, 4, "#b9b9b9"); }
+    else r(144, ay, 2, 4, "#7d7d7d");
+  });
+  r(left - 4, gy - 6, 3, 4, "#4b4b4b"); r(right + 1, gy - 6, 3, 4, "#4b4b4b");                       // hold-down clamps
+  if (clamped) { r(left - 2, gy - 7, 3, 2, "#b9b9b9"); r(right, gy - 7, 3, 2, "#b9b9b9"); }
+  else { r(left - 5, gy - 8, 2, 2, "#b9b9b9"); r(right + 3, gy - 8, 2, 2, "#b9b9b9"); }
   [100, 220].forEach((x) => { r(x, gy - 20, 2, 20, "#4b4b4b"); r(x - 2, gy - 22, 6, 2, blinkOn ? "#e8cf52" : "#5b534b"); }); // light masts
 }
 

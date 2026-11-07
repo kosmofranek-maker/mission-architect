@@ -13,7 +13,7 @@ DEFAULT_DESIGN = {
     "scenario": "wildfire", "difficulty": "normal", "sandbox": False,
     "orbit": "sso", "launch_vehicle": "electron", "bus": "smallsat", "solar": "small", "rtg": 0,
     "battery": "b1000", "comms": "uhf", "ground": "commercial", "computer": "radtol",
-    "adcs": "wheels", "propulsion": "mono", "instruments": ["thermal", "wac"], "years": 3,
+    "adcs": "wheels", "propulsion": "mono", "instruments": ["thermal", "wac"], "years": 3, "window": "w2",
 }
 
 RAD_RISK = {0: 0.0005, 1: 0.01, 2: 0.04, 3: 0.12, 4: 0.25}  # monthly fatal-hit risk by deficit
@@ -67,7 +67,40 @@ def default_design(scenario: str = "wildfire") -> dict:
     return d
 
 
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def month_label(m: int) -> str:
+    return f"{MONTHS[m % 12]} {C.EPOCH_YEAR + m // 12}"
+
+
+def launch_windows(dest_key: str, start: int = 0) -> list[dict]:
+    """The next three launch dates that leave at least a year to build, with what each one means."""
+    rule = C.WINDOW_RULES.get(dest_key)
+    picks = []
+    if not rule:
+        picks = [(start + m, 1.0) for m in (18, 30, 42)]
+    else:
+        k = max(0, math.ceil((start + C.MIN_BUILD_MONTHS - rule["first"]) / rule["synodic"]))
+        for j in range(3):
+            kk = k + j
+            e = 1 + 0.12 * math.cos(2 * math.pi * kk / rule["cycle"] + rule["shift"])
+            picks.append((rule["first"] + kk * rule["synodic"], e))
+    out = []
+    for i, (m, e) in enumerate(picks):
+        dev = m - start
+        rush = min(1.0, max(0.0, (30 - dev) / 18))
+        slow = min(1.0, max(0.0, (dev - 36) / 24))
+        out.append({"key": f"w{i + 1}", "month": m, "label": month_label(m), "build_months": dev,
+                    "energy": round(e, 3), "cruise_mult": round(1 + (1 - e) * 1.5, 3),
+                    "cost_mult": round(1 + 0.25 * rush + 0.06 * slow, 3), "risk_mult": round(1 + 0.6 * rush - 0.3 * slow, 3),
+                    "slip": round(0.04 + 0.30 * rush - 0.02 * slow, 3), "rush": round(rush, 2), "slow": round(slow, 2),
+                    "synodic": rule["synodic"] if rule else 0})
+    return out
+
+
 COMPONENTS = {
+    "window": ("Choose a launch date.", "Planets line up only every so often, and the date decides how long the team has to build and test."),
     "orbit": ("Choose an orbit.", "Where you fly decides what you can see, how much shadow you get and how much fuel you need."),
     "instruments": ("Choose at least one instrument.", "Instruments are the reason the mission exists."),
     "bus": ("Choose a spacecraft bus.", "The bus is the body: structure, wiring and slots that hold everything together."),
@@ -112,7 +145,8 @@ def blank_design(scenario: str = "wildfire") -> dict:
     """What a player starts with: an empty spacecraft. Every component must be chosen."""
     return {"scenario": scenario, "difficulty": "normal", "sandbox": False, "orbit": None, "launch_vehicle": None,
             "bus": None, "solar": None, "rtg": 0, "battery": None, "comms": None, "ground": None, "computer": None,
-            "adcs": None, "propulsion": None, "edl": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"]}
+            "adcs": None, "propulsion": None, "edl": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"],
+            "window": None, "start_month": 0}
 
 
 def options_for(design: dict) -> dict:
@@ -137,6 +171,12 @@ def normalize(design: dict) -> dict:
         d["edl"] = None
     if d["ground"] == "relay" and not C.DESTINATIONS[dest].get("relay"):
         d["ground"] = None
+    if d["window"] not in ("w1", "w2", "w3"):
+        d["window"] = None
+    try:
+        d["start_month"] = max(0, min(600, int(d.get("start_month") or 0)))
+    except (TypeError, ValueError):
+        d["start_month"] = 0
     if d["difficulty"] not in C.DIFFICULTY:
         d["difficulty"] = "normal"
     d["sandbox"] = bool(d["sandbox"])
@@ -168,7 +208,9 @@ def evaluate(design: dict) -> dict:
     diff = C.DIFFICULTY[d["difficulty"]]
     issues: list[dict] = []
     years = d["years"]
-    cruise = orbit["cruise_years"]
+    windows = launch_windows(dest_key, d["start_month"])
+    win = next((w for w in windows if w["key"] == d["window"]), None)
+    cruise = round(orbit["cruise_years"] * (win["cruise_mult"] if win else 1.0), 2)
     missing = [f for f in COMPONENTS if (not d[f] if f == "instruments" else d[f] is None) and (f != "edl" or use)]
     for f in missing:
         _issue(issues, "blocker", "missing", *(EDL_RETURN_MSG if f == "edl" and use == "return" else COMPONENTS[f]))
@@ -212,7 +254,7 @@ def evaluate(design: dict) -> dict:
     tanks = TANK_FRACTION * propellant if math.isfinite(propellant) else float("inf")
     dry = landed + tanks  # what the bus structure carries; the landing system / capsule is a separate stage
     wet = dry + edl_mass + propellant
-    capacity = lv["capacity"][orbit["lv_target"]]
+    capacity = round(lv["capacity"][orbit["lv_target"]] * (win["energy"] if win else 1.0))
     mass_margin = (capacity - wet) / capacity if capacity > 0 and math.isfinite(wet) else -1.0
 
     if d["propulsion"] == "none" and orbit["dv_insert"] > 0:
@@ -376,11 +418,14 @@ def evaluate(design: dict) -> dict:
     }
     hw = {k: v for k, v in hw.items() if v or k in ("Bus", "Power", "Comms", "Computer", "ADCS", "Propulsion", "Instruments")}
     hardware = sum(hw.values())
+    schedule_cost = hardware * (1 + INTEGRATION) * ((win["cost_mult"] if win else 1.0) - 1)
     ops_year = ground["cost_year"] + BUS_OPS.get(d["bus"], 0)
     cost = {
         **hw, "Integration & test (30%)": hardware * INTEGRATION, "Launch": lv["cost"],
         "Operations": ops_year * (years + cruise),
     }
+    if schedule_cost > 0.05:
+        cost["Rush overtime" if win["rush"] > 0 else "Waiting for the window"] = schedule_cost
     total_cost = sum(cost.values())
     budget = sc["budget"] * diff["budget_mult"]
     reserve = (budget - total_cost) / budget
@@ -390,6 +435,14 @@ def evaluate(design: dict) -> dict:
     elif reserve < 0.1 and not d["sandbox"]:
         _issue(issues, "warning", "cost", f"Budget reserve only {reserve:.0%}.",
                "Projects keep 10-25% reserve for problems found during testing.")
+    if win and win["rush"] >= 0.34:
+        _issue(issues, "warning", "window", f"Only {win['build_months']} months to build and test before {win['label']}.",
+               f"Rushed projects skip tests: launch-failure and glitch odds x{win['risk_mult']:.1f}, overtime costs more, and there is a "
+               f"{win['slip']:.0%} chance the spacecraft is not ready in time.")
+    if win and win["synodic"] and win["energy"] < 0.95:
+        _issue(issues, "info", "window", f"The {win['label']} window is a poor one: the rocket lifts {1 - win['energy']:.0%} less.",
+               f"Earth and {dest['name']} line up only every {win['synodic']} months, and some alignments are better than others. "
+               "A poor window also means a longer cruise.")
     if d["rtg"]:
         _issue(issues, "info", "power", "RTGs need presidential launch approval and plutonium-238.",
                "Only a few kg of Pu-238 are produced per year, so RTGs are used when the Sun is too far.")
@@ -444,6 +497,9 @@ def evaluate(design: dict) -> dict:
     return {
         "design": d, "scenario": sc, "destination": dest, "orbit_info": orbit, "ok": not blockers,
         "issues": issues,
+        "windows": windows,
+        "schedule": {"window": win, "risk_mult": win["risk_mult"] if win else 1.0, "slip": win["slip"] if win else 0.0,
+                     "synodic": win["synodic"] if win else 0, "launch_month": win["month"] if win else d["start_month"]},
         "kind": kind, "edl": {"use": use, "mass": edl_mass, "landed": landed, "landing_risk": landing_risk,
                               "capsule_risk": capsule_risk},
         "mass": {"parts": parts, "edl": edl_mass, "propellant": propellant, "tanks": tanks, "dry": dry, "wet": wet,

@@ -37,6 +37,23 @@ DESTINATIONS = {
 RADIATION_LABEL = {1: "Low", 2: "Moderate", 3: "High", 4: "Extreme"}
 
 # --------------------------------------------------------------------------------------
+# Calendar and launch windows. Month 0 of the game is January 2027.
+# Earth and Moon missions can launch any month: the date only decides how long the team has to build.
+# Planets line up only once per synodic period; "first" = first window (months after Jan 2027);
+# "cycle" = windows until the geometry repeats (Mars has good and poor windows on a ~15-year cycle).
+# --------------------------------------------------------------------------------------
+EPOCH_YEAR = 2027
+MIN_BUILD_MONTHS = 12
+WINDOW_RULES = {
+    "mars": {"synodic": 26, "first": 23, "cycle": 7, "shift": 0.0},
+    "mars_surface": {"synodic": 26, "first": 23, "cycle": 7, "shift": 0.0},
+    "venus": {"synodic": 19, "first": 12, "cycle": 5, "shift": 0.6},
+    "europa": {"synodic": 13, "first": 9, "cycle": 11, "shift": 3.0},
+    "asteroid": {"synodic": 14, "first": 6, "cycle": 6, "shift": 2.1},
+}
+SLIP_COST_MONTH = 0.004  # share of the budget burned per month of waiting (the "standing army")
+
+# --------------------------------------------------------------------------------------
 # Scenarios = mission objectives. Each goal is satisfied by instruments with that tag.
 # "target" is how many quality-weighted science points saturate the goal.
 # --------------------------------------------------------------------------------------
@@ -633,7 +650,7 @@ DIFFICULTY = {
 
 ROLES = {
     "manager": {"name": "Mission Manager", "icon": "🧭",
-                "owns": ["difficulty", "launch_vehicle", "years"],
+                "owns": ["difficulty", "launch_vehicle", "years", "window", "partners"],
                 "goal": "Keep at least 10% of the budget in reserve.",
                 "learn": "Owns money and schedule. Says 'no' a lot."},
     "systems": {"name": "Systems Engineer", "icon": "🔧",

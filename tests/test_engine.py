@@ -200,3 +200,22 @@ def test_sample_return_needs_capsule_and_no_flyby():
 def test_relay_only_at_mars():
     from engine.model import normalize
     assert normalize(default_design("lunar_lander") | {"ground": "relay"})["ground"] is None
+
+
+def test_launch_windows_trade_time_for_risk():
+    from engine.model import launch_windows
+    w = launch_windows("mars", 0)
+    assert [x["month"] for x in w] == sorted(x["month"] for x in w)
+    assert w[1]["month"] - w[0]["month"] == 26           # Mars windows repeat every 26 months
+    assert w[0]["risk_mult"] > w[1]["risk_mult"]          # less time to build = riskier
+    early = evaluate(default_design("mars_climate") | {"window": "w1"})
+    assert any(i["area"] == "window" for i in early["issues"])
+    assert early["mass"]["capacity"] != evaluate(default_design("mars_climate") | {"window": "w3"})["mass"]["capacity"]
+
+
+def test_slip_costs_money_and_months():
+    from engine.simulate import simulate
+    d = default_design("venus_clouds") | {"window": "w1"}
+    sims = [simulate(d, s) for s in range(60)]
+    slipped = [x for x in sims if x.get("launch_delay")]
+    assert slipped and all(x["launch_delay"] == 19 for x in slipped)

@@ -17,7 +17,7 @@
     try { await until(() => has(f, k)); } catch { throw new Error(`pick ${f}=${k} failed in ${S.design.scenario} [now ${S.ev && S.ev.design[f]}, card ${!!document.querySelector(`.card[data-f="${f}"][data-k="${k}"]`)}] (mode ${S.mode}, toast "${$("#toast").textContent}", roles ${S.myRoles}, room ${S.room})`); }
   };
   const buildMars = async () => {
-    await pick("orbit", "orbit", "elliptical");
+    await pick("orbit", "orbit", "elliptical"); await pick("launch", "window", "w2");
     for (const i of ["sounder", "wac", "irspec"]) await pick("instr", "instruments", i);
     await pick("bus", "bus", "medium");
     await pick("power", "solar", "large"); await pick("power", "battery", "b3000");
@@ -38,7 +38,7 @@
     ok($("#letter").classList.contains("hidden"), "letter closes, tutorial follows");
     S.noLetter = true;
     ok($("#desk").classList.contains("active") && !$("#tut").classList.contains("hidden"), "tutorial opens on desk");
-    ok(S.ev.issues.filter((i) => i.area === "missing").length === 11, "blank design: 11 parts to choose");
+    ok(S.ev.issues.filter((i) => i.area === "missing").length === 12, "blank design: 12 choices (incl. launch date)");
     ok(!S.design.bus && !S.design.orbit && !S.design.instruments.length, "no preset parts");
     for (let n = 0; n < 3; n++) $("#tutNext").click();
     ok(S.tut.i === 3 && $(".col-mid").classList.contains("tut-focus") && S.tab === "orbit", "tutorial waits for orbit");
@@ -129,7 +129,7 @@
     document.querySelector('.folder[data-sc="wildfire"]').click();
     await until(() => S.ev && S.ev.design.difficulty === "hard");
     ok(/incomplete/.test($("#issues").textContent) && !/Choose/.test($("#issues").textContent), "director: blank design is just 'incomplete'");
-    await pick("orbit", "orbit", "sso");
+    await pick("orbit", "orbit", "sso"); await pick("launch", "window", "w2");
     for (const i of ["thermal", "wac", "sounder"]) await pick("instr", "instruments", i);
     await pick("bus", "bus", "cubesat"); await pick("power", "solar", "small"); await pick("power", "battery", "b1000");
     await pick("adcs", "adcs", "wheels"); await pick("prop", "propulsion", "mono"); await pick("comms", "comms", "xlga");
@@ -151,7 +151,7 @@
     await until(() => $("#desk").classList.contains("active") && S.ev);
     ok(!S.ev.design.bus, "team room starts blank");
     S.design.scenario = "wildfire";
-    await pick("orbit", "orbit", "sso");
+    await pick("orbit", "orbit", "sso"); await pick("launch", "window", "w2");
     for (const i of ["thermal", "wac"]) await pick("instr", "instruments", i);
     await pick("bus", "bus", "smallsat"); await pick("power", "solar", "small"); await pick("power", "battery", "b1000");
     await pick("adcs", "adcs", "wheels"); await pick("prop", "propulsion", "mono"); await pick("comms", "comms", "xlga");

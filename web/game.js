@@ -120,8 +120,8 @@ const CLIENTS = {
 };
 
 const TABS = [
-  { id: "launch", label: "Launch", icon: "rocket", role: "manager", fields: ["launch_vehicle"],
-    hint: "The rocket must lift your fully fuelled spacecraft to where the mission starts. Bigger rockets cost much more." },
+  { id: "launch", label: "Launch", icon: "rocket", role: "manager", fields: ["window", "launch_vehicle"],
+    hint: "First the date, then the rocket. Planets line up only every so often; an early date leaves little time to build and test, a late one means paying the team to wait. The rocket must lift your fully fuelled spacecraft." },
   { id: "orbit", label: "Orbit", icon: "orbit", role: "science", fields: ["orbit"],
     hint: "Closer orbits give sharper data but cost more fuel and shadow. Far orbits watch more at once." },
   { id: "bus", label: "Bus", icon: "bus", role: "systems", fields: ["bus"],
@@ -160,7 +160,7 @@ function fieldLabel(f) {
   if (f === "orbit" && onSurface()) return "Landing site";
   return FIELD_LABEL[f];
 }
-const FIELD_LABEL = { launch_vehicle: "Launch vehicle", orbit: "Orbit", bus: "Spacecraft bus", solar: "Solar array",
+const FIELD_LABEL = { window: "Launch date", launch_vehicle: "Launch vehicle", orbit: "Orbit", bus: "Spacecraft bus", solar: "Solar array",
   rtg: "Nuclear power (RTG)", battery: "Battery", adcs: "Attitude control", propulsion: "Propulsion", comms: "Antenna",
   ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system" };
 
@@ -435,8 +435,8 @@ function renderTop() {
 }
 
 // ---------------------------------------------------------------------------- Cadet advisor
-const PICK_ORDER = ["orbit", "instruments", "bus", "solar", "battery", "adcs", "propulsion", "edl", "comms", "ground", "computer", "launch_vehicle"];
-const FIELD_TAB = { orbit: "orbit", instruments: "instr", bus: "bus", solar: "power", battery: "power", adcs: "adcs", edl: "edl",
+const PICK_ORDER = ["orbit", "window", "instruments", "bus", "solar", "battery", "adcs", "propulsion", "edl", "comms", "ground", "computer", "launch_vehicle"];
+const FIELD_TAB = { window: "launch", orbit: "orbit", instruments: "instr", bus: "bus", solar: "power", battery: "power", adcs: "adcs", edl: "edl",
   propulsion: "prop", comms: "comms", ground: "comms", computer: "computer", launch_vehicle: "launch", rtg: "power" };
 
 function downlinkGb(commsKey, groundKey) {
@@ -551,9 +551,16 @@ function recommend(f) {
       const fit = Object.entries(c.COMPUTERS).filter(([, x]) => x.rad + shield >= env && x.storage_gb >= store);
       return { key: cheapest(fit.length ? fit : [["radhard", c.COMPUTERS.radhard]])[0], why: `radiation here is ${c.RADIATION_LABEL[env].toLowerCase()}, and it survives that` };
     }
+    case "window": {
+      const ws = Object.entries(optionsFor("window"));
+      if (!ws.length) return null;
+      const val = (w) => (w.synodic ? (w.energy - 1) * 1.5 : 0) - (w.cost_mult - 1) * 2 - Math.max(0, w.risk_mult - 1);
+      const [k, w] = ws.sort((a, b) => val(b[1]) - val(a[1]))[0];
+      return { key: k, why: `it leaves ${w.build_months} months to build${w.synodic && w.energy >= 1.04 ? " and the planets line up well" : ""}` };
+    }
     case "launch_vehicle": {
       if (!ev || ev.mass.wet == null) return null;
-      const tgt = curOrbit().lv_target, fit = Object.entries(c.LAUNCH_VEHICLES).filter(([, v]) => v.capacity[tgt] >= ev.mass.wet * 1.15);
+      const tgt = curOrbit().lv_target, fit = Object.entries(c.LAUNCH_VEHICLES).filter(([, v]) => v.capacity[tgt] * energy() >= ev.mass.wet * 1.15);
       return fit.length ? { key: cheapest(fit)[0], why: `it is the cheapest rocket that lifts your ${fmt(ev.mass.wet)} kg with margin` }
         : { key: "sls", why: "nothing smaller can lift it; better cut mass" };
     }
@@ -564,7 +571,7 @@ function recommend(f) {
 function issueField(i) {
   const t = i.text;
   if (i.field) return i.field;
-  return { launch: "launch_vehicle", propulsion: "propulsion", radiation: "computer", adcs: "adcs", edl: "edl", orbit: "orbit" }[i.area]
+  return { window: "window", launch: "launch_vehicle", propulsion: "propulsion", radiation: "computer", adcs: "adcs", edl: "edl", orbit: "orbit" }[i.area]
     || (i.area === "bus" ? (/slots/.test(t) ? "bus" : "bus") : null)
     || (i.area === "power" ? (/Battery|eclipse/i.test(t) ? "battery" : /RTG/.test(t) ? null : "solar") : null)
     || (i.area === "comms" ? (/high-gain/.test(t) ? "adcs" : /hear you/.test(t) ? "ground" : /Recorder/.test(t) ? "computer" : "comms") : null)
@@ -730,6 +737,7 @@ function optionsFor(field) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], use = { lander: "land", rover: "land", sample_return: "return" }[kindNow()];
   const keep = (obj, fn) => Object.fromEntries(Object.entries(obj).filter(([k, o]) => fn(o, k)));
   if (field === "edl") return keep(c.EDL, (o) => o.use === use);
+  if (field === "window") return Object.fromEntries(((S.ev && S.ev.windows) || []).map((w) => [w.key, { ...w, name: windowName(w), learn: windowLearn(w) }]));
   if (field === "ground") return keep(c.GROUND, (o) => !o.relay_mbps || dest.relay);
   if (field === "instruments") return keep(c.INSTRUMENTS, (o) => !o.where || (o.where === "surface") === !!dest.surface);
   return { launch_vehicle: c.LAUNCH_VEHICLES, orbit: c.ORBITS[destKey()], bus: c.BUSES, solar: c.SOLAR_ARRAYS,
@@ -737,11 +745,24 @@ function optionsFor(field) {
     computer: c.COMPUTERS, instruments: c.INSTRUMENTS }[field];
 }
 
+const energy = () => (S.ev && S.ev.schedule && S.ev.schedule.window ? S.ev.schedule.window.energy : 1);
+function windowName(w) { return `${w.label}${w.synodic ? ` (${S.cat.DESTINATIONS[destKey()].name.split(" (")[0]} window)` : ""}`; }
+function windowLearn(w) {
+  const t = [];
+  if (w.rush >= 0.34) t.push(`Only ${w.build_months} months to build: overtime costs more and tests get skipped.`);
+  else if (w.slow > 0) t.push(`${w.build_months} months to build: plenty of time to test, but the team must be paid while it waits.`);
+  else t.push(`${w.build_months} months to build: a normal schedule.`);
+  if (w.synodic) t.push(w.energy >= 1.04 ? "Planets line up well: the rocket lifts more and the cruise is shorter." :
+    w.energy < 0.95 ? "A poor alignment: the rocket lifts less and the cruise takes longer." : "An average alignment.");
+  if (w.synodic) t.push(`Miss it and the next ${S.cat.DESTINATIONS[destKey()].name.split(" (")[0]} window is ${w.synodic} months later.`);
+  return t.join(" ");
+}
 function statLine(field, k, o) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()];
   const tgt = curOrbit().lv_target;
   switch (field) {
-    case "launch_vehicle": return `${fmt(o.capacity[tgt])} kg to ${c.LV_TARGET_LABEL[tgt]} · ${fmt(o.cost)} M$`;
+    case "launch_vehicle": return `${fmt(o.capacity[tgt] * energy())} kg to ${c.LV_TARGET_LABEL[tgt]} · ${fmt(o.cost)} M$`;
+    case "window": return `build ${o.build_months} mo · rocket ${o.energy >= 1 ? "+" : ""}${Math.round((o.energy - 1) * 100)}% · cost x${o.cost_mult} · risk x${o.risk_mult}`;
     case "orbit": return onSurface() ? `night ${o.eclipse_h ? `${o.eclipse_h} h` : "forever"} · sunlit ${pct(1 - o.eclipse_frac)} · landing risk ${pct(o.landing_risk)}`
       : `Δv ${o.dv_insert} m/s · covers ${pct(o.coverage)} · shadow ${o.eclipse_h} h`;
     case "edl": return o.use === "return" ? `${o.mass_fixed} kg · sample x${o.sample_mult} · ${o.cost} M$`
@@ -761,7 +782,7 @@ function statLine(field, k, o) {
 
 function cardBad(field, k, o) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], tgt = curOrbit().lv_target;
-  if (field === "launch_vehicle") return !o.capacity[tgt] || (S.ev && S.design.orbit && S.ev.mass.wet > o.capacity[tgt]);
+  if (field === "launch_vehicle") return !o.capacity[tgt] || (S.ev && S.design.orbit && S.ev.mass.wet > o.capacity[tgt] * energy());
   if (field === "adcs") return o.needs_magnetic && !dest.magnetic;
   if (field === "ground") return !o.relay_mbps && dest.earth_au > o.max_earth_au;
   if (field === "edl") return (o.needs_atmosphere && !dest.atmosphere) || (S.ev && S.ev.edl.landed > o.max_landed);
@@ -1217,12 +1238,15 @@ function stageTips(id) {
       const wet = ev && ev.mass.wet, tgt = orb.lv_target;
       if (wet == null) T.push("Your propellant need is impossible with the current engine. Fix propulsion first.");
       else {
-        const fit = Object.values(c.LAUNCH_VEHICLES).filter((v) => v.capacity[tgt] >= wet * 1.15).sort((a, b) => a.cost - b.cost);
+        const fit = Object.values(c.LAUNCH_VEHICLES).filter((v) => v.capacity[tgt] * energy() >= wet * 1.15).sort((a, b) => a.cost - b.cost);
+        if (energy() !== 1) T.push(`Your launch window changes what every rocket can lift by ${Math.round((energy() - 1) * 100)}%.`);
         T.push(`Fully fuelled, your spacecraft weighs about <b>${fmt(wet)} kg</b> (parts chosen so far).`);
         T.push(fit.length ? `Rockets that lift it to ${c.LV_TARGET_LABEL[tgt]} with 15% margin, cheapest first: ${names(fit.map((v) => `${v.name} (${v.cost} M$)`))}.`
           : "No rocket can lift it with margin. Cut mass: smaller bus, fewer instruments, or a more efficient engine (less fuel).");
       }
       T.push("Launch is often 20-40% of a mission's cost: the cheapest rocket that fits is usually the right one.");
+      const ws = Object.values(optionsFor("window"));
+      if (ws.length) T.push(`Launch dates: ${names(ws.map((w) => `${w.label}: ${w.build_months} months to build, rocket ${Math.round((w.energy - 1) * 100)}%, risk x${w.risk_mult}`))}.`);
       break;
     }
     case "orbit": {
@@ -1371,7 +1395,8 @@ const TUT = [
     "Data is worthless until it reaches Earth. Pick an antenna AND ground stations, then watch the DATA meter: aim for 80% or more." },
   { el: ".col-mid", tab: "computer", pos: LEFTBOX, done: () => S.design.computer, text: () =>
     "The flight computer stores data between ground passes and must survive the local radiation. Pick one." },
-  { el: ".col-mid", tab: "launch", pos: LEFTBOX, done: () => S.design.launch_vehicle, text: () =>
+  { el: ".col-mid", tab: "launch", pos: LEFTBOX, done: () => S.design.launch_vehicle && S.design.window, text: () =>
+    "Pick a launch date first: a close date leaves little time to build and test, a far one means waiting. " +
     "Last part: the rocket. It must lift everything, fuel included. Cheaper is better, as long as it fits." },
   { el: ".review", pos: { left: 330, top: 380 }, done: () => S.ev && S.ev.ok, text: () =>
     "Now read the review sheet. Fix every red blocker (click it to see why). Yellow warnings are allowed but cost points. Swap parts until it says FLIGHT READY." },
@@ -1538,7 +1563,8 @@ function playLaunch(res, skipTo = 0) {
       g.fillStyle = mix(c, [6, 6, 12], dark); g.fillRect(-4, y, W + 8, 4);
     }
     if (dark > 0.2) { g.globalAlpha = dark; g.drawImage(starCv, 0, 0); g.globalAlpha = 1; }
-    if (gy < H + 90) drawPad(g, W, gy, rise > 0 ? Math.max(0, 14 - rise * 20) : 14, Math.floor(t * 2) % 2 === 0);
+    const armOut = t < LT.lift - 1.2 ? 1 : Math.max(0, (LT.lift - 0.2 - t) / 1.0);               // arms swing away just before ignition
+    if (gy < H + 90) drawPad(g, W, gy, armOut, Math.floor(t * 2) % 2 === 0, lv, rise <= 0.05);
     // steam venting before liftoff, huge clouds at liftoff
     if (t < LT.lift && Math.random() < 0.3) clouds.push({ x: 160 + (Math.random() - .5) * 8, wy: -20 - Math.random() * 20, vx: (Math.random() - .5) * 6, vy: -3, s: 2, a: 0.6 });
     if (rise > 0 && rise < 3.5 && !failAtLaunch) for (let k = 0; k < 4; k++) {
@@ -1763,6 +1789,7 @@ function drawCraft(g, x, y, d) {
 function buildTeletype(res) {
   const L = [], sim = res.sim, ev = res.evaluation;
   L.push({ text: `MISSION CONTROL TELETYPE · SEED ${res.seed}`, cls: "month", pause: 0.4 });
+  if (ev.schedule && ev.schedule.window) L.push({ text: `LAUNCH DATE ${ev.schedule.window.label.toUpperCase()}${res.sim.launch_delay ? ` + ${res.sim.launch_delay} MONTHS DELAY` : ""}`, pause: 0.5 });
   L.push({ text: `${ev.scenario.name.toUpperCase()} → ${ev.destination.name.toUpperCase()}`, pause: 0.6 });
   const byMonth = {};
   sim.events.forEach((e) => (byMonth[e.month] = byMonth[e.month] || []).push(e));

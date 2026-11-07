@@ -39,19 +39,41 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
     def log(month, kind, text, why, impact="neutral"):
         events.append({"month": month, "kind": kind, "text": text, "why": why, "impact": impact})
 
+    budget = ev["cost"]["budget"]
+    reserve = budget - ev["cost"]["total"]
+    sch = ev["schedule"]
+    tech = sch["risk_mult"]  # rushed projects are tested less, so glitches and launch failures are likelier
+    delay = 0
+    if rng.random() < sch["slip"] * em:
+        delay = sch["synodic"] or 4
+        waste = budget * C.SLIP_COST_MONTH * delay
+        reserve -= waste
+        where = ev["destination"]["name"]
+        log(0, "slip", (f"Late hardware! The spacecraft missed the {where} window and waited {delay} months for the next one "
+                        f"({waste:,.0f} M$)." if sch["synodic"] else
+                        f"Late hardware! Launch slipped {delay} months ({waste:,.0f} M$ to keep the team working)."),
+            "Problems found in testing take time to fix. For planets you then wait for Earth and the target to line up again.",
+            "bad")
+        if reserve < 0:
+            log(0, "budget_cut", "The delay used up every reserve. The project was cancelled before launch.",
+                "Delays cost money: engineers must be paid while the spacecraft waits on the ground.", "fatal")
+            return {"seed": seed, "launched": True, "outcome": "cancelled", "events": events, "timeline": [],
+                    "science_fraction": 0.0, "science_score": 0.0, "months_survived": 0, "months_planned": total_m,
+                    "reserve_end": reserve / budget, "evaluation": ev, "launch_delay": delay,
+                    "data_planned_gb": 0, "reserve_start": budget - ev["cost"]["total"]}
+
     # launch itself: small failure chance (rockets fail ~2-3 %)
-    if rng.random() < 0.02 * em:
+    if rng.random() < 0.02 * em * tech:
         log(0, "launch_failure", "Launch vehicle anomaly! The spacecraft is lost.",
             "Even mature rockets fail roughly 1 in 50 launches. That's why missions buy insurance or build spares.",
             "fatal")
         return {"seed": seed, "launched": True, "outcome": "lost", "events": events, "timeline": [],
                 "science_fraction": 0.0, "science_score": 0.0, "months_survived": 0, "months_planned": total_m,
-                "reserve_end": ev["cost"]["reserve"], "evaluation": ev}
+                "reserve_end": reserve / budget, "evaluation": ev, "launch_delay": delay,
+                "data_planned_gb": 0, "reserve_start": budget - ev["cost"]["total"]}
     log(0, "launch", f"Liftoff on {C.LAUNCH_VEHICLES[d['launch_vehicle']]['name']}!",
         "The spacecraft separates and unfolds its solar arrays and antennas.", "good")
 
-    budget = ev["cost"]["budget"]
-    reserve = budget - ev["cost"]["total"]
     power_margin = ev["power"]["margin"]
     batt_ok_margin = ev["power"]["battery_usable_wh"] - ev["power"]["eclipse_need_wh"]
     batt_cap = ev["power"]["battery_usable_wh"]
@@ -123,12 +145,12 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
                     "With a thin power margin there is no spare energy to warm up and restart quickly.", "bad")
                 rate *= 0.7
 
-        if alive and rng.random() < P_SAFE_MODE * em * (1.5 if power_margin < 0.15 else 1.0):
+        if alive and rng.random() < P_SAFE_MODE * em * tech * (1.5 if power_margin < 0.15 else 1.0):
             log(m, "safe_mode", "Software fault triggered safe mode. Engineers uploaded a patch.",
                 "Flight software is huge; bugs show up in space. Good margins make recovery easier.", "bad")
             rate *= 0.85
 
-        if alive and wheels and rng.random() < P_WHEEL_FAIL * em * (0.5 if phase == "cruise" else 1.0):
+        if alive and wheels and rng.random() < P_WHEEL_FAIL * em * tech * (0.5 if phase == "cruise" else 1.0):
             wheel_fails += 1
             if spare_wheel and wheel_fails == 1:
                 log(m, "wheel", "A reaction wheel failed, but the spare wheel took over.",
@@ -212,7 +234,7 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
             "science_fraction": frac, "science_score": ev["science"]["score"] * frac,
             "months_survived": months_done, "months_planned": total_m, "reserve_end": reserve / budget,
             "wheel_failures": wheel_fails, "evaluation": ev,
-            "data_planned_gb": data_month * sci_m_planned, "reserve_start": budget - ev["cost"]["total"]}
+            "data_planned_gb": data_month * sci_m_planned, "reserve_start": budget - ev["cost"]["total"], "launch_delay": delay}
 
 
 def monte_carlo(design: dict, runs: int = 200, seed0: int = 1000) -> dict:

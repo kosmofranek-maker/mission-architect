@@ -196,7 +196,7 @@ const PART_ICON = {
   battery: () => "battery", rtg: () => "rtg", ground: () => "station", computer: () => "chip",
   comms: (k) => ({ uhf: "patch", xlga: "antenna" }[k] || "dish"),
   adcs: (k) => (k === "magnetorquer" ? "magnet" : "wheel"),
-  propulsion: (k) => (k === "none" ? "none" : "nozzle"), orbit: () => "orbit",
+  propulsion: (k) => (k === "none" ? "none" : "nozzle"), orbit: () => "orbit", window: () => "calendar",
   instruments: (k) => ({ wac: "camera", hirise: "telescope", thermal: "flame", irspec: "prism", neutron: "atom",
     lamp: "uv", lidar: "laser", radar: "radar", mag: "magneto", massspec: "flask", sounder: "thermo",
     particles: "particles", pancam: "camera", drill: "drill", raman: "laser", seismo: "seismo", tagsam: "flask",
