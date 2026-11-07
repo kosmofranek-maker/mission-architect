@@ -26,6 +26,12 @@ DESTINATIONS = {
                  "magnetic": False, "lv_target": "asteroid"},
     "europa": {"name": "Europa (Jupiter)", "sun_au": 5.2, "earth_au": 5.0, "radiation": 4,
                "magnetic": False, "lv_target": "jupiter"},
+    # Surface missions: the "orbit" choice becomes a landing site. "atmosphere" decides which landing
+    # systems work; "relay" means orbiters can forward data (Mars).
+    "moon_surface": {"name": "Lunar south pole (surface)", "sun_au": 1.0, "earth_au": 0.00257, "radiation": 2,
+                     "magnetic": False, "lv_target": "tli", "surface": True, "atmosphere": False},
+    "mars_surface": {"name": "Mars (surface)", "sun_au": 1.52, "earth_au": 1.5, "radiation": 2,
+                     "magnetic": False, "lv_target": "mars", "surface": True, "atmosphere": True, "relay": True},
 }
 
 RADIATION_LABEL = {1: "Low", 2: "Moderate", 3: "High", 4: "Extreme"}
@@ -127,6 +133,38 @@ SCENARIOS = {
             {"tag": "composition", "label": "Sample cloud chemistry", "weight": 25, "target": 30, "required": False},
         ],
     },
+    "lunar_lander": {
+        "name": "Lunar Polar Lander",
+        "kind": "lander",
+        "destination": "moon_surface",
+        "difficulty": "Intermediate",
+        "budget": 560,
+        "min_years": 1,
+        "pitch": "Land near the lunar south pole and drill into the ice itself.",
+        "story": ("Orbiters told us where the ice should be. Now we have to touch it: land, drill, and "
+                  "survive nights that can last two weeks at -170 C."),
+        "goals": [
+            {"tag": "water", "label": "Measure ice in the soil", "weight": 45, "target": 35, "required": True},
+            {"tag": "composition", "label": "Analyse the regolith", "weight": 35, "target": 25, "required": True},
+            {"tag": "interior", "label": "Listen for moonquakes", "weight": 20, "target": 15, "required": False},
+        ],
+    },
+    "asteroid_sample": {
+        "name": "Asteroid Sample Return",
+        "kind": "sample_return",
+        "destination": "asteroid",
+        "difficulty": "Advanced",
+        "budget": 900,
+        "min_years": 2,
+        "pitch": "Touch an asteroid, grab a handful of it and bring it home to Earth.",
+        "story": ("Labs on Earth can do what no spacecraft can. Map the rock, pick a safe spot, touch down "
+                  "for five seconds, then fly the sample all the way back and land it in a desert."),
+        "goals": [
+            {"tag": "sample", "label": "Return a pristine sample", "weight": 50, "target": 30, "required": True},
+            {"tag": "composition", "label": "Map minerals first", "weight": 30, "target": 25, "required": True},
+            {"tag": "topography", "label": "Find a safe sample site", "weight": 20, "target": 20, "required": False},
+        ],
+    },
     "mars_climate": {
         "name": "Mars Climate Orbiter II",
         "destination": "mars",
@@ -141,6 +179,22 @@ SCENARIOS = {
             {"tag": "imaging", "label": "Watch dust storms", "weight": 20, "target": 25, "required": False},
             {"tag": "composition", "label": "Map surface minerals", "weight": 25, "target": 35, "required": False},
             {"tag": "subsurface", "label": "Find buried ice", "weight": 20, "target": 35, "required": False},
+        ],
+    },
+    "mars_rover": {
+        "name": "Mars Ancient Life Rover",
+        "kind": "rover",
+        "destination": "mars_surface",
+        "difficulty": "Expert",
+        "budget": 1100,
+        "min_years": 2,
+        "pitch": "Land a rover in an ancient lake and search the rocks for signs of past life.",
+        "story": ("Billions of years ago Mars had rivers and lakes. If life ever started there, its traces "
+                  "are locked in the mud of those old lake beds. Drive, drill, and look."),
+        "goals": [
+            {"tag": "life", "label": "Search for biosignatures", "weight": 45, "target": 35, "required": True},
+            {"tag": "composition", "label": "Read the rock layers", "weight": 35, "target": 30, "required": True},
+            {"tag": "imaging", "label": "Panoramas of the site", "weight": 20, "target": 15, "required": False},
         ],
     },
     "europa": {
@@ -257,13 +311,13 @@ ORBITS = {
                                  "days. Best weather view, almost no surface mapping.")},
     },
     "asteroid": {
-        "survey": {"name": "Survey station (7 km, hovering)", "lv_target": "asteroid", "dv_insert": 600,
+        "survey": {"name": "Survey station (7 km, hovering)", "lv_target": "asteroid", "dv_insert": 600, "dv_return": 350,
                    "dv_per_year": 40, "eclipse_h": 0.0, "eclipse_frac": 0.0, "coverage": 0.9, "earth_view": 0.8,
                    "cruise_years": 2.0, "max_years_no_prop": 0.2,
                    "science": {"composition": 1.0, "topography": 0.9, "water": 1.0, "imaging": 0.9},
                    "learn": ("Gravity is too weak to orbit far away, so you fly alongside the asteroid and keep "
                              "nudging back. Never in shadow, but you need thrusters the whole time.")},
-        "orbit": {"name": "Terminator orbit (1 km)", "lv_target": "asteroid", "dv_insert": 620,
+        "orbit": {"name": "Terminator orbit (1 km)", "lv_target": "asteroid", "dv_insert": 620, "dv_return": 380,
                   "dv_per_year": 15, "eclipse_h": 0.0, "eclipse_frac": 0.0, "coverage": 1.0, "earth_view": 0.8,
                   "cruise_years": 2.2, "max_years_no_prop": 0.5,
                   "science": {"composition": 1.3, "topography": 1.4, "water": 1.3, "imaging": 1.3},
@@ -275,6 +329,46 @@ ORBITS = {
                   "science": {"composition": 0.6, "topography": 0.5, "water": 0.6, "imaging": 0.8},
                   "learn": ("Cheap and simple: rush past at 5 km/s and take what you can in a few hours. "
                             "Almost no fuel, but very little data.")},
+    },
+    "moon_surface": {
+        "rim": {"name": "Sunlit crater rim", "lv_target": "tli", "dv_insert": 900, "dv_per_year": 0,
+                "eclipse_h": 30, "eclipse_frac": 0.15, "coverage": 0.6, "earth_view": 0.5, "cruise_years": 0.02,
+                "max_years_no_prop": 99, "landing_risk": 0.04, "cold": 0.3,
+                "science": {"water": 0.9, "composition": 1.0, "imaging": 1.0, "interior": 1.0},
+                "learn": ("Peaks near the south pole see the Sun ~85% of the time, so shadows last a day or two, "
+                          "not two weeks. The ground is sloped and Earth sits low on the horizon.")},
+        "mare": {"name": "Flat equatorial plain", "lv_target": "tli", "dv_insert": 900, "dv_per_year": 0,
+                 "eclipse_h": 354, "eclipse_frac": 0.5, "coverage": 0.4, "earth_view": 1.0, "cruise_years": 0.02,
+                 "max_years_no_prop": 99, "landing_risk": 0.01, "cold": 0.6,
+                 "science": {"water": 0.3, "composition": 1.1, "imaging": 1.0, "interior": 1.2},
+                 "learn": ("Flat, safe and always facing Earth, like Apollo 11's site. But the night lasts 14 Earth "
+                           "days at -170 C: no battery covers that, so you need RTGs or you freeze.")},
+        "psr": {"name": "Inside a permanently shadowed crater", "lv_target": "tli", "dv_insert": 900,
+                "dv_per_year": 0, "eclipse_h": 0, "eclipse_frac": 1.0, "coverage": 0.4, "earth_view": 0.3,
+                "cruise_years": 0.02, "max_years_no_prop": 99, "landing_risk": 0.08, "cold": 0.9,
+                "science": {"water": 1.6, "composition": 1.2, "imaging": 0.4, "interior": 1.0},
+                "learn": ("Never sees sunlight, which is why the ice survives: the best place to dig. No Sun means "
+                          "no solar power at all, only RTGs. Landing in total darkness is risky.")},
+    },
+    "mars_surface": {
+        "plain": {"name": "Flat volcanic plain", "lv_target": "mars", "dv_insert": 0, "dv_per_year": 0,
+                  "eclipse_h": 12.5, "eclipse_frac": 0.5, "coverage": 0.3, "earth_view": 0.4, "cruise_years": 0.6,
+                  "max_years_no_prop": 99, "landing_risk": 0.02, "cold": 0.3,
+                  "science": {"imaging": 0.9, "composition": 0.8, "water": 0.5, "life": 0.4, "interior": 1.2},
+                  "learn": ("InSight picked the flattest, most boring place on Mars on purpose: safe to land, "
+                            "but there is little to discover.")},
+        "delta": {"name": "Ancient river delta in a crater", "lv_target": "mars", "dv_insert": 0, "dv_per_year": 0,
+                  "eclipse_h": 12.5, "eclipse_frac": 0.5, "coverage": 0.6, "earth_view": 0.4, "cruise_years": 0.6,
+                  "max_years_no_prop": 99, "landing_risk": 0.07, "cold": 0.35,
+                  "science": {"imaging": 1.2, "composition": 1.3, "water": 1.0, "life": 1.5},
+                  "learn": ("Perseverance's Jezero crater: a dried lake where life could have lived 3.5 billion "
+                            "years ago. Cliffs, boulders and dunes make the landing risky.")},
+        "polar": {"name": "Northern ice plains", "lv_target": "mars", "dv_insert": 0, "dv_per_year": 0,
+                  "eclipse_h": 16, "eclipse_frac": 0.6, "coverage": 0.3, "earth_view": 0.4, "cruise_years": 0.6,
+                  "max_years_no_prop": 99, "landing_risk": 0.04, "cold": 0.7,
+                  "science": {"water": 1.5, "composition": 0.9, "life": 0.8, "imaging": 0.8},
+                  "learn": ("Phoenix dug up water ice here. Long winter nights and a low Sun: solar power is weak, "
+                            "and Phoenix froze after five months.")},
     },
     "europa": {
         "flyby": {"name": "Jupiter orbit, ~50 Europa flybys", "lv_target": "jupiter", "dv_insert": 1000,
@@ -389,6 +483,33 @@ COMMS = {
               "learn": "Like MRO's: higher frequency + bigger dish = 6x the data rate. Rain on Earth can disturb it."},
 }
 
+# Landing systems (lander/rover) and sample-return capsules. Landing system mass = mass_fixed + frac x landed mass.
+EDL = {
+    "airbags": {"name": "Parachute + airbags", "use": "land", "mass_fixed": 60, "frac_air": 0.35, "frac_vac": 0.35,
+                "cost": 40, "needs_atmosphere": True, "max_landed": 600, "risk_mult": 1.3,
+                "learn": "Bounce to a stop inside giant airbags (Pathfinder, Spirit). Light and cheap, but only for "
+                         "small landers on a world with air."},
+    "retro": {"name": "Retro-rocket descent stage + legs", "use": "land", "mass_fixed": 80, "frac_air": 0.7,
+              "frac_vac": 1.1, "cost": 60, "needs_atmosphere": False, "max_landed": 2500, "risk_mult": 1.0,
+              "learn": "Engines fire all the way down (Apollo, Chang'e; on Mars with a heat shield first, like Phoenix). "
+                       "On an airless world the descent fuel weighs as much as the lander."},
+    "hazard": {"name": "Retro descent + hazard-avoidance lidar", "use": "land", "mass_fixed": 110, "frac_air": 0.7,
+               "frac_vac": 1.1, "cost": 95, "needs_atmosphere": False, "max_landed": 2500, "risk_mult": 0.45,
+               "learn": "A laser scans the ground in the last minute and steers away from boulders (Chang'e 3, "
+                        "Perseverance's terrain-relative navigation). Halves the landing risk."},
+    "skycrane": {"name": "Heat shield + parachute + sky crane", "use": "land", "mass_fixed": 400, "frac_air": 0.9,
+                 "frac_vac": 0.9, "cost": 180, "needs_atmosphere": True, "max_landed": 1200, "risk_mult": 0.5,
+                 "learn": "Curiosity and Perseverance: a rocket backpack lowers the rover on cables. Heavy and expensive, "
+                          "but sets a car-sized rover down gently and precisely."},
+    "capsule_s": {"name": "Small return capsule (~250 g sample)", "use": "return", "mass_fixed": 46, "frac_air": 0,
+                  "frac_vac": 0, "cost": 30, "max_landed": 99999, "risk_mult": 1.0, "sample_mult": 1.0,
+                  "learn": "Heat shield + parachute, lands in a desert (OSIRIS-REx, Hayabusa2). Simple and light."},
+    "capsule_l": {"name": "Large capsule, backup parachute (~1 kg)", "use": "return", "mass_fixed": 90, "frac_air": 0,
+                  "frac_vac": 0, "cost": 55, "max_landed": 99999, "risk_mult": 0.3, "sample_mult": 1.4,
+                  "learn": "More sample and a spare parachute. Genesis (2004) crashed because its chute never opened."},
+}
+CAPSULE_RISK = 0.06  # chance a single-chute capsule fails on re-entry (scaled by risk_mult)
+
 GROUND = {
     "uni": {"name": "University ground station", "hours": 1.0, "gain": 0.5, "cost_year": 0.5,
             "max_earth_au": 0.001,
@@ -399,6 +520,10 @@ GROUND = {
     "dsn34": {"name": "Deep Space Network 34 m", "hours": 8.0, "gain": 1.0, "cost_year": 8,
               "max_earth_au": 99,
               "learn": "NASA's antennas in California, Spain and Australia. Shared with every mission."},
+    "relay": {"name": "Mars relay orbiters (UHF via MRO)", "hours": 2.0, "gain": 1.0, "cost_year": 2,
+              "max_earth_au": 99, "relay_mbps": 4.0,
+              "learn": "Orbiters overhead catch your data twice a sol and forward it to Earth with their big dishes. "
+                       "Only exists at Mars."},
     "dsn70": {"name": "Deep Space Network 70 m (priority)", "hours": 10.0, "gain": 4.0, "cost_year": 22,
               "max_earth_au": 99,
               "learn": "The giant dishes collect 4x more signal. Expensive and in high demand."},
@@ -442,10 +567,10 @@ PROPULSION = {
 # --------------------------------------------------------------------------------------
 INSTRUMENTS = {
     "wac": {"name": "Wide-angle camera", "mass": 2, "power": 6, "cost": 5, "data_mbps": 4, "duty": 0.3,
-            "value": 15, "tags": ["imaging"], "pointing_deg": 1.0,
+            "value": 15, "where": "orbit", "tags": ["imaging"], "pointing_deg": 1.0,
             "learn": "Daily global pictures, like MARCI on MRO. Light and cheap."},
     "hirise": {"name": "High-resolution telescope camera", "mass": 65, "power": 60, "cost": 40, "data_mbps": 120,
-               "duty": 0.04, "value": 40, "tags": ["imaging"], "pointing_deg": 0.005,
+               "duty": 0.04, "value": 40, "where": "orbit", "tags": ["imaging"], "pointing_deg": 0.005,
                "learn": "Sees objects the size of a desk from orbit (HiRISE). Produces enormous data volumes."},
     "thermal": {"name": "Thermal infrared imager", "mass": 10, "power": 15, "cost": 10, "data_mbps": 6,
                 "duty": 0.3, "value": 25, "tags": ["thermal", "imaging"], "pointing_deg": 0.5,
@@ -460,13 +585,13 @@ INSTRUMENTS = {
              "value": 20, "tags": ["water", "composition"], "pointing_deg": 0.5,
              "learn": "Uses faint starlight to see frost inside craters that never get sunlight."},
     "lidar": {"name": "Laser altimeter", "mass": 20, "power": 35, "cost": 15, "data_mbps": 0.1, "duty": 1.0,
-              "value": 25, "tags": ["topography"], "pointing_deg": 0.05,
+              "value": 25, "where": "orbit", "tags": ["topography"], "pointing_deg": 0.05,
               "learn": "Times laser pulses to the ground to build 3D height maps (LOLA, MOLA)."},
     "radar": {"name": "Ice-penetrating radar", "mass": 50, "power": 110, "cost": 45, "data_mbps": 40,
-              "duty": 0.05, "value": 40, "tags": ["subsurface", "water"], "pointing_deg": 1.0,
+              "duty": 0.05, "value": 40, "where": "orbit", "tags": ["subsurface", "water"], "pointing_deg": 1.0,
               "learn": "Radio waves pass through ice and bounce off layers below (SHARAD, REASON)."},
     "sar": {"name": "Synthetic aperture radar", "mass": 60, "power": 180, "cost": 50, "data_mbps": 20,
-            "duty": 0.05, "value": 40, "tags": ["topography", "imaging"], "pointing_deg": 0.5,
+            "duty": 0.05, "value": 40, "where": "orbit", "tags": ["topography", "imaging"], "pointing_deg": 0.5,
             "learn": "Side-looking radar that builds images through clouds and darkness (Magellan, VERITAS)."},
     "mag": {"name": "Magnetometer on boom", "mass": 5, "power": 4, "cost": 4, "data_mbps": 0.005, "duty": 1.0,
             "value": 15, "tags": ["fields"], "pointing_deg": 10,
@@ -477,6 +602,24 @@ INSTRUMENTS = {
     "sounder": {"name": "Atmospheric sounder", "mass": 9, "power": 12, "cost": 12, "data_mbps": 0.05, "duty": 1.0,
                 "value": 25, "tags": ["climate"], "pointing_deg": 0.5,
                 "learn": "Measures temperature, dust and water vapour at every altitude (Mars Climate Sounder)."},
+    # Surface-only instruments ("where": "surface") need to touch the ground; "orbit" ones only work from orbit.
+    "pancam": {"name": "Stereo mast cameras", "mass": 4, "power": 10, "cost": 8, "data_mbps": 2, "duty": 0.1,
+               "value": 20, "tags": ["imaging"], "pointing_deg": 10, "where": "surface",
+               "learn": "Two cameras on a mast, like human eyes, take 3D panoramas to plan every drive."},
+    "drill": {"name": "Drill + sample oven (SAM-style)", "mass": 40, "power": 60, "cost": 45, "data_mbps": 0.5,
+              "duty": 0.05, "value": 40, "tags": ["water", "composition", "life"], "pointing_deg": 10,
+              "where": "surface",
+              "learn": "Drills a few cm into rock, bakes the powder and sniffs the gases: ice, minerals, organics."},
+    "raman": {"name": "Arm-mounted rock analyser (laser + X-ray)", "mass": 12, "power": 25, "cost": 30,
+              "data_mbps": 1, "duty": 0.1, "value": 35, "tags": ["composition", "life"], "pointing_deg": 10,
+              "where": "surface",
+              "learn": "Zaps rocks with a laser and X-rays to map minerals and organic molecules (SHERLOC, PIXL)."},
+    "seismo": {"name": "Seismometer", "mass": 30, "power": 8, "cost": 20, "data_mbps": 0.05, "duty": 1.0,
+               "value": 20, "tags": ["interior"], "pointing_deg": 10, "where": "surface",
+               "learn": "Feels quakes and meteorite impacts to reveal what is deep inside (Apollo, InSight)."},
+    "tagsam": {"name": "Touch-and-go sampler arm", "mass": 40, "power": 30, "cost": 30, "data_mbps": 0.1,
+               "duty": 0.01, "value": 35, "tags": ["sample"], "pointing_deg": 0.5,
+               "learn": "Taps the surface for five seconds and blows gas to push dust into a collector (OSIRIS-REx)."},
     "particles": {"name": "Plasma & particle detector", "mass": 4, "power": 5, "cost": 3, "data_mbps": 0.02,
                   "duty": 1.0, "value": 10, "tags": ["fields"], "pointing_deg": 10,
                   "learn": "Counts charged particles. Helps interpret the magnetometer signal."},
@@ -494,7 +637,7 @@ ROLES = {
                 "goal": "Keep at least 10% of the budget in reserve.",
                 "learn": "Owns money and schedule. Says 'no' a lot."},
     "systems": {"name": "Systems Engineer", "icon": "🔧",
-                "owns": ["bus", "solar", "rtg", "battery", "adcs", "propulsion"],
+                "owns": ["bus", "solar", "rtg", "battery", "adcs", "propulsion", "edl"],
                 "goal": "Keep mass margin ≥ 15% and power margin ≥ 20%.",
                 "learn": "Makes everything fit, fly and stay powered."},
     "science": {"name": "Science Lead", "icon": "🔭",

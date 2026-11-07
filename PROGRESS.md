@@ -76,6 +76,14 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
 - Doors removed again (plain tabs, lab scenes stay). Cadet: no NEXT STEP box or highlighted cards; hints only in the
   client's speech bubble, shown from the first moment.
 
+- Surface + sample-return missions (2026-11-07): scenario `kind` (orbiter/lander/rover/sample_return). New part `edl`
+  (airbags, retro stage, hazard-avoidance retro, sky crane; small/large return capsule) with landing risk, landed-mass
+  limits and "needs air" blockers. Destinations moon_surface / mars_surface: the orbit choice becomes a landing site
+  (night length, sunlight, landing risk, cold). Mars relay orbiters as a ground option. Surface-only instruments
+  (pancam, drill, raman, seismometer) and orbit-only ones. Sample return adds dv for the trip home and a capsule
+  re-entry roll. Missions: Lunar Polar Lander, Asteroid Sample Return, Mars Ancient Life Rover (career = 11 days).
+  Launch film gets a descent (parachute / sky crane / airbags / engines), touchdown and a driving rover.
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.

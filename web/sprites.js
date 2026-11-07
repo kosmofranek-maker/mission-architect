@@ -73,6 +73,23 @@ const ICON_DRAW = {
     r(5, 1, 6, 4, PAL.grayL); r(6, 5, 4, 2, PAL.gray); r(5, 7, 6, 2, PAL.grayD); r(4, 9, 8, 2, PAL.grayD); r(3, 11, 10, 1, PAL.ink);
     r(6, 12, 4, 2, PAL.orange); r(7, 14, 2, 1, PAL.yellow);
   },
+  chute(r) {
+    r(3, 2, 10, 2, PAL.red); r(2, 3, 12, 2, PAL.white); r(1, 5, 14, 1, PAL.red); r(5, 3, 2, 3, PAL.red); r(9, 3, 2, 3, PAL.red);
+    for (let i = 0; i < 6; i++) { r(2 + i, 6 + i, 1, 1, PAL.grayL); r(13 - i, 6 + i, 1, 1, PAL.grayL); }
+    r(6, 12, 4, 3, PAL.gold); r(6, 12, 4, 1, PAL.goldD);
+  },
+  capsule(r) {
+    r(7, 2, 2, 1, PAL.grayL); r(6, 3, 4, 2, PAL.grayL); r(5, 5, 6, 3, PAL.grayL); r(4, 8, 8, 3, PAL.grayL);
+    r(3, 11, 10, 2, PAL.brown); r(4, 13, 8, 1, PAL.redD); r(6, 6, 2, 2, PAL.blueD);
+  },
+  drill(r) {
+    r(5, 1, 6, 5, PAL.grayD); r(6, 2, 4, 3, PAL.gray); r(7, 6, 2, 7, PAL.grayL); r(7, 7, 1, 1, PAL.gray); r(8, 9, 1, 1, PAL.gray);
+    r(7, 13, 2, 1, PAL.white); r(2, 14, 12, 2, PAL.brown); r(6, 13, 1, 1, PAL.brown); r(9, 13, 1, 1, PAL.brown);
+  },
+  seismo(r) {
+    r(1, 8, 2, 1, PAL.green); r(3, 6, 1, 3, PAL.green); r(4, 3, 1, 9, PAL.green); r(5, 9, 1, 4, PAL.green); r(6, 5, 1, 5, PAL.green);
+    r(7, 7, 1, 2, PAL.green); r(8, 8, 7, 1, PAL.green); r(0, 14, 16, 2, PAL.grayD);
+  },
   none(r) { r(3, 3, 10, 10, PAL.mid); r(4, 4, 8, 8, PAL.dark); for (let i = 0; i < 8; i++) r(4 + i, 11 - i, 1, 1, PAL.light); },
   camera(r) {
     r(2, 5, 12, 8, PAL.ink); r(3, 6, 10, 6, PAL.grayD); r(4, 3, 4, 2, PAL.ink); r(6, 7, 4, 4, PAL.blueL); r(7, 8, 2, 2, PAL.blueD);
@@ -182,7 +199,9 @@ const PART_ICON = {
   propulsion: (k) => (k === "none" ? "none" : "nozzle"), orbit: () => "orbit",
   instruments: (k) => ({ wac: "camera", hirise: "telescope", thermal: "flame", irspec: "prism", neutron: "atom",
     lamp: "uv", lidar: "laser", radar: "radar", mag: "magneto", massspec: "flask", sounder: "thermo",
-    particles: "particles" }[k] || "star"),
+    particles: "particles", pancam: "camera", drill: "drill", raman: "laser", seismo: "seismo", tagsam: "flask",
+    sar: "radar" }[k] || "star"),
+  edl: (k) => (k.startsWith("capsule") ? "capsule" : ["airbags", "skycrane"].includes(k) ? "chute" : "nozzle"),
 };
 
 // ---------------------------------------------------------------------------- portraits (client in the booth)

@@ -9,6 +9,7 @@ const LABS = {
   power:    { name: "Power Lab", door: "#b38a2a" },
   adcs:     { name: "Guidance & Control Lab", door: "#5d4a8a" },
   prop:     { name: "Propulsion Test Stand", door: "#8a5a2c" },
+  edl:      { name: "Landing Test Hall", door: "#a8322a" },
   comms:    { name: "Communications Center", door: "#2f7a6a" },
   computer: { name: "Avionics Lab", door: "#3c5c25" },
   instr:    { name: "Science Instrument Lab", door: "#5f666c" },
@@ -132,6 +133,24 @@ function drawLab(canvas, id, t) {
       [10, 26].forEach((x, i) => r(x, 6, 4, 4, (t + i * 3) % 6 < 3 ? "#b3372d" : "#5a1a14"));   // warning lights
       r(6, 14, 34, 12, "#2e2925"); r(8, 16, 30, 8, "#58b7c9"); r(8, 16, 30, 1, "#8fd3e0");     // bunker window
       r(18, 18, 4, 4, "#c99a74"); r(17, 22, 6, 2, "#4b5a3a");
+      break;
+    }
+    case "edl": {
+      wall("#5a5048", "#463e37"); floor("#8a6a4a", "#94744f"); lights();
+      r(30, 2, 3, 32, "#5b534b"); r(30, 2, 60, 2, "#5b534b");                                  // drop tower
+      const drop = (t * 2) % 26;                                                             // test capsule under a canopy
+      r(58, 4 + drop, 22, 3, "#b3372d"); r(60, 3 + drop, 18, 1, "#f4efe2"); r(64, 4 + drop, 4, 3, "#f4efe2");
+      for (let i = 0; i < 5; i++) { r(60 + i, 7 + drop + i, 1, 1, "#b9b9b9"); r(77 - i, 7 + drop + i, 1, 1, "#b9b9b9"); }
+      r(65, 12 + drop, 8, 5, "#9c9284"); r(64, 16 + drop, 10, 1, "#6b4a33");
+      [[120, 22], [131, 20], [142, 23], [126, 27], [138, 28]].forEach(([x, y]) => {             // airbag cluster
+        r(x, y, 11, 9, "#e8e4dc"); r(x + 1, y + 1, 9, 1, "#f4efe2"); r(x, y + 8, 11, 1, "#b9b6ae");
+      });
+      r(170, 10, 34, 24, "#4b4b4b"); r(172, 12, 30, 20, "#7d7d7d");                          // heat shield on a stand
+      for (let y = 0; y < 8; y++) r(176 + y, 14 + y, 22 - y * 2, 1, y % 2 ? "#6b4a33" : "#8a5a2c");
+      r(214, 8, 6, 26, "#5b534b"); r(206, 8, 22, 2, "#d9792b");                                // sky-crane rig
+      r(212, 14, 1, 10 + (t % 8 < 4 ? 0 : 2), "#1d1a17"); r(222, 14, 1, 10 + (t % 8 < 4 ? 0 : 2), "#1d1a17");
+      r(208, 24 + (t % 8 < 4 ? 0 : 2), 18, 6, "#d8aa45");
+      person(100, "#4b5a3a", "#c48d63", "#2b2018", t % 12 < 6 ? 0 : 1);
       break;
     }
     case "comms": {

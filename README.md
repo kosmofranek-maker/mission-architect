@@ -13,7 +13,8 @@ design, watch the launch and the mission unfold month by month on the teletype, 
 *The Orbital Times*.
 
 ## Features
-- 8 missions (Earth, Moon, asteroid, Venus, Mars, Europa; Beginner to Expert), 3 difficulty levels, career mode with
+- 11 missions: orbiters, a lunar lander, a Mars rover and an asteroid sample return (Earth, Moon, asteroid, Venus,
+  Mars, Europa; Beginner to Expert), 3 difficulty levels, career mode with
   unlocks, free design + sandbox. Each client writes an opening letter and is quoted in the newspaper afterwards.
 - Real trade-offs: rocket equation, inverse-square solar power and radio signal, eclipses and batteries, pointing
   accuracy, data downlink and on-board storage, radiation tolerance, budget reserves.

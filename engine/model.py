@@ -18,7 +18,8 @@ DEFAULT_DESIGN = {
 
 RAD_RISK = {0: 0.0005, 1: 0.01, 2: 0.04, 3: 0.12, 4: 0.25}  # monthly fatal-hit risk by deficit
 ORBIT_RADIATION = {"flyby": 3, "europa_orbit": 4}
-SOLAR_DEGRADATION = {"earth": 0.02, "moon": 0.02, "mars": 0.02, "venus": 0.03, "asteroid": 0.02, "europa": 0.04}
+SOLAR_DEGRADATION = {"earth": 0.02, "moon": 0.02, "mars": 0.02, "venus": 0.03, "asteroid": 0.02, "europa": 0.04,
+                     "mars_surface": 0.08}  # dust settles on panels on the Martian surface
 RTG_DECAY = 0.04  # per year (MMRTG loses ~4-5 %/yr incl. thermocouple aging)
 BUS_OPS = {"cubesat": 0.5, "smallsat": 3, "medium": 10, "flagship": 30}
 INTEGRATION = 0.30
@@ -46,6 +47,15 @@ def default_design(scenario: str = "wildfire") -> dict:
         "venus_clouds": {"orbit": "low", "launch_vehicle": "falcon9", "bus": "medium", "solar": "small",
                          "battery": "b3000", "comms": "kahga", "ground": "dsn34", "propulsion": "biprop",
                          "instruments": ["sar", "sounder", "massspec"], "years": 3},
+        "lunar_lander": {"orbit": "rim", "launch_vehicle": "falcon9", "solar": "compact", "battery": "b8000",
+                         "comms": "xlga", "ground": "dsn34", "edl": "retro", "years": 1,
+                         "instruments": ["drill", "neutron", "seismo"]},
+        "asteroid_sample": {"orbit": "orbit", "launch_vehicle": "vulcan", "bus": "medium", "solar": "small",
+                            "battery": "b1000", "comms": "kahga", "ground": "dsn34", "propulsion": "biprop",
+                            "edl": "capsule_l", "instruments": ["tagsam", "irspec", "lidar"], "years": 2},
+        "mars_rover": {"orbit": "delta", "launch_vehicle": "vulcan", "bus": "smallsat", "solar": "none", "rtg": 2,
+                       "battery": "b3000", "comms": "uhf", "ground": "relay", "edl": "skycrane", "propulsion": "none",
+                       "instruments": ["drill", "raman", "pancam"], "years": 2},
         "mars_climate": {"orbit": "elliptical", "launch_vehicle": "falcon9", "bus": "medium", "solar": "medium",
                          "battery": "b3000", "comms": "kahga", "ground": "dsn34", "propulsion": "biprop",
                          "instruments": ["sounder", "wac", "irspec"], "years": 4},
@@ -69,10 +79,12 @@ COMPONENTS = {
     "ground": ("Choose ground stations.", "Someone on Earth has to listen to your spacecraft."),
     "computer": ("Choose a flight computer.", "The computer runs the spacecraft and stores data between contacts."),
     "launch_vehicle": ("Choose a launch vehicle.", "Nothing reaches space without a rocket."),
+    "edl": ("Choose a landing system.", "Getting down to the surface in one piece is the hardest part of the trip."),
 }
+EDL_RETURN_MSG = ("Choose a sample return capsule.", "The sample has to survive a fireball re-entry into Earth's air.")
 FIELD_CATALOG = {"launch_vehicle": C.LAUNCH_VEHICLES, "bus": C.BUSES, "solar": C.SOLAR_ARRAYS, "battery": C.BATTERIES,
                  "comms": C.COMMS, "ground": C.GROUND, "computer": C.COMPUTERS, "adcs": C.ADCS,
-                 "propulsion": C.PROPULSION}
+                 "propulsion": C.PROPULSION, "edl": C.EDL}
 EMPTY = {
     "launch_vehicle": {"name": "(none)", "cost": 0, "capacity": {k: 0 for k in C.LV_TARGET_LABEL}},
     "bus": {"name": "(no bus)", "mass": 0, "power": 0, "cost": 0, "max_dry": 0, "slots": 0, "rad_shield": 0},
@@ -82,14 +94,25 @@ EMPTY = {
     "ground": {"name": "(none)", "hours": 0, "gain": 0, "cost_year": 0, "max_earth_au": 99},
     "computer": {"name": "(none)", "mass": 0, "power": 0, "cost": 0, "storage_gb": 0, "rad": 0},
     "adcs": {"name": "(none)", "mass": 0, "power": 0, "cost": 0, "pointing_deg": 99, "needs_magnetic": False},
+    "edl": {"name": "(none)", "use": "", "mass_fixed": 0, "frac_air": 0, "frac_vac": 0, "cost": 0, "max_landed": 99999,
+            "risk_mult": 1.0, "sample_mult": 0.0},
 }
+
+
+def kind_of(scenario: str) -> str:
+    return C.SCENARIOS[scenario].get("kind", "orbiter")
+
+
+def edl_use(scenario: str) -> str | None:
+    """Which landing-system family a scenario needs: 'land', 'return' or None (orbiters)."""
+    return {"lander": "land", "rover": "land", "sample_return": "return"}.get(kind_of(scenario))
 
 
 def blank_design(scenario: str = "wildfire") -> dict:
     """What a player starts with: an empty spacecraft. Every component must be chosen."""
     return {"scenario": scenario, "difficulty": "normal", "sandbox": False, "orbit": None, "launch_vehicle": None,
             "bus": None, "solar": None, "rtg": 0, "battery": None, "comms": None, "ground": None, "computer": None,
-            "adcs": None, "propulsion": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"]}
+            "adcs": None, "propulsion": None, "edl": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"]}
 
 
 def options_for(design: dict) -> dict:
@@ -110,6 +133,10 @@ def normalize(design: dict) -> dict:
     for f, cat in FIELD_CATALOG.items():
         if d[f] not in cat:
             d[f] = None
+    if d["edl"] and C.EDL[d["edl"]]["use"] != edl_use(sc):
+        d["edl"] = None
+    if d["ground"] == "relay" and not C.DESTINATIONS[dest].get("relay"):
+        d["ground"] = None
     if d["difficulty"] not in C.DIFFICULTY:
         d["difficulty"] = "normal"
     d["sandbox"] = bool(d["sandbox"])
@@ -135,14 +162,16 @@ def evaluate(design: dict) -> dict:
     part = {f: FIELD_CATALOG[f][d[f]] if d[f] else EMPTY[f] for f in FIELD_CATALOG}
     lv, bus, solar, batt = part["launch_vehicle"], part["bus"], part["solar"], part["battery"]
     comms, ground, comp, adcs, prop = part["comms"], part["ground"], part["computer"], part["adcs"], part["propulsion"]
+    edl, use = part["edl"], edl_use(d["scenario"])
+    kind = kind_of(d["scenario"])
     instr = {k: C.INSTRUMENTS[k] for k in d["instruments"]}
     diff = C.DIFFICULTY[d["difficulty"]]
     issues: list[dict] = []
     years = d["years"]
     cruise = orbit["cruise_years"]
-    missing = [f for f in COMPONENTS if (not d[f] if f == "instruments" else d[f] is None)]
+    missing = [f for f in COMPONENTS if (not d[f] if f == "instruments" else d[f] is None) and (f != "edl" or use)]
     for f in missing:
-        _issue(issues, "blocker", "missing", *COMPONENTS[f])
+        _issue(issues, "blocker", "missing", *(EDL_RETURN_MSG if f == "edl" and use == "return" else COMPONENTS[f]))
         issues[-1]["field"] = f
 
     # ---------------------------------------------------------------- lifetime / propulsion
@@ -164,8 +193,15 @@ def evaluate(design: dict) -> dict:
         "Battery": batt["mass"], "Comms": comms["mass"], "Computer": comp["mass"], "ADCS": adcs["mass"],
         "Propulsion": prop["mass"], "Instruments": sum(i["mass"] for i in instr.values()),
     }
-    dry_parts = sum(parts.values())
-    dv = (orbit["dv_insert"] + orbit["dv_per_year"] * years) * DV_MARGIN
+    landed = sum(parts.values())
+    edl_mass = 0.0
+    if use and d["edl"]:
+        frac = edl["frac_air"] if dest.get("atmosphere") else edl["frac_vac"]
+        edl_mass = edl["mass_fixed"] + frac * landed
+        parts["Landing system" if use == "land" else "Return capsule"] = edl_mass
+    dry_parts = landed + edl_mass
+    dv_return = orbit.get("dv_return", 0) if use == "return" else 0
+    dv = (orbit["dv_insert"] + orbit["dv_per_year"] * years + dv_return) * DV_MARGIN
     propellant = 0.0
     if prop["isp"] > 0:
         ratio = math.exp(dv / (prop["isp"] * C.G0)) - 1
@@ -174,8 +210,8 @@ def evaluate(design: dict) -> dict:
         if ratio * TANK_FRACTION >= 1 or not math.isfinite(propellant):
             propellant = float("inf")
     tanks = TANK_FRACTION * propellant if math.isfinite(propellant) else float("inf")
-    dry = dry_parts + tanks
-    wet = dry + propellant
+    dry = landed + tanks  # what the bus structure carries; the landing system / capsule is a separate stage
+    wet = dry + edl_mass + propellant
     capacity = lv["capacity"][orbit["lv_target"]]
     mass_margin = (capacity - wet) / capacity if capacity > 0 and math.isfinite(wet) else -1.0
 
@@ -201,6 +237,24 @@ def evaluate(design: dict) -> dict:
     if d["bus"] and dry > bus["max_dry"]:
         _issue(issues, "blocker", "bus", f"Dry mass {dry:,.0f} kg exceeds what the {bus['name']} can hold ({bus['max_dry']:,} kg).",
                "The structure, tanks and wiring are sized for a maximum load. Choose a bigger bus.")
+    if use and d["edl"]:
+        if edl.get("needs_atmosphere") and not dest.get("atmosphere"):
+            _issue(issues, "blocker", "edl", f"{edl['name']} needs air to brake in, and {dest['name']} has none.",
+                   "Parachutes and airbags only work in an atmosphere. On airless worlds only rocket engines can slow you down.")
+        elif landed > edl["max_landed"]:
+            _issue(issues, "blocker", "edl", f"{edl['name']} can land at most {edl['max_landed']:,} kg; yours is {landed:,.0f} kg.",
+                   "Bigger landers hit harder. Heavy rovers need a sky crane or a big retro-rocket stage.")
+    if use == "return" and d["orbit"] and not orbit.get("dv_return"):
+        _issue(issues, "blocker", "orbit", "You can't grab a sample during a fast flyby.",
+               "Collecting a sample means matching the asteroid's speed and touching it gently. Choose an orbit or station.")
+    landing_risk = 0.0
+    if use == "land" and d["orbit"]:
+        landing_risk = orbit.get("landing_risk", 0.03) * edl["risk_mult"] * (0.5 + 0.5 * diff["event_mult"])
+        if d["edl"] and landing_risk > 0.06:
+            _issue(issues, "warning", "edl", f"Landing has a {landing_risk:.0%} chance of failure at this site.",
+                   "Rocks, slopes and darkness make landings dangerous. Hazard-avoidance or a sky crane cut the risk; "
+                   "a flatter site is safer but less interesting.")
+    capsule_risk = C.CAPSULE_RISK * edl["risk_mult"] if use == "return" and d["edl"] else 0.0
     if d["bus"] and len(instr) > bus["slots"]:
         _issue(issues, "blocker", "bus", f"{len(instr)} instruments, but the bus has only {bus['slots']} slots.",
                "Each instrument needs space, a mounting point, cables and a clear field of view.")
@@ -212,7 +266,7 @@ def evaluate(design: dict) -> dict:
     gen = sunlit * (1 - orbit["eclipse_frac"]) + rtg_w
     dm = orbit.get("duty_mult", 1.0)
     size = C.BUS_SIZE.get(d["bus"], 1.0)
-    cold = max(0.0, 1 - 1 / dest["sun_au"] ** 2)  # 0 at Earth, 0.57 at Mars, 0.96 at Jupiter
+    cold = max(0.0, 1 - 1 / dest["sun_au"] ** 2, orbit.get("cold", 0.0))  # 0 at Earth, 0.57 at Mars, 0.96 at Jupiter; surface nights are cold
     heaters = max(0.0, C.BUS_HEATERS.get(d["bus"], 0) * cold - C.RTG["waste_heat_w"] * d["rtg"])
     contact = min(1.0, ground["hours"] * orbit["earth_view"] / 24)
     loads = {
@@ -269,7 +323,10 @@ def evaluate(design: dict) -> dict:
     # ---------------------------------------------------------------- comms / data
     gen_gb = {k: i["data_mbps"] * i["duty"] * dm * 86400 / 1000 for k, i in instr.items()}
     total_gen = sum(gen_gb.values())
-    if dest["earth_au"] > ground["max_earth_au"]:
+    relay = bool(ground.get("relay_mbps"))
+    if relay:
+        rate = ground["relay_mbps"] if d["comms"] else 0.0
+    elif dest["earth_au"] > ground["max_earth_au"]:
         _issue(issues, "blocker", "comms", f"{ground['name']} can't hear you at {dest['name']}.",
                "Small dishes only catch signals from nearby satellites. Deep space needs the Deep Space Network.")
         rate = 0.0
@@ -277,7 +334,7 @@ def evaluate(design: dict) -> dict:
         rate = comms["max_mbps"] * ground["gain"]
     else:
         rate = min(comms["max_mbps"], comms["mbps_1au"] / dest["earth_au"] ** 2) * ground["gain"]
-    hours = ground["hours"] * orbit["earth_view"]
+    hours = ground["hours"] * (1.0 if relay else orbit["earth_view"])
     down_gb = rate * hours * 3600 / 1000
     alloc, remaining = {}, down_gb
     for n, k in enumerate(sorted(gen_gb, key=gen_gb.get)):
@@ -312,10 +369,12 @@ def evaluate(design: dict) -> dict:
 
     # ---------------------------------------------------------------- cost
     hw = {
+        "Landing system" if use == "land" else "Return capsule": edl["cost"] if use else 0,
         "Bus": bus["cost"], "Power": solar["cost"] + C.RTG["cost"] * d["rtg"] + batt["cost"],
         "Comms": comms["cost"], "Computer": comp["cost"], "ADCS": adcs["cost"], "Propulsion": prop["cost"],
         "Instruments": sum(i["cost"] for i in instr.values()),
     }
+    hw = {k: v for k, v in hw.items() if v or k in ("Bus", "Power", "Comms", "Computer", "ADCS", "Propulsion", "Instruments")}
     hardware = sum(hw.values())
     ops_year = ground["cost_year"] + BUS_OPS.get(d["bus"], 0)
     cost = {
@@ -341,6 +400,12 @@ def evaluate(design: dict) -> dict:
     bonus = sc.get("orbit_bonus", {}).get(d["orbit"], 1.0)
     for k, i in instr.items():
         v = 0.0
+        where = i.get("where", "any")
+        if (where == "orbit" and dest.get("surface")) or (where == "surface" and not dest.get("surface")):
+            _issue(issues, "warning", "science", f"{i['name']} only works {'from orbit' if where == 'orbit' else 'on the ground'}.",
+                   "Orbital cameras and radars need altitude to sweep a planet; drills and seismometers need to touch it.")
+            instr_value[k] = 0.0
+            continue
         if k in dest.get("blind", []):
             _issue(issues, "warning", "science", f"{i['name']} can't see the surface of {dest['name']}.",
                    dest.get("blind_why", "Something blocks the view."))
@@ -349,6 +414,8 @@ def evaluate(design: dict) -> dict:
         for tag in i["tags"]:
             if tag in contrib:
                 c = i["value"] * orbit["science"].get(tag, 1.0 if d["orbit"] else 0.0) * pointing[k] * ret[k] * bonus
+                if tag == "sample":
+                    c *= edl.get("sample_mult", 0.0)
                 contrib[tag] += c
                 v += c
         instr_value[k] = v
@@ -363,7 +430,8 @@ def evaluate(design: dict) -> dict:
         if g["required"] and frac < 0.5:
             _issue(issues, "warning", "science", f"Required goal '{g['label']}' is only {frac:.0%} covered.",
                    "Without it the mission fails its main purpose. Add instruments with this capability, or a closer orbit.")
-    base = sum(g["score"] for g in goals) * (0.6 + 0.4 * orbit["coverage"])
+    coverage = min(1.0, orbit["coverage"] * (1.6 if kind == "rover" else 1.0))  # a rover drives to new places
+    base = sum(g["score"] for g in goals) * (0.6 + 0.4 * coverage)
     if eff_years < sc["min_years"]:
         life_f = eff_years / sc["min_years"]
     else:
@@ -376,7 +444,9 @@ def evaluate(design: dict) -> dict:
     return {
         "design": d, "scenario": sc, "destination": dest, "orbit_info": orbit, "ok": not blockers,
         "issues": issues,
-        "mass": {"parts": parts, "propellant": propellant, "tanks": tanks, "dry": dry, "wet": wet,
+        "kind": kind, "edl": {"use": use, "mass": edl_mass, "landed": landed, "landing_risk": landing_risk,
+                              "capsule_risk": capsule_risk},
+        "mass": {"parts": parts, "edl": edl_mass, "propellant": propellant, "tanks": tanks, "dry": dry, "wet": wet,
                  "capacity": capacity, "margin": mass_margin, "dv": dv, "bus_max_dry": bus["max_dry"]},
         "power": {"sunlit": sunlit, "rtg": rtg_w, "generation": gen, "loads": loads, "load": load,
                   "margin": power_margin, "eclipse_need_wh": eclipse_need, "battery_usable_wh": batt_usable},

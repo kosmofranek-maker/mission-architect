@@ -7,9 +7,12 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const fmt = (n, d = 0) => (n == null || !isFinite(n) ? "∞" : Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d }));
 const pct = (x) => `${Math.round((x || 0) * 100)}%`;
 
-const ORDER = ["wildfire", "storm_watch", "lunar_ice", "landing_scout", "asteroid_prospector", "venus_clouds", "mars_climate", "europa"];
-const PLANET_OF = { earth: "earth", moon: "moon", mars: "mars", europa: "europa", venus: "venus", asteroid: "asteroid" };
-const DEGRADE = { venus: 0.03, europa: 0.04 }; // solar cell loss per year (mirrors engine/model.py)
+const ORDER = ["wildfire", "storm_watch", "lunar_ice", "landing_scout", "lunar_lander", "asteroid_prospector", "asteroid_sample",
+  "venus_clouds", "mars_climate", "mars_rover", "europa"];
+const PLANET_OF = { earth: "earth", moon: "moon", mars: "mars", europa: "europa", venus: "venus", asteroid: "asteroid",
+  moon_surface: "moon", mars_surface: "mars" };
+const DEGRADE = { venus: 0.03, europa: 0.04, mars_surface: 0.08 }; // solar cell loss per year (mirrors engine/model.py)
+const KIND_LABEL = { orbiter: "Orbiter", lander: "Lander", rover: "Rover", sample_return: "Sample return" };
 const GRADE_COL = { S: "#6a3d9a", A: "#3c6b25", B: "#1d4f8a", C: "#8a6410", F: "#a8322a" };
 const PASS = ["S", "A", "B", "C"];
 
@@ -78,6 +81,33 @@ const CLIENTS = {
       ok: "Solid climate data. The buried ice will have to wait.",
       bad: "We learned more about our mistakes than about Mars.",
       lost: "Mars wins this round." } },
+  lunar_lander: { name: "Dr. Tomasz Wierzba", org: "Lunar Surface Science Office",
+    look: { skin: "#e8c4a6", skinD: "#c29c80", hair: "#7a5a3a", hairStyle: "short", coat: "#3b5a6e", shirt: "#e9e3d6", tie: "#8a3b2c", glasses: true },
+    letter: ["Orbiters have spent fifteen years telling us where the ice should be. I'm tired of maps. I want to hold it.",
+      "Land at the south pole, drill into the soil and bake what comes up. If the seismometer hears the Moon creak, even better.",
+      "Choose your landing spot with care. Some places have two-week nights at minus 170 degrees, and batteries do not survive that."],
+    quotes: { good: "Water ice, measured with our own drill. The first lunar base just found its well.",
+      ok: "We touched the ice. I'd have liked a few more holes.",
+      bad: "We landed, but the drill brought back more questions than answers.",
+      lost: "We made a new crater. Not the kind of science I had in mind." } },
+  asteroid_sample: { name: "Dr. Amara Okonkwo-Lind", org: "Sample Curation Laboratory",
+    look: { skin: "#8a5a3b", skinD: "#6b4229", hair: "#1a1716", hairStyle: "bun", coat: "#e8e4dc", shirt: "#6a3d9a", glasses: true, badge: true },
+    letter: ["My lab has instruments the size of a house. None of them fit on a spacecraft, so the asteroid will have to come to us.",
+      "Map it, choose a safe spot, touch it for five seconds and fly the sample home. The capsule must survive a fireball and land softly in the desert.",
+      "One more thing: Genesis crashed in 2004 because a parachute did not open. I would rather not repeat history."],
+    quotes: { good: "A clean sample older than the Earth is sitting in my clean room. Scientists will study it for fifty years.",
+      ok: "We got a sample home. Smaller than I'd hoped, but pristine.",
+      bad: "The capsule came back, but what's inside is not what we needed.",
+      lost: "The sample is somewhere between here and the asteroid. Forever." } },
+  mars_rover: { name: "Dr. Sofia Castellanos", org: "Astrobiology Institute",
+    look: { skin: "#d9a57c", skinD: "#b07f5a", hair: "#3b2318", hairStyle: "long", coat: "#7a3b26", shirt: "#e9e3d6", badge: true },
+    letter: ["Three and a half billion years ago there was a lake in that crater, fed by a river. On Earth, every lake like that was full of life.",
+      "Send me a rover that can drive to the old shoreline, drill into the mud and read the rocks layer by layer.",
+      "Landing there is dangerous: cliffs, boulders, dunes. Choose how you land as carefully as what you carry."],
+    quotes: { good: "The rocks show organic molecules in exactly the layers where life would have lived. This changes everything.",
+      ok: "We read the history of the lake. The question of life stays open.",
+      bad: "The rover drove, but it never reached the rocks that mattered.",
+      lost: "Another crater on Mars. This one is ours." } },
   europa: { name: "Dr. Ingrid Solberg", org: "Outer Planets Program",
     look: { skin: "#efd2bd", skinD: "#c9a891", hair: "#d8c27a", hairStyle: "long", coat: "#2c3b55", shirt: "#e9e3d6", glasses: true, badge: true },
     letter: ["Under twenty kilometres of ice there may be more water than in all of Earth's oceans. Where there is water, there might be life.",
@@ -102,6 +132,8 @@ const TABS = [
     hint: "Attitude control keeps cameras and antennas pointed. Sharp instruments need steady pointing." },
   { id: "prop", label: "Engine", icon: "nozzle", role: "systems", fields: ["propulsion"],
     hint: "Engines change your orbit. Efficiency (Isp) decides how much propellant the rocket equation demands." },
+  { id: "edl", label: "Landing", icon: "chute", role: "systems", fields: ["edl"],
+    hint: "Entry, descent and landing. Parachutes and airbags need air; on airless worlds only rocket engines can slow you down. Safer systems weigh and cost more." },
   { id: "comms", label: "Comms", icon: "dish", role: "comms", fields: ["comms", "ground"],
     hint: "Data is useless until it reaches Earth. Signals weaken with distance squared." },
   { id: "computer", label: "Computer", icon: "chip", role: "comms", fields: ["computer"],
@@ -110,9 +142,27 @@ const TABS = [
     hint: "Pick instruments that serve the mission goals (dark tags). Watch mass, power and data volume." },
 ];
 
+const kindNow = () => scen().kind || "orbiter";
+const onSurface = () => !!S.cat.DESTINATIONS[destKey()].surface;
+// The tab list for the current mission: orbiters have no landing tab, surface missions pick a site instead of an orbit.
+function tabs() {
+  const k = kindNow();
+  return TABS.filter((t) => t.id !== "edl" || k !== "orbiter").map((t) => {
+    if (t.id === "edl" && k === "sample_return") return { ...t, label: "Return", icon: "capsule",
+      hint: "The return capsule carries the sample through a fireball re-entry and parachutes it to the ground. The trip home also needs extra fuel." };
+    if (t.id === "orbit" && onSurface()) return { ...t, label: "Site",
+      hint: "Where you land decides sunlight and night length, how often you can talk to Earth, how risky the landing is and what you can study." };
+    return t;
+  });
+}
+function fieldLabel(f) {
+  if (f === "edl" && kindNow() === "sample_return") return "Return capsule";
+  if (f === "orbit" && onSurface()) return "Landing site";
+  return FIELD_LABEL[f];
+}
 const FIELD_LABEL = { launch_vehicle: "Launch vehicle", orbit: "Orbit", bus: "Spacecraft bus", solar: "Solar array",
   rtg: "Nuclear power (RTG)", battery: "Battery", adcs: "Attitude control", propulsion: "Propulsion", comms: "Antenna",
-  ground: "Ground stations", computer: "Flight computer", instruments: "Instruments" };
+  ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system" };
 
 const S = {
   cat: null, design: null, ev: null, mode: "free", tab: "launch", player: "", started: false,
@@ -295,6 +345,7 @@ function openSelect() {
       ${best ? `<div class="f-best" style="color:${GRADE_COL[best.grade]}">${best.grade}</div>` : ""}
       <img class="px f-planet" src="${planet(PLANET_OF[s.destination], 48)}" alt="">
       <div class="f-name">${S.mode === "career" ? `Day ${i + 1}: ` : ""}${esc(s.name)}</div>
+      <div class="f-kind">${KIND_LABEL[s.kind || "orbiter"]}</div>
       <div class="f-lvl">${s.difficulty} &middot; ${esc(S.cat.DESTINATIONS[s.destination].name)}</div>
       <div>${esc(s.pitch)}</div>
       <div>${icon("coin")} Budget ${fmt(s.budget)} M$</div>
@@ -380,12 +431,13 @@ function renderTop() {
 }
 
 // ---------------------------------------------------------------------------- Cadet advisor
-const PICK_ORDER = ["orbit", "instruments", "bus", "solar", "battery", "adcs", "propulsion", "comms", "ground", "computer", "launch_vehicle"];
-const FIELD_TAB = { orbit: "orbit", instruments: "instr", bus: "bus", solar: "power", battery: "power", adcs: "adcs",
+const PICK_ORDER = ["orbit", "instruments", "bus", "solar", "battery", "adcs", "propulsion", "edl", "comms", "ground", "computer", "launch_vehicle"];
+const FIELD_TAB = { orbit: "orbit", instruments: "instr", bus: "bus", solar: "power", battery: "power", adcs: "adcs", edl: "edl",
   propulsion: "prop", comms: "comms", ground: "comms", computer: "computer", launch_vehicle: "launch", rtg: "power" };
 
 function downlinkGb(commsKey, groundKey) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], x = c.COMMS[commsKey], g = c.GROUND[groundKey];
+  if (g.relay_mbps) return g.relay_mbps * g.hours * 3.6;
   if (dest.earth_au > g.max_earth_au) return 0;
   const rate = (dest.earth_au ? Math.min(x.max_mbps, x.mbps_1au / dest.earth_au ** 2) : x.max_mbps) * g.gain;
   return rate * g.hours * (S.design.orbit ? curOrbit().earth_view : 1) * 3.6;
@@ -405,7 +457,7 @@ function recommend(f) {
       const goals = (ev ? ev.science.goals : sc.goals.map((g) => ({ ...g, fraction: 0 })))
         .filter((g) => g.fraction < (g.required ? 0.5 : 1)).sort((a, b) => (b.required - a.required) || (b.weight - a.weight));
       for (const g of goals) {
-        const cand = Object.entries(c.INSTRUMENTS).filter(([k, i]) => i.tags.includes(g.tag) && !d.instruments.includes(k))
+        const cand = Object.entries(optionsFor("instruments")).filter(([k, i]) => i.tags.includes(g.tag) && !d.instruments.includes(k))
           .sort((a, b) => b[1].value / (b[1].cost + 5) - a[1].value / (a[1].cost + 5));
         if (cand.length) return { key: cand[0][0], why: `it serves "${g.label}"${g.required ? ", a required goal" : ""}` };
       }
@@ -420,7 +472,9 @@ function recommend(f) {
     case "solar": {
       if (!ev) return null;
       const sunF = 1 / dest.sun_au ** 2, deg = (1 - (DEGRADE[destKey()] || 0.02)) ** life;
-      const ef = d.orbit ? curOrbit().eclipse_frac : 0.35, est = ev.power.load + (d.instruments.length ? 0 : 30) + 40;
+      const ef = d.orbit ? curOrbit().eclipse_frac : 0.35;
+      if (ef >= 0.99) return { key: "none", why: "no sunlight ever reaches this site, so solar panels are useless; only RTGs work" };
+      const est = ev.power.load + (d.instruments.length ? 0 : 30) + 40;
       const need = Math.max(0, (est - ev.power.rtg) * 1.25 / (1 - ef) / sunF / deg);
       if (need === 0) return { key: "none", why: "your RTGs already cover the power" };
       const fit = Object.entries(c.SOLAR_ARRAYS).filter(([, a]) => a.power_1au >= need).sort((a, b) => a[1].power_1au - b[1].power_1au);
@@ -441,14 +495,24 @@ function recommend(f) {
     }
     case "propulsion": {
       if (!d.orbit || !ev) return { key: "mono", why: "a reliable all-rounder" };
-      const o = curOrbit(), dv = (o.dv_insert + o.dv_per_year * d.years) * 1.1;
-      const dry = (ev.mass.dry ?? 0) - (ev.mass.tanks ?? 0) - (d.propulsion ? c.PROPULSION[d.propulsion].mass : 0);
+      const o = curOrbit(), dv = (o.dv_insert + o.dv_per_year * d.years + (kindNow() === "sample_return" ? o.dv_return || 0 : 0)) * 1.1;
+      const dry = (ev.mass.dry ?? 0) - (ev.mass.tanks ?? 0) - (d.propulsion ? c.PROPULSION[d.propulsion].mass : 0) + (ev.mass.edl || 0);
       const opts = Object.entries(c.PROPULSION).map(([k, p]) => {
         if (!p.isp) return [k, o.dv_insert === 0 && o.max_years_no_prop >= d.years ? 0 : Infinity];
         const r = Math.exp(dv / (p.isp * 9.80665)) - 1, fuel = r * 0.08 >= 1 ? Infinity : ((dry + p.mass) * r) / (1 - 0.08 * r);
         return [k, p.max_prop && fuel > p.max_prop ? Infinity : p.mass + fuel * 1.08];
       }).sort((a, b) => a[1] - b[1]);
       return { key: opts[0][0], why: `engine + fuel is lightest for the ${fmt(dv)} m/s this mission needs` };
+    }
+    case "edl": {
+      const opts = Object.entries(optionsFor("edl"));
+      if (kindNow() === "sample_return") return { key: cheapest(opts)[0], why: "it brings the sample home for the least mass and money" };
+      const landed = ev ? ev.edl.landed : 0, risky = d.orbit && curOrbit().landing_risk >= 0.05;
+      const fit = opts.filter(([, o]) => (!o.needs_atmosphere || dest.atmosphere) && o.max_landed >= landed * 1.1);
+      if (!fit.length) return { key: "retro", why: "nothing else can set down this much mass" };
+      const pick = risky ? fit.sort((a, b) => a[1].risk_mult - b[1].risk_mult || a[1].cost - b[1].cost)[0] : cheapest(fit);
+      return { key: pick[0], why: risky ? "this site is rough, so the safest landing you can carry is worth it"
+        : `it is the cheapest system that can land ${fmt(landed)} kg ${dest.atmosphere ? "through this atmosphere" : "where there is no air to brake in"}` };
     }
     case "comms": {
       const need = ev ? ev.data.generated_gb_day : 1, g = d.ground || (dest.earth_au ? "dsn34" : "commercial");
@@ -461,10 +525,22 @@ function recommend(f) {
     }
     case "ground": {
       const need = ev ? ev.data.generated_gb_day : 1, x = d.comms || (dest.earth_au ? "xhga" : "xlga");
-      const fit = Object.entries(c.GROUND).filter(([, g]) => dest.earth_au <= g.max_earth_au);
+      const fit = Object.entries(optionsFor("ground")).filter(([, g]) => g.relay_mbps || dest.earth_au <= g.max_earth_au);
       const good = fit.filter(([k]) => downlinkGb(x, k) >= need);
       if (good.length) return { key: cheapest(good)[0], why: dest.earth_au ? "only the Deep Space Network can hear you this far, and it is enough" : "it gives enough contact time per day" };
       return { key: fit.sort((a, b) => downlinkGb(x, b[0]) - downlinkGb(x, a[0]))[0][0], why: "it collects the most data per day" };
+    }
+    case "edl": {
+      if (kindNow() === "sample_return") {
+        T.push("The capsule is a separate stage: it adds mass, and the trip home needs extra Δv from your engine.");
+        T.push(`Options: ${names(Object.values(optionsFor("edl")).map((x) => `${x.name}: ${x.mass_fixed} kg, sample x${x.sample_mult}, ${x.cost} M$`))}.`);
+        T.push("A backup parachute cuts the chance of losing the sample in the last minute.");
+        break;
+      }
+      T.push(dest.atmosphere ? "This world has air: parachutes, airbags and a sky crane all work." : "No air here: parachutes and airbags are useless. Only rocket engines can slow you down.");
+      if (ev && ev.edl.landed) T.push(`Your landed mass is <b>${fmt(ev.edl.landed)} kg</b>. Airbags handle up to 600 kg, a sky crane up to 1,200 kg.`);
+      if (orb) T.push(`This site's base landing risk is <b>${pct(orb.landing_risk)}</b>. Hazard avoidance multiplies it by 0.45, a sky crane by 0.5.`);
+      break;
     }
     case "computer": {
       const env = ev ? ev.radiation.env : dest.radiation, shield = d.bus === "flagship" ? 1 : 0, store = ev ? ev.data.storage_need_gb : 0;
@@ -484,7 +560,7 @@ function recommend(f) {
 function issueField(i) {
   const t = i.text;
   if (i.field) return i.field;
-  return { launch: "launch_vehicle", propulsion: "propulsion", radiation: "computer", adcs: "adcs" }[i.area]
+  return { launch: "launch_vehicle", propulsion: "propulsion", radiation: "computer", adcs: "adcs", edl: "edl", orbit: "orbit" }[i.area]
     || (i.area === "bus" ? (/slots/.test(t) ? "bus" : "bus") : null)
     || (i.area === "power" ? (/Battery|eclipse/i.test(t) ? "battery" : /RTG/.test(t) ? null : "solar") : null)
     || (i.area === "comms" ? (/high-gain/.test(t) ? "adcs" : /hear you/.test(t) ? "ground" : /Recorder/.test(t) ? "computer" : "comms") : null)
@@ -496,6 +572,7 @@ function advisor() {
   const d = S.design, ev = S.ev;
   if (!ev) return null;
   for (const f of PICK_ORDER) {
+    if (f === "edl" && kindNow() === "orbiter") continue;
     if (f === "instruments" ? !d.instruments.length : d[f] == null) {
       const r = recommend(f);
       if (r) return { ...r, field: f, action: "pick" };
@@ -507,6 +584,9 @@ function advisor() {
       let r = recommend(f);
       if (f === "solar" && r && r.key === d.solar && d.rtg < S.cat.RTG.max) {
         f = "rtg"; r = { key: d.rtg + 1, why: `sunlight is too weak here; each RTG adds ${S.cat.RTG.power} W, day and night` };
+      }
+      if (f === "battery" && r && r.key === d.battery && d.rtg < S.cat.RTG.max) {
+        f = "rtg"; r = { key: d.rtg + 1, why: "the night here is too long for any battery; an RTG keeps you powered and warm until sunrise" };
       }
       if (f === "rtg") return { ...r, field: f, action: "swap", issue: i };
       if (r && (f === "instruments" ? !d.instruments.includes(r.key) : d[f] !== r.key)) return { ...r, field: f, action: "swap", issue: i };
@@ -529,7 +609,7 @@ function renderClient() {
       mood = a.action === "pick" ? "neutral" : b ? "angry" : "neutral";
       const name = partName(a.field, a.key);
       text = a.action === "pick"
-        ? `"Next we need ${FIELD_LABEL[a.field].toLowerCase()}. I suggest the ${name}: ${a.why}."`
+        ? `"Next we need ${fieldLabel(a.field).toLowerCase()}. I suggest the ${name}: ${a.why}."`
         : `"${a.issue.text} Try the ${name}: ${a.why}."`;
     } else if (lv === "hard") {
       if (miss.length) { mood = "neutral"; text = `"The spacecraft is not complete yet."`; }
@@ -618,7 +698,7 @@ function renderRequest() {
 }
 
 function renderTabs() {
-  $("#tabs").innerHTML = TABS.map((t) => {
+  $("#tabs").innerHTML = tabs().map((t) => {
     const locked = S.mode === "team" && !S.myRoles.includes(t.role);
     const todo = t.fields.some((f) => f !== "rtg" && (f === "instruments" ? !S.design.instruments.length : S.design[f] == null));
     return `<div class="tab ${t.id === S.tab ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}" title="${esc(LABS[t.id].name)}">${icon(locked ? "lock" : t.icon, 14)}${t.label}${todo ? '<span class="todo" title="still to choose"></span>' : ""}</div>`;
@@ -630,7 +710,7 @@ function renderTabs() {
 // Move to another lab: footsteps, the room slides in from that side.
 function goLab(id) {
   if (S.tab === id) return;
-  const from = TABS.findIndex((t) => t.id === S.tab), to = TABS.findIndex((t) => t.id === id);
+  const from = tabs().findIndex((t) => t.id === S.tab), to = tabs().findIndex((t) => t.id === id);
   S.tab = id; renderTabs(); renderBinder();
   const b = $("#binder"); b.scrollTop = 0;
   b.classList.remove("walk-l", "walk-r"); void b.offsetWidth; b.classList.add(to > from ? "walk-r" : "walk-l");
@@ -643,7 +723,11 @@ setInterval(() => {
 }, 160);
 
 function optionsFor(field) {
-  const c = S.cat;
+  const c = S.cat, dest = c.DESTINATIONS[destKey()], use = { lander: "land", rover: "land", sample_return: "return" }[kindNow()];
+  const keep = (obj, fn) => Object.fromEntries(Object.entries(obj).filter(([k, o]) => fn(o, k)));
+  if (field === "edl") return keep(c.EDL, (o) => o.use === use);
+  if (field === "ground") return keep(c.GROUND, (o) => !o.relay_mbps || dest.relay);
+  if (field === "instruments") return keep(c.INSTRUMENTS, (o) => !o.where || (o.where === "surface") === !!dest.surface);
   return { launch_vehicle: c.LAUNCH_VEHICLES, orbit: c.ORBITS[destKey()], bus: c.BUSES, solar: c.SOLAR_ARRAYS,
     battery: c.BATTERIES, adcs: c.ADCS, propulsion: c.PROPULSION, comms: c.COMMS, ground: c.GROUND,
     computer: c.COMPUTERS, instruments: c.INSTRUMENTS }[field];
@@ -654,14 +738,17 @@ function statLine(field, k, o) {
   const tgt = curOrbit().lv_target;
   switch (field) {
     case "launch_vehicle": return `${fmt(o.capacity[tgt])} kg to ${c.LV_TARGET_LABEL[tgt]} · ${fmt(o.cost)} M$`;
-    case "orbit": return `Δv ${o.dv_insert} m/s · covers ${pct(o.coverage)} · shadow ${o.eclipse_h} h`;
+    case "orbit": return onSurface() ? `night ${o.eclipse_h ? `${o.eclipse_h} h` : "forever"} · sunlit ${pct(1 - o.eclipse_frac)} · landing risk ${pct(o.landing_risk)}`
+      : `Δv ${o.dv_insert} m/s · covers ${pct(o.coverage)} · shadow ${o.eclipse_h} h`;
+    case "edl": return o.use === "return" ? `${o.mass_fixed} kg · sample x${o.sample_mult} · ${o.cost} M$`
+      : `${o.needs_atmosphere ? "needs air" : "works anywhere"} · up to ${fmt(o.max_landed)} kg · risk x${o.risk_mult} · ${o.cost} M$`;
     case "bus": return `holds ${fmt(o.max_dry)} kg · ${o.slots} slots · ${o.mass} kg · ${o.cost} M$`;
     case "solar": return `${fmt(o.power_1au)} W at Earth, ${fmt(o.power_1au / dest.sun_au ** 2)} W here · ${o.mass} kg · ${o.cost} M$`;
     case "battery": return `${fmt(o.wh)} Wh · ${o.mass} kg · ${o.cost} M$`;
     case "adcs": return `${o.pointing_deg}° pointing · ${o.mass} kg · ${o.power} W · ${o.cost} M$`;
     case "propulsion": return o.isp ? `Isp ${o.isp} s · ${o.mass} kg · ${o.cost} M$` : "0 kg · 0 M$";
     case "comms": return `up to ${o.max_mbps} Mbps · ${o.mass} kg · ${o.power} W · ${o.cost} M$`;
-    case "ground": return `${o.hours} h/day · signal x${o.gain} · ${o.cost_year} M$/yr`;
+    case "ground": return o.relay_mbps ? `${o.relay_mbps} Mbps relay · ${o.hours} h/sol · ${o.cost_year} M$/yr` : `${o.hours} h/day · signal x${o.gain} · ${o.cost_year} M$/yr`;
     case "computer": return `${o.storage_gb} GB · radiation lvl ${o.rad} · ${o.cost} M$`;
     case "instruments": return `${o.mass} kg · ${o.power} W · ${o.data_mbps} Mbps · ${o.cost} M$`;
   }
@@ -672,12 +759,13 @@ function cardBad(field, k, o) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], tgt = curOrbit().lv_target;
   if (field === "launch_vehicle") return !o.capacity[tgt] || (S.ev && S.design.orbit && S.ev.mass.wet > o.capacity[tgt]);
   if (field === "adcs") return o.needs_magnetic && !dest.magnetic;
-  if (field === "ground") return dest.earth_au > o.max_earth_au;
+  if (field === "ground") return !o.relay_mbps && dest.earth_au > o.max_earth_au;
+  if (field === "edl") return (o.needs_atmosphere && !dest.atmosphere) || (S.ev && S.ev.edl.landed > o.max_landed);
   return false;
 }
 
 function renderBinder() {
-  const tab = TABS.find((t) => t.id === S.tab);
+  const tab = tabs().find((t) => t.id === S.tab) || tabs()[1];
   const locked = S.mode === "team" && !S.myRoles.includes(tab.role);
   const goalTags = new Set(scen().goals.map((g) => g.tag));
   const role = S.cat.ROLES[tab.role];
@@ -695,7 +783,7 @@ function renderBinder() {
       <div class="tot"><span>Available</span><span>${fmt(P.generation)} W</span></div></div>`;
   }
   for (const field of tab.fields) {
-    h += `<h4>${FIELD_LABEL[field]}</h4>`;
+    h += `<h4>${fieldLabel(field)}</h4>`;
     if (field === "rtg") {
       const R = S.cat.RTG;
       h += `<div class="cards"><div class="card rtgcard ${S.design.rtg ? "sel" : ""} " style="cursor:default">
@@ -750,11 +838,13 @@ function renderReview() {
         mf > 1 ? "bad" : m.margin < req ? "warn" : "", 1 - req)) +
     (D.solar == null && !D.rtg ? pending("bolt", "POWER", "solar") :
       meter("bolt", "POWER", pf, `${fmt(p.load)}/${fmt(p.generation)} W`, pf > 1 ? "bad" : p.margin < 0.2 ? "warn" : "", 1 / 1.2)) +
-    (!D.battery || !D.orbit ? pending("battery", "ECLIPSE", !D.orbit ? "orbit" : "battery") :
-      meter("battery", "ECLIPSE", p.battery_usable_wh ? p.eclipse_need_wh / p.battery_usable_wh : 1,
+    (!D.battery || !D.orbit ? pending("battery", onSurface() ? "NIGHT" : "ECLIPSE", !D.orbit ? "orbit" : "battery") :
+      meter("battery", onSurface() ? "NIGHT" : "ECLIPSE", p.battery_usable_wh ? p.eclipse_need_wh / p.battery_usable_wh : 1,
         `${fmt(p.eclipse_need_wh)}/${fmt(p.battery_usable_wh)} Wh`, battBad ? "bad" : "")) +
     (!D.instruments.length || !D.comms || !D.ground ? pending("disk", "DATA", !D.instruments.length ? "instr." : !D.comms ? "antenna" : "ground") :
       meter("disk", "DATA", d.return, `${pct(d.return)} home`, d.return < 0.5 ? "bad" : d.return < 0.8 ? "warn" : "", 0.8)) +
+    (ev.edl.use === "land" ? (!D.edl || !D.orbit ? pending("chute", "LANDING", !D.orbit ? "site" : "system")
+      : meter("chute", "LANDING", 1 - ev.edl.landing_risk, `${pct(1 - ev.edl.landing_risk)} safe`, ev.edl.landing_risk > 0.06 ? "warn" : "", 0.94)) : "") +
     meter("coin", "COST", c.total / c.budget, `${fmt(c.total)}/${fmt(c.budget)} M$`,
       c.total > c.budget && !S.design.sandbox ? "bad" : c.reserve < 0.1 ? "warn" : "", 0.9) +
     meter("star", "SCIENCE", ev.science.score / 100, `${fmt(ev.science.score)} / 100`, ev.science.score < 40 ? "bad" : ev.science.score < 70 ? "warn" : "", 0.7);
@@ -836,6 +926,21 @@ function drawBlueprint() {
   }
   if (d.instruments.includes("mag")) { for (let i = 0; i < 34; i += 2) r(cx - s / 2 - i * 0.8, cy - s / 2 - i, 1, 1, L); r(cx - s / 2 - 29, cy - s / 2 - 36, 3, 3, "#f0a0b8"); }
   for (let k = 0; k < d.rtg; k++) { const x = cx + s / 2 + 3 + k * 6; r(x, cy + s / 2, 4, 10, M); r(x - 1, cy + s / 2 + 2, 6, 1, L); r(x - 1, cy + s / 2 + 6, 6, 1, L); }
+  const kind = kindNow();
+  if (kind === "lander" && d.edl) for (const side of [-1, 1]) {                         // landing legs
+    for (let i = 0; i < 12; i++) r(cx + side * (s / 2 + i * 0.8), cy + s / 2 - 2 + i, 1, 1, L);
+    r(cx + side * (s / 2 + 10) - 2, cy + s / 2 + 10, 5, 2, M);
+  }
+  if (kind === "rover") {                                                               // six wheels on rockers + mast camera
+    r(cx - s / 2 - 6, cy + s / 2 + 2, s + 12, 1, M);
+    [-1, 0, 1].forEach((k) => { const x = cx + k * (s / 2 + 2); r(x - 3, cy + s / 2 + 3, 7, 7, D); r(x - 2, cy + s / 2 + 4, 5, 5, L); r(x, cy + s / 2 + 6, 1, 1, D); });
+    r(cx - s / 2 + 3, cy - s / 2 - 16, 1, 16, M); r(cx - s / 2, cy - s / 2 - 19, 7, 3, L);
+  }
+  if (kind === "sample_return" && d.edl) {                                              // capsule on the side + sampler arm
+    const x0 = cx - s / 2 - 12, y0 = cy - s / 2 + 2;
+    for (let i = 0; i < 6; i++) r(x0 + 5 - i, y0 + i, 2 + i * 2, 1, "#c9a24a"); r(x0 - 1, y0 + 6, 14, 2, L);
+  }
+  if (d.instruments.includes("tagsam")) { for (let i = 0; i < 16; i++) r(cx + s / 2 - 2 + i * 0.6, cy + s / 2 + i, 1, 1, L); r(cx + s / 2 + 6, cy + s / 2 + 16, 5, 2, M); }
   // bus box
   r(cx - s / 2, cy - s / 2, s, s, "#c9a24a"); r(cx - s / 2, cy - s / 2, s, 1, L); r(cx - s / 2, cy + s / 2 - 1, s, 1, L);
   r(cx - s / 2, cy - s / 2, 1, s, L); r(cx + s / 2 - 1, cy - s / 2, 1, s, L);
@@ -854,7 +959,7 @@ function drawBlueprint() {
     for (let i = 0; i < nw + 2; i++) r(cx - nw / 2 - i / 2, b + i, nw + i, 1, M);
   }
   const COL = { imaging: "#7fd0f5", thermal: "#ff9a6b", climate: "#b6dd8a", composition: "#c48ee0", water: "#6fe0ec",
-    topography: "#ffd96b", subsurface: "#a9bac4", fields: "#f07fa0" };
+    topography: "#ffd96b", subsurface: "#a9bac4", fields: "#f07fa0", life: "#8ee07a", interior: "#e0a070", sample: "#f4efe2" };
   d.instruments.forEach((k, i) => {
     const o = S.cat.INSTRUMENTS[k], n = d.instruments.length, x = cx - s / 2 + ((i + 1) * s) / (n + 1);
     r(x - 1, cy + s / 2 - 5, 3, 3, COL[o.tags[0]] || L);
@@ -957,8 +1062,8 @@ async function doLaunch() {
 // ---------------------------------------------------------------------------- engineer's handbook (hints per stage)
 function soundLabel() { $("#mSound").textContent = `Sound: ${store.get("sound", true) ? "on" : "off"}`; }
 const STAGE_AREAS = { launch: ["launch"], orbit: ["schedule"], bus: ["bus"], power: ["power"], adcs: ["adcs"],
-  prop: ["propulsion"], comms: ["comms"], computer: ["radiation"], instr: ["science"], review: ["cost"] };
-const STAGES = () => [...TABS, { id: "review", label: "Review & launch", icon: "check", fields: [],
+  prop: ["propulsion"], edl: ["edl"], comms: ["comms"], computer: ["radiation"], instr: ["science"], review: ["cost"] };
+const STAGES = () => [...tabs(), { id: "review", label: "Review & launch", icon: "check", fields: [],
   hint: "The review board only approves a design with zero blockers. Warnings are allowed but cost points." }];
 
 function stageIssues(st) {
@@ -980,7 +1085,7 @@ function openHints(stageId) {
   const chosen = st.fields.filter((f) => f !== "rtg").map((f) => {
     const v = S.design[f];
     const name = f === "instruments" ? (v.length ? v.map((k) => S.cat.INSTRUMENTS[k].name).join(", ") : null) : v ? optionsFor(f)[v].name : null;
-    return `<div class="line">${icon(name ? "check" : "none", 14)}<span>${FIELD_LABEL[f]}: ${name ? esc(name) : "<i>not chosen yet</i>"}</span></div>`;
+    return `<div class="line">${icon(name ? "check" : "none", 14)}<span>${fieldLabel(f)}: ${name ? esc(name) : "<i>not chosen yet</i>"}</span></div>`;
   }).join("");
   const iss = stageIssues(st);
   const ICON_OF = { blocker: "block", warning: "warn", info: "info" };
@@ -1099,6 +1204,18 @@ function stageTips(id) {
         T.push(`Downlink per day with ${esc(g.name)}: ${names(rows)}.`);
       }
       T.push("High-gain dishes need attitude control better than 0.5°.");
+      break;
+    }
+    case "edl": {
+      if (kindNow() === "sample_return") {
+        T.push("The capsule is a separate stage: it adds mass, and the trip home needs extra Δv from your engine.");
+        T.push(`Options: ${names(Object.values(optionsFor("edl")).map((x) => `${x.name}: ${x.mass_fixed} kg, sample x${x.sample_mult}, ${x.cost} M$`))}.`);
+        T.push("A backup parachute cuts the chance of losing the sample in the last minute.");
+        break;
+      }
+      T.push(dest.atmosphere ? "This world has air: parachutes, airbags and a sky crane all work." : "No air here: parachutes and airbags are useless. Only rocket engines can slow you down.");
+      if (ev && ev.edl.landed) T.push(`Your landed mass is <b>${fmt(ev.edl.landed)} kg</b>. Airbags handle up to 600 kg, a sky crane up to 1,200 kg.`);
+      if (orb) T.push(`This site's base landing risk is <b>${pct(orb.landing_risk)}</b>. Hazard avoidance multiplies it by 0.45, a sky crane by 0.5.`);
       break;
     }
     case "computer": {
@@ -1355,6 +1472,93 @@ function playLaunch(res, skipTo = 0) {
     if (tl[mi] && Math.floor(t * 3) % 3 === 0) { g.fillStyle = "#58b7c9"; g.fillRect(sx - 8, sy - 6, 1, 1); g.fillRect(sx - 11, sy - 8, 1, 1); } // downlink sparkle
   }
 
+
+  // Lander / rover: descent under a parachute or on engines, touchdown, then life on the surface.
+  const kindL = S.cat.SCENARIOS[d.scenario].kind || "orbiter", surfaceMission = kindL === "lander" || kindL === "rover";
+  const crashed = res.sim.events.some((e) => e.kind === "landing_failure");
+  const isMars = dest === "mars_surface", gyS = 140;
+  const groundCv = document.createElement("canvas"); groundCv.width = W; groundCv.height = H;
+  if (surfaceMission) {
+    const gg = groundCv.getContext("2d"), rnd = _rng(res.seed);
+    if (isMars) for (let y = 0; y < gyS; y++) { gg.fillStyle = mix([196, 140, 92], [233, 196, 140], y / gyS); gg.fillRect(0, y, W, 1); }
+    else gg.drawImage(starCv, 0, 0);
+    for (let x = 0; x < W; x += 2) {                                         // distant hills / crater rims
+      const h = 10 + Math.sin(x / 31 + res.seed) * 6 + Math.sin(x / 9) * 2;
+      gg.fillStyle = isMars ? "#a9623a" : "#6f6c66"; gg.fillRect(x, gyS - h, 2, h);
+    }
+    gg.fillStyle = isMars ? "#b8703f" : "#8d8a84"; gg.fillRect(0, gyS, W, H - gyS);
+    for (let i = 0; i < 70; i++) {                                           // rocks and craters
+      const x = rnd() * W, y = gyS + 3 + rnd() * (H - gyS - 6), w = 1 + Math.floor(rnd() * 4);
+      gg.fillStyle = isMars ? (rnd() > 0.5 ? "#7a3f22" : "#d08a55") : (rnd() > 0.5 ? "#5e5b55" : "#b9b6ae");
+      gg.fillRect(x, y, w, Math.max(1, w - 1));
+    }
+  }
+  const eSmall = new Image(); eSmall.src = planet("earth", 16);
+  function drawSurfaceCraft(x0, y0, wheelsTurn) {
+    g.save(); g.translate(Math.round(x0), Math.round(y0)); g.scale(2, 2);
+    const x = 0, y = 0, r = (a, b, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(a), Math.round(b), w, h); };
+    const s = { cubesat: 6, smallsat: 9, medium: 12, flagship: 15 }[d.bus] || 10;
+    if (d.solar && !["none", "body"].includes(d.solar)) { r(x - s - 8, y - s / 2, 8, 2, "#3d6fa8"); r(x + s / 2 + 1, y - s / 2, 8, 2, "#3d6fa8"); }
+    r(x - s / 2, y - s, s, s * 0.7, "#d8aa45"); r(x - s / 2, y - s, s, 1, "#f4e7b0");
+    if (d.rtg) { r(x - s / 2 - 4, y - s * 0.7, 3, 6, "#5b534b"); r(x - s / 2 - 5, y - s * 0.6, 5, 1, "#7d7d7d"); }
+    if (kindL === "rover") {
+      r(x + s / 2 - 3, y - s - 9, 1, 9, "#9c9284"); r(x + s / 2 - 5, y - s - 11, 5, 3, "#e9e3d6");
+      r(x - s / 2 - 4, y - 6, s + 8, 1, "#5b534b");                                       // rocker-bogie arms
+      [-1, 0, 1].forEach((k) => { const wx = x + k * (s / 2 + 2); r(wx - 2, y - 4, 4, 4, "#2e2925"); r(wx - 1, y - 3, 2, 2, "#7d7d7d"); r(wx - 1 + (wheelsTurn % 2), y - 3, 1, 1, "#1d1a17"); r(wx, y - 6, 1, 2, "#5b534b"); });
+    } else {
+      r(x - s / 2 - 3, y - 4, 2, 4, "#9c9284"); r(x + s / 2 + 1, y - 4, 2, 4, "#9c9284"); r(x - s / 2 - 4, y, 4, 1, "#7d7d7d"); r(x + s / 2, y, 4, 1, "#7d7d7d");
+      r(x - 1, y - s - 5, 1, 5, "#9c9284"); r(x - 3, y - s - 6, 5, 1, "#e9e3d6");
+    }
+    g.restore();
+  }
+  const tracks = [];
+  function surfacePhase(t) {
+    const e = t - LT.orbit, desc = 3.6;
+    g.drawImage(groundCv, 0, 0);
+    if (!isMars && eSmall.complete) g.drawImage(eSmall, 262, 18);
+    const edl = d.edl, chute = isMars && edl !== "retro" && edl !== "hazard";
+    if (e < desc) {
+      const f = e / desc, x = 160, y = -10 + (gyS - (-10)) * (1 - (1 - f) ** 2);
+      if (edl === "airbags" && f > 0.75) {                                    // bouncing airbag ball
+        const b = (f - 0.75) / 0.25, by = gyS - 8 - Math.abs(Math.sin(b * Math.PI * 3)) * 20 * (1 - b);
+        g.fillStyle = "#e8e4dc"; g.fillRect(x - 8 + b * 30, by - 8, 16, 16); g.fillStyle = "#b9b6ae"; g.fillRect(x - 8 + b * 30, by + 6, 16, 2);
+      } else {
+        if (chute && f < 0.7) {                                               // parachute
+          g.fillStyle = "#f4efe2"; g.fillRect(x - 16, y - 58, 32, 6); g.fillStyle = "#b3372d"; g.fillRect(x - 16, y - 58, 10, 6); g.fillRect(x + 6, y - 58, 10, 6);
+          g.fillStyle = "#b9b9b9"; for (let k = 0; k < 16; k++) { g.fillRect(x - 15 + k * 0.8, y - 52 + k * 2, 1, 1); g.fillRect(x + 15 - k * 0.8, y - 52 + k * 2, 1, 1); }
+        }
+        if (edl === "skycrane" && f > 0.6) {                                   // descent stage above, rover on cables
+          g.fillStyle = "#7d7d7d"; g.fillRect(x - 14, y - 52, 28, 6); flame(g, x - 12, y - 46, Math.random(), 0.6); flame(g, x + 12, y - 46, Math.random(), 0.6);
+          g.fillStyle = "#1d1a17"; g.fillRect(x - 6, y - 46, 1, 22); g.fillRect(x + 6, y - 46, 1, 22);
+        } else if (!chute || f >= 0.7) flame(g, x, y, Math.random(), 0.6);
+        drawSurfaceCraft(x, y, 0);
+      }
+      if (f > 0.8) for (let k = 0; k < 12; k++) {                             // dust kicked up
+        g.fillStyle = isMars ? "rgba(214,160,110,.6)" : "rgba(200,198,190,.6)";
+        g.fillRect(160 + (Math.random() - .5) * 80 * f, gyS - Math.random() * 10, 3, 2);
+      }
+      text(f < 0.7 && chute ? "PARACHUTE DEPLOYED" : edl === "skycrane" && f > 0.6 ? "SKY CRANE" : "POWERED DESCENT", W / 2, 22, 10, "#f4efe2", "center");
+      return;
+    }
+    if (crashed) {
+      const k = Math.min(1, (e - desc) / 1.5);
+      for (let i = 0; i < 40; i++) { g.fillStyle = ["#ffd96b", "#ff9a3c", "#5b534b", "#b3372d"][i % 4]; g.fillRect(160 + Math.cos(i * 2.4) * k * 60 * ((i % 5) / 5 + .3), gyS - 4 + Math.sin(i * 2.4) * k * 25 - k * 10, 3, 3); }
+      text("SIGNAL LOST", W / 2, 50, 18, "#ff6b5b", "center");
+      return;
+    }
+    const drive = kindL === "rover" ? (e - desc) * 6 : 0;
+    const rx = kindL === "rover" ? 60 + (drive % 200) : 160;
+    if (kindL === "rover") { tracks.push(rx); while (tracks.length > 300) tracks.shift(); g.fillStyle = isMars ? "#8a4a28" : "#6f6c66"; tracks.forEach((tx) => { if (tx < rx) g.fillRect(tx, gyS + 1, 1, 1); }); }
+    drawSurfaceCraft(rx, gyS, Math.floor(drive));
+    if (Math.floor(t * 2) % 4 === 0) { g.fillStyle = "#58b7c9"; g.fillRect(rx + 8, gyS - 44, 2, 2); g.fillRect(rx + 13, gyS - 50, 2, 2); }
+    const tl = res.sim.timeline, mi = Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length));
+    if (tl[mi]) {
+      text(`${isMars ? "SOL" : "DAY"} ${Math.round(tl[mi].month * (isMars ? 29.6 : 30.4))}  ${kindL.toUpperCase()}`, 8, 16, 8, "#f4efe2");
+      text(`SCIENCE ${pct(tl[mi].science_fraction)}`, 8, 28, 8, "#e9e3d6");
+      g.fillStyle = "#2e2925"; g.fillRect(8, 34, 80, 4); g.fillStyle = "#5d8a3c"; g.fillRect(8, 34, 80 * tl[mi].science_fraction, 4);
+    }
+  }
+
   function frame(now) {
     if (done) return;
     const t = (now - t0) / 1000;
@@ -1365,6 +1569,7 @@ function playLaunch(res, skipTo = 0) {
     if (failAtLaunch || t < LT.space) rocketPhase(t);
     else if (t < LT.transfer) deployPhase(t);
     else if (!atEarth && t < LT.orbit) transferPhase(t);
+    else if (surfaceMission) surfacePhase(t);
     else orbitPhase(t);
     if (t > nextLine && li < lines.length) { const l = lines[li++]; add(l); nextLine = t + (l.pause || 0.12); }
     if (li >= lines.length && t > nextLine + 1.2 && (failAtLaunch || t > (atEarth ? LT.transfer : LT.orbit) + 2)) return finish();
@@ -1528,7 +1733,7 @@ function wireLobby() {
   };
   $("#enterRoom").onclick = () => {
     if (!S.myRoles.length) return ($("#lobbyErr").textContent = "Claim at least one role first.");
-    S.mode = "team"; S.tab = TABS.find((t) => S.myRoles.includes(t.role)).id; S.introShown = true;
+    S.mode = "team"; S.tab = tabs().find((t) => S.myRoles.includes(t.role)).id; S.introShown = true;
     openDesk(); startPoll();
   };
 }

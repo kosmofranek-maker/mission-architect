@@ -71,7 +71,16 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
     for m in range(1, total_m + 1):
         phase = "cruise" if m <= cruise_m else "science"
         rate = 1.0  # science productivity this month
-        if phase == "science" and m == cruise_m + 1 and cruise_m > 0:
+        if phase == "science" and m == cruise_m + 1 and ev["edl"]["use"] == "land":
+            if rng.random() < ev["edl"]["landing_risk"]:
+                log(m, "landing_failure", "Touchdown signal never came. The lander crashed.",
+                    "Landing is the most dangerous minute of any surface mission: about one in three Mars landings "
+                    "has failed. Safer sites and hazard avoidance reduce the odds.", "fatal")
+                alive, outcome = False, "lost"
+            else:
+                log(m, "landing", f"Touchdown on {ev['destination']['name']}! The landing system worked.",
+                    "Parachutes, engines or airbags turned thousands of km/h into a gentle touchdown.", "good")
+        elif phase == "science" and m == cruise_m + 1 and cruise_m > 0:
             log(m, "arrival", f"Arrived at {ev['destination']['name']}: orbit insertion burn successful.",
                 "The engine fired to slow down enough to be captured by gravity.", "good")
 
@@ -163,11 +172,20 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
         if not alive:
             break
 
+    sample_loss = 0.0
+    if alive and ev["edl"]["use"] == "return":
+        if rng.random() < ev["edl"]["capsule_risk"] * em:
+            sample_loss = sum(g["weight"] for g in ev["scenario"]["goals"] if g["tag"] == "sample") / 100
+            log(total_m, "capsule", "The capsule's parachute failed: it hit the desert hard and the sample was contaminated.",
+                "Genesis crashed in 2004 for exactly this reason. A backup parachute makes re-entry much safer.", "bad")
+        else:
+            log(total_m, "capsule", "The return capsule landed softly in the desert. Sample recovered!",
+                "A heat shield survived a 12 km/s fireball, then parachutes opened on time.", "good")
     if alive:
         log(total_m, "end", "Mission complete. The spacecraft is decommissioned.",
             "Earth satellites are deorbited or moved to a graveyard orbit; others crash safely or are left parked.", "good")
 
-    frac = (sci_acc / sci_m_planned if sci_m_planned else 0) + bonus
+    frac = (sci_acc / sci_m_planned if sci_m_planned else 0) * (1 - sample_loss) + bonus
     frac = min(frac, 1.25)
     if outcome == "success" and frac < 0.5:
         outcome = "partial"

@@ -14,7 +14,7 @@
     }
     document.querySelector(`.tab[data-tab="${tab}"]`).click();
     document.querySelector(`.card[data-f="${f}"][data-k="${k}"]`).click();
-    try { await until(() => has(f, k)); } catch { throw new Error(`pick ${f}=${k} failed (mode ${S.mode}, toast "${$("#toast").textContent}", roles ${S.myRoles}, room ${S.room})`); }
+    try { await until(() => has(f, k)); } catch { throw new Error(`pick ${f}=${k} failed in ${S.design.scenario} [now ${S.ev && S.ev.design[f]}, card ${!!document.querySelector(`.card[data-f="${f}"][data-k="${k}"]`)}] (mode ${S.mode}, toast "${$("#toast").textContent}", roles ${S.myRoles}, room ${S.room})`); }
   };
   const buildMars = async () => {
     await pick("orbit", "orbit", "elliptical");
@@ -51,7 +51,16 @@
     document.querySelector('.tab[data-tab="power"]').click();
     ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
     S.mode = "career"; openSelect();
-    ok($$(".folder").length === 8 && $$(".folder.locked").length >= 1, "career has 8 mission files");
+    ok($$(".folder").length === 11 && $$(".folder.locked").length >= 1 && /Rover/.test($("#folders").textContent), "career has 11 mission files incl. rover");
+    // ---- surface mission: landing tab, sites, airbags need air
+    S.mode = "free"; openSelect();
+    document.querySelector('.folder[data-sc="lunar_lander"]').click();
+    await until(() => S.ev && S.ev.design.scenario === "lunar_lander");
+    ok($$("#tabs .tab").length === 10 && document.querySelector('.tab[data-tab="edl"]') && /Site/.test($("#tabs").textContent), "lander: Site + Landing tabs");
+    document.querySelector('.tab[data-tab="edl"]').click();
+    ok(document.querySelector('.card[data-f="edl"][data-k="airbags"]').classList.contains("bad") && $("#labCanvas").dataset.lab === "edl", "airbags marked unusable on the airless Moon");
+    document.querySelector('.tab[data-tab="instr"]').click();
+    ok(document.querySelector('.card[data-k="drill"]') && !document.querySelector('.card[data-k="hirise"]'), "surface instruments only");
     // ---- solo, build from blank
     S.mode = "free"; openSelect();
     document.querySelector('.folder[data-sc="mars_climate"]').click();

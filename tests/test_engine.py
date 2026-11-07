@@ -120,11 +120,11 @@ def test_leaderboard(tmp_path):
 
 @pytest.mark.parametrize("scenario", list(C.SCENARIOS))
 def test_blank_design_evaluates_with_choose_blockers(scenario):
-    from engine.model import COMPONENTS, blank_design
+    from engine.model import COMPONENTS, blank_design, edl_use
     ev = evaluate(blank_design(scenario))
     assert not ev["ok"]
     missing = [i for i in ev["issues"] if i["area"] == "missing"]
-    assert len(missing) == len(COMPONENTS)
+    assert len(missing) == len(COMPONENTS) - (0 if edl_use(scenario) else 1)
     assert ev["science"]["score"] == 0
     assert not simulate(blank_design(scenario), 1)["launched"]
 
@@ -163,3 +163,40 @@ def test_small_spacecraft_draw_less_for_wheels_and_comms_scale_with_contact():
     d = default_design("wildfire")
     assert _load(d | {"bus": "cubesat"}, "ADCS") < _load(d | {"bus": "medium"}, "ADCS")
     assert _load(d | {"ground": "uni"}, "Comms") < _load(d | {"ground": "commercial"}, "Comms")
+
+
+def test_airbags_need_air():
+    d = default_design("lunar_lander") | {"edl": "airbags"}
+    assert any(i["area"] == "edl" and i["severity"] == "blocker" for i in evaluate(d)["issues"])
+
+
+def test_lunar_night_needs_rtg():
+    d = default_design("lunar_lander") | {"orbit": "mare"}
+    ev = evaluate(d)
+    assert any(i["severity"] == "blocker" and "eclipse" in i["text"] for i in ev["issues"])
+    d2 = d | {"rtg": 2}
+    assert evaluate(d2)["power"]["eclipse_need_wh"] < ev["power"]["eclipse_need_wh"]
+
+
+def test_orbital_instruments_useless_on_surface():
+    ev = evaluate(default_design("mars_rover") | {"instruments": ["hirise", "drill"]})
+    assert ev["science"]["per_instrument"]["hirise"] == 0
+
+
+def test_hazard_avoidance_cuts_landing_risk():
+    a = evaluate(default_design("lunar_lander") | {"orbit": "psr", "rtg": 2, "solar": "none"})
+    b = evaluate(default_design("lunar_lander") | {"orbit": "psr", "rtg": 2, "solar": "none", "edl": "hazard"})
+    assert b["edl"]["landing_risk"] < a["edl"]["landing_risk"] / 2
+
+
+def test_sample_return_needs_capsule_and_no_flyby():
+    ev = evaluate(default_design("asteroid_sample") | {"orbit": "flyby"})
+    assert any(i["area"] == "orbit" and i["severity"] == "blocker" for i in ev["issues"])
+    bigger = evaluate(default_design("asteroid_sample"))["mass"]["dv"]
+    plain = evaluate(default_design("asteroid_prospector") | {"orbit": "orbit"})["mass"]["dv"]
+    assert bigger > plain  # the trip home needs extra delta-v
+
+
+def test_relay_only_at_mars():
+    from engine.model import normalize
+    assert normalize(default_design("lunar_lander") | {"ground": "relay"})["ground"] is None
