@@ -68,50 +68,59 @@ const store = {
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Synthesized sound effects (no audio files): stamp thud, paper whoosh, teletype tick, launch rumble.
+// Physical desk sounds, synthesized from filtered noise (no audio files, no electronic beeps):
+// wooden knocks, switch clicks, paper rustle, typewriter strikes, a desk bell, the rubber stamp.
 const SFX = (() => {
-  let ctx = null;
+  let ctx = null, buf = null;
   const on = () => store.get("sound", true);
   const ac = () => {
     if (!on()) return null;
     try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
     if (ctx.state === "suspended") ctx.resume();
+    if (!buf) { // one shared second of white noise
+      buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
     return ctx;
   };
-  function tone(f0, f1, dur, vol, type = "sine") {
+  // a burst of noise through one filter; decay sets how long it rings
+  function burst({ at = 0, type = "bandpass", freq = 1000, q = 1, vol = 0.3, attack = 0.001, decay = 0.05, sweep = null }) {
     const c = ac(); if (!c) return;
-    const o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
-    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur);
+    const t = c.currentTime + at, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = buf; src.loop = true;
+    f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q;
+    if (sweep) f.frequency.exponentialRampToValueAtTime(sweep, t + attack + decay);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+    src.connect(f).connect(g).connect(c.destination);
+    src.start(t, Math.random() * 0.5); src.stop(t + attack + decay + 0.02);
   }
-  function noise(dur, freq, vol, type = "lowpass", sweepTo = null, attack = 0.01) {
-    const c = ac(); if (!c) return;
-    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * dur), c.sampleRate), data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime;
-    src.buffer = buf; f.type = type; f.frequency.setValueAtTime(freq, t);
-    if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    src.connect(f).connect(g).connect(c.destination); src.start(t);
-  }
+  const knock = (freq, vol = 0.5, at = 0, decay = 0.07) => burst({ at, freq, q: 9, vol, decay });          // wood / desk
+  const snap = (freq = 3500, vol = 0.25, at = 0) => burst({ at, type: "highpass", freq, vol, decay: 0.012 }); // switch, key
+  const rustle = (dur = 0.2, vol = 0.12, at = 0, freq = 2500) => {                                            // paper
+    const grains = Math.max(3, Math.round(dur / 0.03));
+    for (let i = 0; i < grains; i++) burst({ at: at + i * dur / grains + Math.random() * 0.01, type: "bandpass", freq: freq * (0.7 + Math.random() * 0.8),
+      q: 0.8, vol: vol * (0.5 + Math.random() * 0.5), attack: 0.004, decay: 0.03 + Math.random() * 0.03 });
+  };
+  const bell = (base, vol = 0.12, at = 0) => [1, 2.76, 5.4].forEach((m, i) =>                               // metal desk bell
+    burst({ at, freq: base * m, q: 60, vol: vol / (i + 1), attack: 0.002, decay: 1.2 / (i + 1) }));
   return {
-    thud() { tone(150, 40, 0.2, 0.7); noise(0.09, 1200, 0.4); },
-    whoosh() { noise(1.3, 250, 0.22, "bandpass", 2600, 0.5); },
-    tick() { tone(2200, 1400, 0.02, 0.04, "square"); },
-    rumble() { noise(3.5, 160, 0.5, "lowpass", 60, 0.3); },
-    paper() { noise(0.25, 2500, 0.12, "highpass"); },
-    click() { tone(1500, 900, 0.035, 0.07, "square"); },
-    select() { tone(520, 780, 0.07, 0.12, "triangle"); setTimeout(() => tone(780, 1040, 0.06, 0.1, "triangle"), 55); noise(0.05, 3000, 0.06, "highpass"); },
-    deselect() { tone(700, 380, 0.09, 0.1, "triangle"); },
-    page() { noise(0.16, 1800, 0.1, "bandpass", 4200, 0.03); },
-    error() { tone(140, 110, 0.12, 0.12, "square"); setTimeout(() => tone(140, 100, 0.16, 0.12, "square"), 140); },
-    chime() { [660, 880, 1320].forEach((f, i) => setTimeout(() => tone(f, f, 0.35, 0.12), i * 110)); },
-    ding() { tone(1320, 1320, 0.4, 0.09); tone(1980, 1980, 0.25, 0.04); },
-    beep(hi) { tone(hi ? 1320 : 880, hi ? 1320 : 880, hi ? 0.45 : 0.12, 0.1, "square"); },
-    boom() { noise(2.2, 900, 0.7, "lowpass", 50, 0.01); tone(90, 30, 1.2, 0.5); },
-    pop() { tone(420, 900, 0.06, 0.1, "sine"); },
-    suggest() { tone(990, 990, 0.08, 0.06); setTimeout(() => tone(1240, 1240, 0.12, 0.06), 90); },
+    thud() { knock(110, 0.9, 0, 0.16); knock(220, 0.5, 0, 0.08); burst({ type: "lowpass", freq: 600, vol: 0.5, decay: 0.09 }); rustle(0.08, 0.06, 0.02); },
+    whoosh() { burst({ type: "bandpass", freq: 300, q: 0.7, vol: 0.22, attack: 0.5, decay: 0.8, sweep: 2600 }); rustle(0.5, 0.08, 0.7); },
+    tick() { snap(2600, 0.12); knock(1700, 0.12, 0.004, 0.025); },                                  // teletype strike
+    rumble() { burst({ type: "lowpass", freq: 160, vol: 0.55, attack: 0.3, decay: 3.4, sweep: 60 }); },
+    paper() { rustle(0.18, 0.1); },
+    click() { snap(3200, 0.18); snap(2400, 0.1, 0.035); },                                          // switch press + release
+    select() { knock(190, 0.45, 0, 0.06); rustle(0.1, 0.07, 0.01, 3200); },                       // card laid on the desk
+    deselect() { rustle(0.12, 0.08, 0, 2800); knock(260, 0.25, 0.08, 0.04); },                     // card picked up
+    page() { rustle(0.22, 0.11, 0, 2000); },                                                       // binder page turned
+    error() { knock(120, 0.6, 0, 0.09); knock(120, 0.6, 0.13, 0.09); },                            // two dull knocks
+    chime() { bell(1650, 0.14); },                                                                  // desk service bell
+    ding() { bell(2200, 0.07); },                                                                   // small bell
+    beep(hi) { if (hi) { snap(1500, 0.3); knock(600, 0.5, 0, 0.12); } else { snap(2500, 0.2); knock(900, 0.25, 0.005, 0.03); } }, // relay clack
+    boom() { burst({ type: "lowpass", freq: 900, vol: 0.8, decay: 2.2, sweep: 40 }); knock(60, 0.8, 0, 0.6); },
+    pop() { rustle(0.09, 0.08, 0, 3500); },
+    suggest() { knock(1400, 0.18, 0, 0.03); knock(1400, 0.18, 0.09, 0.03); },                      // pencil taps
   };
 })();
 // every button gets a soft mechanical click
@@ -153,6 +162,15 @@ async function boot() {
   $$("[data-go]").forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
   wireDesk(); wireLobby(); wireNews();
   // direct links for demos/screenshots: #play=<scenario>, #news=<scenario>
+  if (location.hash === "#sounds") { // sound board for tuning the effects
+    const names = { click: "Button (switch)", select: "Card on desk", deselect: "Card picked up", page: "Binder page", paper: "Paper",
+      tick: "Teletype strike", error: "Error knocks", suggest: "Pencil taps", pop: "Tutorial rustle", chime: "Desk bell (flight ready)",
+      ding: "Small bell (goal met)", thud: "Rubber stamp", beep: "Countdown relay", whoosh: "Spinning newspaper", rumble: "Launch rumble", boom: "Explosion" };
+    const box = document.createElement("div"); box.className = "paper"; box.style.cssText = "position:absolute;inset:40px 240px;z-index:99;padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start";
+    box.innerHTML = `<h3 style="grid-column:span 2">Sound board</h3>` + Object.entries(names).map(([k, n]) => `<button class="btn" data-snd="${k}">${n}</button>`).join("");
+    $("#title").appendChild(box);
+    box.querySelectorAll("[data-snd]").forEach((b) => b.addEventListener("click", () => setTimeout(() => SFX[b.dataset.snd](), 120)));
+  }
   if (location.hash === "#selftest") { const sc = document.createElement("script"); sc.src = "selftest.js"; document.body.appendChild(sc); }
   const [k, v] = location.hash.slice(1).split("=");
   if (k === "tutorial") { go("tutorial"); for (let n = 0; n < Number(v || 0); n++) tutAdvance(); }
