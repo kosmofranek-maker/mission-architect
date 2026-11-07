@@ -13,13 +13,14 @@ design, watch the launch and the mission unfold month by month on the teletype, 
 *The Orbital Times*.
 
 ## Features
-- 11 missions: orbiters, a lunar lander, a Mars rover and an asteroid sample return (Earth, Moon, asteroid, Venus,
-  Mars, Europa; Beginner to Expert), 3 difficulty levels, career mode with
-  unlocks, free design + sandbox. Each client writes an opening letter and is quoted in the newspaper afterwards.
+- 14 missions: orbiters, a lunar lander, a Mars rover, an asteroid sample return and three crewed programs built from
+  many launches (space station, Moon base supply line, first crew to Mars), 3 difficulty levels, career as a space agency
+  (calendar, funds, reputation, research tree, partner trust, milestones), free design + sandbox. Each client writes an opening letter and is quoted in the newspaper afterwards.
 - Real trade-offs: rocket equation, inverse-square solar power and radio signal, eclipses and batteries, pointing
   accuracy, data downlink and on-board storage, radiation tolerance, budget reserves.
 - Seeded month-by-month simulation: launch failure, solar storms, safe modes, reaction-wheel failures,
   micrometeoroids, budget cuts and surprise discoveries. Same seed + same design = same story.
+- Launch windows and build schedule; international partners (ESA, JAXA, CSA, ISRO) share cost but can be late.
 - Risk check: 200 simulated missions give success odds and a science range.
 - Design drawer: save designs and compare two side by side (cost, margins, science, success odds, parts).
 - Live flight dashboard: power, battery, fuel, data, budget and science month by month during the flight.

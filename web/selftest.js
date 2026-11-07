@@ -30,7 +30,7 @@
     S.player = "tester"; S.noSave = true; store.set("difficulty", "normal");
     // ---- tutorial
     document.querySelector('[data-go="tutorial"]').click();
-    await until(() => !$("#letter").classList.contains("hidden"));
+    await until(() => !$("#letter").classList.contains("hidden"), 12000);
     $("#letterBody").click();
     ok(/forty thousand hectares/.test($("#letterBody").textContent) && $("#letterFrom").textContent === "Chief Dana Okafor", "client letter opens the mission");
     $("#letterGo").click();
@@ -50,8 +50,35 @@
     ok($$("#tabs .tab").length === 10 && !$(".tab.door") && $("#labCanvas").dataset.lab === "instr", "9 plain tabs, lab scene shown");
     document.querySelector('.tab[data-tab="power"]').click();
     ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
-    S.mode = "career"; openSelect();
-    ok($$(".folder").length === 14 && $$(".folder.locked").length >= 1 && /Crewed program/.test($("#folders").textContent), "career has 14 mission files incl. crewed programs");
+    // ---- career: an agency with calendar, money, reputation, research and contracts
+    store.set("agency", null); go("career");
+    ok($("#hq").classList.contains("active") && $$("#hqContracts .folder").length === 14, "career opens agency HQ with 14 contracts");
+    ok(!document.querySelector('#hqContracts [data-sc="wildfire"]').classList.contains("locked") && document.querySelector('#hqContracts [data-sc="lunar_ice"]').classList.contains("locked"), "first contracts open, later ones locked");
+    $("#hqResearch").click();
+    const f0 = agency().funds;
+    document.querySelector('#rsList [data-buy="power"]').click();
+    ok(agency().funds === f0 - 50 && agency().tech.includes("power"), "research costs agency funds");
+    $("#rsClose").click();
+    document.querySelector('#hqContracts [data-sc="wildfire"]').click();
+    await until(() => !$("#letter").classList.contains("hidden") || S.ev);
+    if (!$("#letter").classList.contains("hidden")) $("#letterGo").click();
+    await until(() => S.ev && S.ev.design.scenario === "wildfire");
+    $("#tutSkip") && S.tut && $("#tutSkip").click();
+    ok(/JAN 2027/.test($("#tbDay").textContent), "desk shows the agency calendar");
+    document.querySelector('.tab[data-tab="bus"]').click();
+    ok(document.querySelector('.card.research') && /Research: Large spacecraft buses/.test($("#binder").textContent), "locked parts point to research");
+    loadDesign(S.cat.DEFAULTS.wildfire);
+    await until(() => S.ev && S.ev.ok && S.ev.design.start_month === 0);
+    $("#launchBtn").click();
+    await until(() => $("#launch").classList.contains("active"), 6000);
+    await wait(300); $("#skipBtn").click();
+    await until(() => $("#news").classList.contains("active") && $(".agency-report"), 8000);
+    ok(/Reputation \d+/.test($(".agency-report").textContent) && agency().log.length >= 1, "agency report after the flight");
+    const passedNow = PASS.includes(S.result.score.grade) && S.result.sim.outcome !== "lost";
+    $("#nNext").click();
+    ok($("#hq").classList.contains("active") && agency().month > 0, "back at HQ, the calendar moved on");
+    if (passedNow) ok(!document.querySelector('#hqContracts [data-sc="lunar_ice"]').classList.contains("locked"), "success opens the next contract");
+    store.set("agency", null);
     // ---- surface mission: landing tab, sites, airbags need air
     S.mode = "free"; openSelect();
     document.querySelector('.folder[data-sc="lunar_lander"]').click();

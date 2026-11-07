@@ -45,6 +45,33 @@
     </div>
   </section>
 
+  <!-- ============================== CAREER HEADQUARTERS -->
+  <section id="hq" class="screen">
+    <div class="desk-bg fill"></div>
+    <div class="hq-wrap">
+      <div class="paper hq-agency">
+        <div class="doc-head"><span id="hqName">SPACE AGENCY</span><span id="hqDiff"></span></div>
+        <div class="hq-date" id="hqDate"></div>
+        <div class="hq-line"><span>Agency funds</span><b id="hqFunds"></b></div>
+        <div class="hq-line"><span>Reputation</span></div><div id="hqRep" class="hq-rep"></div>
+        <h4>Milestones</h4><div id="hqMedals" class="hq-medals"></div>
+        <h4>Partners</h4><div id="hqPartners"></div>
+        <div class="hq-btns">
+          <button class="btn" id="hqResearch">Research</button>
+          <button class="btn" id="hqNextYear">Wait for next budget</button>
+          <div class="seg" id="hqDiffSeg"></div>
+          <button class="btn small" id="hqReset">New career</button>
+          <button class="btn small" data-go="title">Back</button>
+        </div>
+      </div>
+      <div class="hq-board">
+        <h2 class="h-paper">Mission contracts</h2>
+        <div id="hqContracts" class="hq-contracts"></div>
+      </div>
+      <div class="paper hq-logbox"><div class="doc-head"><span>AGENCY LOG</span></div><div id="hqLog" class="hq-log"></div></div>
+    </div>
+  </section>
+
   <!-- ============================== TEAM ROOM LOBBY -->
   <section id="team" class="screen">
     <div class="desk-bg fill"></div>
@@ -169,11 +196,21 @@
         <button class="btn" id="mExport">Copy design code</button>
         <button class="btn" id="mImport">Paste design code</button>
         <button class="btn" id="mReset">Clear design (start blank)</button>
+        <button class="btn hidden" id="mHQ">Back to agency headquarters</button>
         <button class="btn" id="mQuit">Quit to title</button>
         <p class="req-small" id="mMsg"></p>
       </div>
     </div>
   </section>
+
+  <div id="research" class="modal hidden">
+    <div class="paper rs-box">
+      <div class="doc-head"><span>RESEARCH &amp; DEVELOPMENT</span><span id="rsFunds"></span></div>
+      <p class="req-small rs-intro">New technology unlocks better parts for every future mission. It is paid from agency funds.</p>
+      <div id="rsList" class="rs-list"></div>
+      <div class="cmp-foot"><span class="req-small">Funds come from the annual budget, contract rewards and money a mission does not spend.</span><button class="btn small" id="rsClose">Close</button></div>
+    </div>
+  </div>
 
   <!-- ============================== LAUNCH -->
   <div id="compare" class="modal hidden">
@@ -231,5 +268,6 @@
 <script src="scenes.js"></script>
 <script src="game.js"></script>
 <script src="program.js"></script>
+<script src="career.js"></script>
 </body>
 </html>

@@ -278,6 +278,7 @@ def evaluate_program(d: dict, sc: dict, diff: dict, issues: list, _issue) -> dic
 
 # ------------------------------------------------------------------------------------------ simulation
 def simulate_program(ev: dict, seed: int) -> dict:
+    from .model import partner_delay_of
     rng = random.Random(seed)
     d, sc, prog = ev["design"], ev["scenario"], ev["program"]
     P = sc["program"]
@@ -296,7 +297,7 @@ def simulate_program(ev: dict, seed: int) -> dict:
         fl = dict(fl)
         pay = C.PAYLOADS[fl["p"]]
         who = f"Flight {fl['n']} ({pay['name']})"
-        if fl["partner"] and rng.random() < C.PARTNERS[fl["partner"]]["delay"] * em:
+        if fl["partner"] and rng.random() < partner_delay_of(fl["partner"], d) * em:
             slip = P["slot_months"]
             fl["launch"] += slip
             fl["arrival"] += slip

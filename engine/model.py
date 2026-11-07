@@ -87,6 +87,11 @@ def month_label(m: int) -> str:
     return f"{MONTHS[m % 12]} {C.EPOCH_YEAR + m // 12}"
 
 
+def partner_delay_of(pk: str, d: dict) -> float:
+    """Partners who already worked with you are late less often (career trust 0-3)."""
+    return C.PARTNERS[pk]["delay"] * (1 - 0.25 * d.get("trust", {}).get(pk, 0))
+
+
 def launch_windows(dest_key: str, start: int = 0) -> list[dict]:
     """The next three launch dates that leave at least a year to build, with what each one means."""
     rule = C.WINDOW_RULES.get(dest_key)
@@ -159,7 +164,7 @@ def blank_design(scenario: str = "wildfire") -> dict:
     return {"scenario": scenario, "difficulty": "normal", "sandbox": False, "orbit": None, "launch_vehicle": None,
             "bus": None, "solar": None, "rtg": 0, "battery": None, "comms": None, "ground": None, "computer": None,
             "adcs": None, "propulsion": None, "edl": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"],
-            "window": None, "start_month": 0, "partners": [], "manifest": []}
+            "window": None, "start_month": 0, "partners": [], "manifest": [], "trust": {}}
 
 
 def options_for(design: dict) -> dict:
@@ -185,6 +190,8 @@ def normalize(design: dict) -> dict:
     if d["ground"] == "relay" and not C.DESTINATIONS[dest].get("relay"):
         d["ground"] = None
     d["partners"] = [p for p in dict.fromkeys(d.get("partners") or []) if p in C.PARTNERS][:C.MAX_PARTNERS]
+    raw_trust = d.get("trust") if isinstance(d.get("trust"), dict) else {}
+    d["trust"] = {k: max(0, min(3, int(v))) for k, v in raw_trust.items() if k in C.PARTNERS and str(v).lstrip("-").isdigit()}
     if C.SCENARIOS[sc].get("kind") == "program":
         from .program import normalize_manifest
         d["manifest"] = normalize_manifest(design.get("manifest"), C.SCENARIOS[sc])
@@ -233,7 +240,7 @@ def evaluate(design: dict) -> dict:
         if inst:
             instr[f"partner_{pk}"] = inst
     tracking = sum(p.get("tracking_h", 0) for p in partners)
-    partner_delay = 1 - math.prod(1 - p["delay"] for p in partners)
+    partner_delay = 1 - math.prod(1 - partner_delay_of(pk, d) for pk in d["partners"])
     diff = C.DIFFICULTY[d["difficulty"]]
     issues: list[dict] = []
     years = d["years"]

@@ -342,6 +342,10 @@ async function boot() {
     if (k === "design") { const [sc2, tab] = v.split(":"); startMission(sc2, S.cat.DEFAULTS[sc2]); if (tab) { S.tab = tab; renderTabs(); renderBinder(); } }
     if (k === "hints") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); openHints("power"); }
     if (k === "letter") { S.mode = "career"; startMission(v); }
+    if (k === "hq") { const x = newAgency(); x.month = 30; x.funds = 340; x.rep = 38; x.tech.push("deepcomms", "radar", "heavy"); x.trust = { esa: 2, isro: 1 };
+      x.done = { wildfire: { grade: "A", score: 700 }, storm_watch: { grade: "B", score: 560 }, lunar_ice: { grade: "S", score: 820 } }; x.medals = ["orbit", "moon"];
+      x.log = [{ month: 18, text: "Wildfire Watch: A (success)" }, { month: 24, text: "Annual budget: +97 M$" }, { month: 29, text: "Lunar Ice Prospector: S (success)" }];
+      saveAgency(x); S.mode = "career"; openHQ(); if (v === "research") openResearch("bigbus"); }
     if (k === "compare") {
       startMission(v, S.cat.DEFAULTS[v]); const e = drawer.add({ name: "Preset design", scenario: v, design: S.cat.DEFAULTS[v] });
       S.design = { ...S.design, launch_vehicle: "falcon_heavy", years: S.design.years + 2 }; renderAll(); openCompare("current", e.id);
@@ -355,7 +359,8 @@ async function boot() {
 function go(where) {
   stopPoll();
   if (where === "title") return show("title");
-  if (where === "career" || where === "free") { S.mode = where; return openSelect(); }
+  if (where === "career") return openHQ();
+  if (where === "free") { S.mode = where; return openSelect(); }
   if (where === "tutorial") { S.mode = "career"; startMission("wildfire", null, { tutorial: true }); S.design.difficulty = "easy"; renderAll(); evaluateSoon(0); return; }
   if (where === "team") { if (!S.player) return nameFirst(); return openLobby(); }
   if (where === "hall") return openHall();
@@ -399,6 +404,9 @@ function startMission(sc, design, opts = {}) {
   if (!design) {
     d.difficulty = store.get("difficulty", "normal");
     d.sandbox = S.mode === "free" && $("#sandbox").checked;
+  }
+  if (S.mode === "career" && agency()) {                       // the agency calendar and partner trust shape the plan
+    const a = agency(); d.start_month = a.month; d.trust = { ...a.trust }; d.difficulty = a.difficulty; d.sandbox = false;
   }
   S.design = d; S.tab = S.cat.SCENARIOS[sc].kind === "program" ? "manifest" : "orbit"; S.introShown = false; S.ev = null; S._prevOk = undefined; S._prevMet = null;
   openDesk();
@@ -461,7 +469,7 @@ function renderEval() {
 
 function renderTop() {
   const i = ORDER.indexOf(S.design.scenario);
-  $("#tbDay").innerHTML = S.mode === "career" ? `${icon("calendar")} DAY ${i + 1}` :
+  $("#tbDay").innerHTML = S.mode === "career" && agency() ? `${icon("calendar")} ${monthName(agency().month).toUpperCase()} &middot; AGENCY ${fmt(agency().funds)} M$` :
     S.mode === "team" ? `${icon("person")} TEAM` : `${icon("calendar")} FREE DESIGN`;
   $("#tbRoom").innerHTML = S.mode === "team" ? ` &middot; ROOM <span class="code">${S.room}</span> &middot; ${Object.keys(S.players).length} engineer(s)` : "";
   $("#tbScenario").textContent = `${scen().name.toUpperCase()} · ${S.cat.DIFFICULTY[S.design.difficulty].name.toUpperCase()}${S.design.sandbox ? " · SANDBOX" : ""}`;
@@ -503,7 +511,7 @@ function recommend(f) {
     }
     case "bus": {
       const n = Math.max(1, d.instruments.length + d.partners.filter((p) => S.cat.PARTNERS[p].instrument).length), base = ev && ev.mass.dry != null ? ev.mass.dry - (d.bus ? c.BUSES[d.bus].mass : 0) : 0;
-      const fit = Object.entries(c.BUSES).filter(([, b]) => b.slots >= n && b.max_dry >= (base + b.mass) * 1.25);
+      const fit = Object.entries(avail("bus", c.BUSES)).filter(([, b]) => b.slots >= n && b.max_dry >= (base + b.mass) * 1.25);
       return fit.length ? { key: cheapest(fit)[0], why: `it is the cheapest bus with ${n}+ slot(s) that holds your parts with room to spare` }
         : { key: "flagship", why: "only the biggest bus can hold all this" };
     }
@@ -515,19 +523,19 @@ function recommend(f) {
       const est = ev.power.load + (d.instruments.length ? 0 : 30) + 40;
       const need = Math.max(0, (est - ev.power.rtg) * 1.25 / (1 - ef) / sunF / deg);
       if (need === 0) return { key: "none", why: "your RTGs already cover the power" };
-      const fit = Object.entries(c.SOLAR_ARRAYS).filter(([, a]) => a.power_1au >= need).sort((a, b) => a[1].power_1au - b[1].power_1au);
+      const fit = Object.entries(avail("solar", c.SOLAR_ARRAYS)).filter(([, a]) => a.power_1au >= need).sort((a, b) => a[1].power_1au - b[1].power_1au);
       return fit.length ? { key: fit[0][0], why: `it is the smallest array that powers ~${fmt(est)} W here with margin` }
         : { key: "giant", why: `even this is not enough this far from the Sun: also add RTGs in the Power tab` };
     }
     case "battery": {
       if (!ev) return null;
       const eh = d.orbit ? curOrbit().eclipse_h : 1, wh = eh * Math.max(0, ev.power.load + 40 - ev.power.rtg) / 0.6;
-      const fit = Object.entries(c.BATTERIES).filter(([, b]) => b.wh >= wh * 1.1).sort((a, b) => a[1].wh - b[1].wh);
+      const fit = Object.entries(avail("battery", c.BATTERIES)).filter(([, b]) => b.wh >= wh * 1.1).sort((a, b) => a[1].wh - b[1].wh);
       return { key: fit.length ? fit[0][0] : "b8000", why: `the longest shadow lasts ${eh} h and you need ~${fmt(wh)} Wh stored` };
     }
     case "adcs": {
       const strict = Math.min(...d.instruments.map((k) => c.INSTRUMENTS[k].pointing_deg), ["xhga", "kahga"].includes(d.comms) ? 0.5 : 99, 99);
-      const fit = Object.entries(c.ADCS).filter(([, a]) => a.pointing_deg <= strict && (!a.needs_magnetic || dest.magnetic));
+      const fit = Object.entries(avail("adcs", c.ADCS)).filter(([, a]) => a.pointing_deg <= strict && (!a.needs_magnetic || dest.magnetic));
       return { key: cheapest(fit.length ? fit : [["precision", c.ADCS.precision]])[0],
         why: strict < 99 ? `your most demanding part needs ${strict}° pointing` : "it is the cheapest option that works here" };
     }
@@ -535,7 +543,7 @@ function recommend(f) {
       if (!d.orbit || !ev) return { key: "mono", why: "a reliable all-rounder" };
       const o = curOrbit(), dv = (o.dv_insert + o.dv_per_year * d.years + (kindNow() === "sample_return" ? o.dv_return || 0 : 0)) * 1.1;
       const dry = (ev.mass.dry ?? 0) - (ev.mass.tanks ?? 0) - (d.propulsion ? c.PROPULSION[d.propulsion].mass : 0) + (ev.mass.edl || 0);
-      const opts = Object.entries(c.PROPULSION).map(([k, p]) => {
+      const opts = Object.entries(avail("propulsion", c.PROPULSION)).map(([k, p]) => {
         if (!p.isp) return [k, o.dv_insert === 0 && o.max_years_no_prop >= d.years ? 0 : Infinity];
         const r = Math.exp(dv / (p.isp * 9.80665)) - 1, fuel = r * 0.08 >= 1 ? Infinity : ((dry + p.mass) * r) / (1 - 0.08 * r);
         return [k, p.max_prop && fuel > p.max_prop ? Infinity : p.mass + fuel * 1.08];
@@ -555,7 +563,7 @@ function recommend(f) {
     case "comms": {
       const need = ev ? ev.data.generated_gb_day : 1, g = d.ground || (dest.earth_au ? "dsn34" : "commercial");
       const okPoint = !d.adcs || c.ADCS[d.adcs].pointing_deg <= 0.5;
-      const fit = Object.entries(c.COMMS).filter(([k]) => okPoint || !["xhga", "kahga"].includes(k));
+      const fit = Object.entries(avail("comms", c.COMMS)).filter(([k]) => okPoint || !["xhga", "kahga"].includes(k));
       const good = fit.filter(([k]) => downlinkGb(k, g) >= need);
       if (good.length) return { key: cheapest(good)[0], why: `it sends home all ${fmt(need, 1)} Gb/day your instruments collect` };
       const best = fit.sort((a, b) => downlinkGb(b[0], g) - downlinkGb(a[0], g))[0];
@@ -589,11 +597,11 @@ function recommend(f) {
     }
     case "computer": {
       const env = ev ? ev.radiation.env : dest.radiation, shield = d.bus === "flagship" ? 1 : 0, store = ev ? ev.data.storage_need_gb : 0;
-      const fit = Object.entries(c.COMPUTERS).filter(([, x]) => x.rad + shield >= env && x.storage_gb >= store);
+      const fit = Object.entries(avail("computer", c.COMPUTERS)).filter(([, x]) => x.rad + shield >= env && x.storage_gb >= store);
       return { key: cheapest(fit.length ? fit : [["radhard", c.COMPUTERS.radhard]])[0], why: `radiation here is ${c.RADIATION_LABEL[env].toLowerCase()}, and it survives that` };
     }
     case "partners": {
-      const free = Object.entries(c.PARTNERS).filter(([k]) => !d.partners.includes(k)).sort((a, b) => b[1].share - a[1].share);
+      const free = Object.entries(avail("partners", c.PARTNERS)).filter(([k]) => !d.partners.includes(k)).sort((a, b) => b[1].share - a[1].share);
       return free.length ? { key: free[0][0], why: `they pay ${pct(free[0][1].share)} of the hardware` } : null;
     }
     case "window": {
@@ -605,7 +613,7 @@ function recommend(f) {
     }
     case "launch_vehicle": {
       if (!ev || ev.mass.wet == null) return null;
-      const tgt = curOrbit().lv_target, fit = Object.entries(c.LAUNCH_VEHICLES).filter(([, v]) => v.capacity[tgt] * energy() >= ev.mass.wet * 1.15);
+      const tgt = curOrbit().lv_target, fit = Object.entries(avail("launch_vehicle", c.LAUNCH_VEHICLES)).filter(([, v]) => v.capacity[tgt] * energy() >= ev.mass.wet * 1.15);
       return fit.length ? { key: cheapest(fit)[0], why: `it is the cheapest rocket that lifts your ${fmt(ev.mass.wet)} kg with margin` }
         : { key: "sls", why: "nothing smaller can lift it; better cut mass" };
     }
@@ -652,7 +660,7 @@ function advisor() {
   }
   return null;
 }
-const partName = (f, k) => (f === "rtg" ? `${S.cat.RTG.name} (${k} in total)` : optionsFor(f)[k].name);
+const partName = (f, k) => (f === "rtg" ? `${S.cat.RTG.name} (${k} in total)` : (optionsFor(f, true)[k] || {}).name || k);
 
 function renderClient() {
   const c = CLIENTS[S.design.scenario];
@@ -663,7 +671,8 @@ function renderClient() {
     const b = ev.issues.find((i) => i.severity === "blocker" && i.area !== "missing");
     const w = ev.issues.find((i) => i.severity === "warning");
     const lv = level(), a = S.advice;
-    if (lv === "easy" && a && a.program) { mood = b ? "angry" : "neutral"; text = `"${a.text}."`; }
+    if (lv === "easy" && !a && inCareer() && ev.issues.some((i) => i.severity === "blocker")) { mood = "neutral"; text = `"With the parts we own I can't make this work. Some technology is still locked: visit Research at headquarters."`; }
+    else if (lv === "easy" && a && a.program) { mood = b ? "angry" : "neutral"; text = `"${a.text}."`; }
     else if (lv === "easy" && a) {
       mood = a.action === "pick" ? "neutral" : b ? "angry" : "neutral";
       const name = partName(a.field, a.key);
@@ -786,7 +795,12 @@ setInterval(() => {
   if (c && $("#desk").classList.contains("active") && !document.hidden) drawLab(c, c.dataset.lab, ++_labFrame);
 }, 160);
 
-function optionsFor(field) {
+function optionsFor(field, all = false) {
+  const o = optionsForAll(field);
+  if (all || !o || !inCareer() || field === "window" || field === "orbit") return o;
+  return Object.fromEntries(Object.entries(o).filter(([k]) => (field === "partners" ? partnerOpen(k) : isUnlocked(field, k))));
+}
+function optionsForAll(field) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], use = { lander: "land", rover: "land", sample_return: "return" }[kindNow()];
   const keep = (obj, fn) => Object.fromEntries(Object.entries(obj).filter(([k, o]) => fn(o, k)));
   if (field === "edl") return keep(c.EDL, (o) => o.use === use);
@@ -883,13 +897,19 @@ function renderBinder() {
         <div class="ci">${icon("rtg", 32)}</div><div class="cn">${esc(R.name)}</div>
         <div class="cs">${R.power} W each · ${R.mass} kg · ${R.cost} M$</div>
         <div class="stepper"><button class="btn tiny" data-rtg="-1" ${canEdit("rtg") ? "" : "disabled"}>-</button>
-        <b>${S.design.rtg} / ${R.max}</b><button class="btn tiny" data-rtg="1" ${canEdit("rtg") ? "" : "disabled"}>+</button></div>
+        <b>${S.design.rtg} / ${R.max}</b><button class="btn tiny" data-rtg="1" ${canEdit("rtg") && isUnlocked("rtg", "rtg") ? "" : "disabled"}>+</button></div>
+        ${isUnlocked("rtg", "rtg") ? "" : `<div class="lockline" data-tech="nuclear">${icon("lock", 12)} Research: ${TECH.nuclear.name} (${TECH.nuclear.cost} M$)</div>`}
         <div class="cl">${esc(R.learn)}</div></div></div>`;
       continue;
     }
-    const opts = optionsFor(field);
+    const opts = optionsFor(field, true);
     h += `<div class="cards">` + Object.entries(opts).map(([k, o]) => {
       const sel = MULTI.has(field) ? S.design[field].includes(k) : S.design[field] === k;
+      const lockT = field === "partners" ? (!partnerOpen(k) ? `Opens at agency reputation ${PARTNER_REP[k]}` : null)
+        : !isUnlocked(field, k) ? `Research: ${TECH[TECH_OF[`${field}:${k}`]].name} (${TECH[TECH_OF[`${field}:${k}`]].cost} M$)` : null;
+      if (lockT && !sel) return `<div class="card research" data-tech="${field === "partners" ? "" : TECH_OF[`${field}:${k}`]}">
+        <div class="ci">${icon(PART_ICON[field](k), 32)}</div><div class="cn">${esc(o.name)}</div><div class="cs">${statLine(field, k, o)}</div>
+        <div class="lockline">${icon("lock", 12)} ${esc(lockT)}</div></div>`;
       const tags = field === "instruments" ? `<div class="tagrow">${o.tags.map((t) => `<span class="tag ${goalTags.has(t) ? "hit" : ""}">${t}</span>`).join("")}</div>` : "";
       return `<div class="card ${sel ? "sel" : ""} ${level() !== "hard" && cardBad(field, k, o) ? "bad" : ""} ${locked ? "disabled" : ""}" data-f="${field}" data-k="${k}">
         <div class="ci">${icon(PART_ICON[field](k), 32)}</div>
@@ -911,6 +931,7 @@ function renderBinder() {
       setField(f, cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]);
     } else setField(f, k);
   });
+  $$("#binder [data-tech]").forEach((el) => el.onclick = () => { if (el.dataset.tech) { SFX.page(); openResearch(el.dataset.tech); } else { SFX.error(); toast("Partners join agencies with a better reputation. Fly successful missions first."); } });
   $$("#binder [data-rtg]").forEach((b) => b.onclick = () =>
     setField("rtg", Math.max(0, Math.min(S.cat.RTG.max, S.design.rtg + Number(b.dataset.rtg)))));
 }
@@ -1081,7 +1102,8 @@ function wireDesk() {
   $("#helpBtn").onclick = () => startTutorial(false);
   $("#tutNext").onclick = () => tutAdvance();
   $("#tutSkip").onclick = () => endTutorial(true);
-  $("#menuBtn").onclick = () => { SFX.page(); $("#mMsg").textContent = ""; soundLabel(); $("#menu").classList.remove("hidden"); };
+  $("#menuBtn").onclick = () => { SFX.page(); $("#mMsg").textContent = ""; soundLabel(); $("#mHQ").classList.toggle("hidden", S.mode !== "career"); $("#menu").classList.remove("hidden"); };
+  $("#mHQ").onclick = () => { $("#menu").classList.add("hidden"); endTutorial(false); openHQ(); };
   $("#mResume").onclick = () => $("#menu").classList.add("hidden");
   $("#mHints").onclick = () => { $("#menu").classList.add("hidden"); openHints(); };
   $("#mTutorial").onclick = () => { $("#menu").classList.add("hidden"); endTutorial(false); startTutorial(S.mode !== "team"); };
@@ -1230,7 +1252,7 @@ async function openCompare(aId, bId) {
     const flight = (x) => (x.flight ? `${x.flight.grade} · ${x.flight.score} pts` : "not flown");
     const fields = [...tabs().flatMap((t) => t.fields), "years"];
     const partName2 = (d, f) => f === "manifest" ? (d.manifest || []).map((x) => `${S.cat.PAYLOADS[x.p].name.split(" (")[0]} (${x.lv ? S.cat.LAUNCH_VEHICLES[x.lv].name.split(" (")[0] : "?"}, slot ${x.slot + 1})`).join("; ") || "-" : f === "years" ? `${d.years} yr` : f === "rtg" ? `${d.rtg || 0}` : MULTI.has(f)
-      ? ((d[f] || []).length ? d[f].map((k) => optionsFor(f)[k].name).join(", ") : "-") : d[f] ? (optionsFor(f)[d[f]] || {}).name || "-" : "-";
+      ? ((d[f] || []).length ? d[f].map((k) => partName(f, k)).join(", ") : "-") : d[f] ? partName(f, d[f]) : "-";
     $("#cmpBody").innerHTML = `<table class="cmp"><tr><th></th><th class="cmp-a">A: ${esc(A.name)}</th><th class="cmp-b">B: ${esc(B.name)}</th></tr>
       ${num.map(([label, va, vb, dir, f]) => { const [wa, wb] = better(va, vb, dir);
         return `<tr><td>${label}</td><td class="${wa ? "win" : ""}">${f(va, ea)}</td><td class="${wb ? "win" : ""}">${f(vb, eb)}</td></tr>`; }).join("")}
@@ -1289,7 +1311,7 @@ function openHints(stageId) {
   const st = stages.find((x) => x.id === stageId);
   const chosen = st.fields.filter((f) => f !== "rtg").map((f) => {
     const v = S.design[f];
-    const name = f === "manifest" ? (v.length ? `${v.length} flight(s)` : null) : MULTI.has(f) ? (v.length ? v.map((k) => optionsFor(f)[k].name).join(", ") : null) : v ? optionsFor(f)[v].name : null;
+    const name = f === "manifest" ? (v.length ? `${v.length} flight(s)` : null) : MULTI.has(f) ? (v.length ? v.map((k) => partName(f, k)).join(", ") : null) : v ? partName(f, v) : null;
     return `<div class="line">${icon(name ? "check" : "none", 14)}<span>${fieldLabel(f)}: ${name ? esc(name) : "<i>not chosen yet</i>"}</span></div>`;
   }).join("");
   const iss = stageIssues(st);
@@ -1933,11 +1955,8 @@ function showNews(res) {
   show("news");
   S.result = res;
   const sc = res.score, sim = res.sim, [hl, sub] = headline(res);
-  // career progress
-  if (S.mode === "career") {
-    const p = progress(), k = res.design.scenario;
-    if (!p[k] || sc.total > p[k].score) { p[k] = { grade: sc.grade, score: sc.total }; store.set("career", p); }
-  }
+  // career: the agency learns from every flight
+  const career = S.mode === "career" && agency() && res.sim.launched ? applyCareerResult(res) : null;
   if (res.sim.launched) drawer.add({ name: `Flight ${res.seed} · ${sc.grade}`, scenario: res.design.scenario, design: res.design,
     flight: { score: sc.total, grade: sc.grade, outcome: sim.outcome, seed: res.seed } });
   const labels = { science: "Science", budget: "Budget left", margins: "Margins", reliability: "Reliability", team: "Team goals" };
@@ -1977,9 +1996,16 @@ function showNews(res) {
   im.src = planet(PLANET_OF[destKeyOf(res.design)], 48);
   animateNews(sc);
   const idx = ORDER.indexOf(res.design.scenario);
-  const nextOk = S.mode === "career" && idx < ORDER.length - 1 && PASS.includes(sc.grade);
+  const nextOk = false;
   $("#nNext").classList.toggle("hidden", S.mode === "team");
-  $("#nNext").textContent = nextOk ? "Next day" : "Mission files";
+  $("#nNext").textContent = S.mode === "career" ? "Back to headquarters" : "Mission files";
+  if (career) {
+    const box = document.createElement("div"); box.className = "agency-report";
+    box.innerHTML = `<b>AGENCY REPORT</b> Reputation ${career.rep} (${career.repGain >= 0 ? "+" : ""}${career.repGain}) &middot; funds ${fmt(career.funds)} M$
+      (+${fmt(career.reward)} reward, +${fmt(career.savings)} unspent)${career.medals.length ? ` &middot; medal: ${esc(career.medals.join(", "))}` : ""}
+      ${career.unlocked.length ? `<br>New contracts available: ${esc(career.unlocked.join(", "))}` : ""}`;
+    $("#paper").appendChild(box);
+  }
 }
 
 // Spinning-newspaper intro, then the grade stamp slams down and the score counts up.
@@ -2017,7 +2043,7 @@ function wireNews() {
   };
   $("#nNext").onclick = () => {
     const idx = ORDER.indexOf(S.result.design.scenario);
-    if (S.mode === "career" && idx < ORDER.length - 1 && PASS.includes(S.result.score.grade)) startMission(ORDER[idx + 1]);
+    if (S.mode === "career") openHQ();
     else openSelect();
   };
   $("#nHall").onclick = openHall;

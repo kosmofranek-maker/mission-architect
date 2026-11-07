@@ -11,7 +11,7 @@ const kt = (kg) => `${fmt(kg / 1000, 1)} t`;
 
 function bestLV(p) {
   const pay = S.cat.PAYLOADS[p], crew = pay.group === "crew";
-  const fit = Object.entries(S.cat.LAUNCH_VEHICLES).filter(([k, v]) => v.capacity[pay.target] >= pay.mass * 1.03 && (!crew || S.cat.CREW_RATED.includes(k)))
+  const fit = Object.entries(S.cat.LAUNCH_VEHICLES).filter(([k, v]) => isUnlocked("launch_vehicle", k) && v.capacity[pay.target] >= pay.mass * 1.03 && (!crew || S.cat.CREW_RATED.includes(k)))
     .sort((a, b) => a[1].cost - b[1].cost);
   return fit.length ? fit[0][0] : null;
 }
@@ -37,7 +37,7 @@ function renderManifest(head) {
     const lvSel = fl.partner ? `<span class="m-fixed">${esc(fl.lv_name)}</span>` :
       `<select data-lv="${fl.i}" ${locked ? "disabled" : ""}><option value="">choose rocket</option>${Object.entries(S.cat.LAUNCH_VEHICLES).map(([k, v]) => {
         const cap = v.capacity[S.cat.PAYLOADS[fl.p].target];
-        return `<option value="${k}" ${k === fl.lv ? "selected" : ""}>${esc(v.name.split(" (")[0])} · ${cap ? kt(cap) : "can't reach"}${S.cat.CREW_RATED.includes(k) ? " · crew" : ""} · ${v.cost} M$</option>`;
+        return `<option value="${k}" ${k === fl.lv ? "selected" : ""} ${isUnlocked("launch_vehicle", k) || k === fl.lv ? "" : "disabled"}>${esc(v.name.split(" (")[0])} · ${cap ? kt(cap) : "can't reach"}${S.cat.CREW_RATED.includes(k) ? " · crew" : ""} · ${v.cost} M$</option>`;
       }).join("")}</select>`;
     const slot = fl.partner ? `<span class="m-fixed">${esc(fl.slot_label)}</span>` :
       `<span class="m-slot"><button class="btn tiny" data-sd="-1" data-i="${fl.i}" ${locked || fl.slot === 0 ? "disabled" : ""}>-</button><b>${esc(fl.slot_label)}</b><button class="btn tiny" data-sd="1" data-i="${fl.i}" ${locked || fl.slot >= P.slots - 1 ? "disabled" : ""}>+</button></span>`;
@@ -50,6 +50,8 @@ function renderManifest(head) {
   }).join("") + `</div>`;
   h += `<h4>Add a flight</h4><div class="cards">` + P.payloads.map((k) => {
     const o = S.cat.PAYLOADS[k];
+    if (!isUnlocked("payloads", k)) return `<div class="card research" data-tech="${TECH_OF[`payloads:${k}`]}"><div class="ci">${icon(PAYLOAD_ICON[k] || "star", 32)}</div>
+      <div class="cn">${esc(o.name)}</div><div class="cs">${payloadStats(k)}</div><div class="lockline">${icon("lock", 12)} Research: ${esc(TECH[TECH_OF[`payloads:${k}`]].name)} (${TECH[TECH_OF[`payloads:${k}`]].cost} M$)</div></div>`;
     return `<div class="card ${locked ? "disabled" : ""}" data-add="${k}"><div class="ci">${icon(PAYLOAD_ICON[k] || "star", 32)}</div>
       <div class="cn">${esc(o.name)}</div><div class="cs">${payloadStats(k)}</div><div class="cl">${esc(o.learn || "")}</div></div>`;
   }).join("") + `</div>`;
@@ -63,6 +65,7 @@ function renderManifest(head) {
     const m = man.map((x) => ({ ...x })), i = +b.dataset.i; m[i].slot = Math.max(0, Math.min(P.slots - 1, m[i].slot + Number(b.dataset.sd))); put(m);
   });
   $$("#binder [data-del]").forEach((b) => b.onclick = () => put(man.filter((_, i) => i !== +b.dataset.del)));
+  $$("#binder [data-tech]").forEach((el) => el.onclick = () => { SFX.page(); openResearch(el.dataset.tech); });
   $$("#binder [data-add]").forEach((c) => c.onclick = () => {
     if (man.length >= 16) return toast("16 flights is the most one program office can manage.");
     put([...man, { p: c.dataset.add, lv: bestLV(c.dataset.add), slot: defaultSlot(c.dataset.add) }]);

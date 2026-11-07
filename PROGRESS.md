@@ -93,6 +93,23 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   science as LED gauges month by month (flash when they drop), latest event line and a live chart with event marks.
   Simulation timeline now carries fuel_pct and data_gb.
 
+- Planning + programs + agency career (2026-11-07):
+  - Launch tower arms and hold-down clamps sized to each rocket (Electron is held too).
+  - Launch windows: 3 dates per mission (Earth/Moon any month; Mars 26, Venus 19, Jupiter 13, asteroid 14 months apart).
+    Build time sets cost (rush overtime / standing army), risk (launch failure + glitches) and slip chance; window
+    energy changes rocket capacity and cruise time. A slip = waiting a whole synodic period and paying the team.
+  - International partners (ESA, JAXA, CSA, ISRO): pay part of the hardware, bring an instrument (takes a slot) or
+    tracking antennas, add delay risk; max 2. In programs they build and launch a module/lander on their own date.
+  - Programs (engine/program.py, web/program.js): manifest of flights in slots (quarters or Mars windows); Orbital
+    Outpost (assemble a station, crew rotations, cargo), Lunar Base Supply Line (existing habitat, 14-day nights need
+    fission power, 2- or 4-seat landers), First Crew to Mars (pre-deploy habitat + power one window, crew next window
+    with 2 transit segments assembled in orbit). Month-by-month supplies (75 kg/crew/month), bunks and power; crew-rated
+    rockets; sim with launch aborts, crashed landers, berthing damage (CSA arm helps), late partners, evacuations.
+  - Career = agency HQ (web/career.js): calendar from Jan 2027, agency funds (annual budget by reputation, contract
+    rewards, half of unspent money), reputation 0-100, contracts unlocked by prerequisites + reputation (14), research
+    tree (21 technologies) that locks parts in career only, partner trust (0-3, halves delay risk at 2), 9 milestone
+    medals, agency log. Demo `#hq=wildfire`.
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.

@@ -9,7 +9,7 @@ import math
 import random
 
 from . import catalog as C
-from .model import DV_MARGIN, evaluate
+from .model import DV_MARGIN, evaluate, partner_delay_of
 
 # base monthly probabilities (multiplied by difficulty event_mult)
 P_SOLAR_STORM = 0.025
@@ -51,7 +51,7 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
     sch = ev["schedule"]
     tech = sch["risk_mult"]  # rushed projects are tested less, so glitches and launch failures are likelier
     delay = 0
-    late = [C.PARTNERS[p]["name"].split(" (")[0] for p in ev["partners"]["keys"] if rng.random() < C.PARTNERS[p]["delay"] * em]
+    late = [C.PARTNERS[p]["name"].split(" (")[0] for p in ev["partners"]["keys"] if rng.random() < partner_delay_of(p, d) * em]
     if late or rng.random() < sch["slip"] * em:
         delay = sch["synodic"] or 4
         waste = budget * C.SLIP_COST_MONTH * delay
