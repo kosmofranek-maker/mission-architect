@@ -1,0 +1,143 @@
+import math
+
+import pytest
+
+from engine import catalog as C
+from engine.model import default_design, evaluate
+from engine.scoring import score
+from engine.simulate import monte_carlo, simulate
+
+
+@pytest.mark.parametrize("scenario", list(C.SCENARIOS))
+def test_default_designs_launchable(scenario):
+    ev = evaluate(default_design(scenario))
+    assert ev["ok"], [i["text"] for i in ev["issues"] if i["severity"] == "blocker"]
+    assert 0 < ev["science"]["score"] <= 115
+
+
+def blockers(d):
+    return [i["area"] for i in evaluate(d)["issues"] if i["severity"] == "blocker"]
+
+
+def test_rocket_equation_matches_closed_form():
+    d = default_design("lunar_ice")
+    ev = evaluate(d)
+    m = ev["mass"]
+    isp = C.PROPULSION[d["propulsion"]]["isp"]
+    assert math.isclose(m["wet"] / m["dry"], math.exp(m["dv"] / (isp * C.G0)), rel_tol=1e-6)
+
+
+def test_electron_cannot_reach_mars():
+    d = default_design("mars_climate") | {"launch_vehicle": "electron"}
+    assert "launch" in blockers(d)
+
+
+def test_magnetorquer_blocked_beyond_earth():
+    assert "adcs" in blockers(default_design("lunar_ice") | {"adcs": "magnetorquer"})
+
+
+def test_university_station_cant_reach_mars():
+    assert "comms" in blockers(default_design("mars_climate") | {"ground": "uni"})
+
+
+def test_no_power_source_blocked():
+    assert "power" in blockers(default_design("wildfire") | {"solar": "none", "rtg": 0})
+
+
+def test_solar_power_falls_with_distance():
+    e = evaluate(default_design("europa"))
+    assert e["power"]["sunlit"] < C.SOLAR_ARRAYS["giant"]["power_1au"] / 25
+
+
+def test_over_budget_blocked_unless_sandbox():
+    d = default_design("wildfire") | {"launch_vehicle": "sls"}
+    assert "cost" in blockers(d)
+    assert "cost" not in blockers(d | {"sandbox": True})
+
+
+def test_slots_limit():
+    d = default_design("wildfire") | {"bus": "cubesat", "instruments": ["wac", "thermal", "sounder"]}
+    assert "bus" in blockers(d)
+
+
+def test_bigger_dish_returns_more_data():
+    d = default_design("mars_climate")
+    low = evaluate(d | {"comms": "xhga"})["data"]["return"]
+    high = evaluate(d | {"comms": "kahga", "ground": "dsn70"})["data"]["return"]
+    assert high > low
+
+
+def test_simulation_is_deterministic():
+    d = default_design("europa")
+    a, b = simulate(d, 42), simulate(d, 42)
+    assert a["events"] == b["events"] and a["science_score"] == b["science_score"]
+
+
+def test_blocked_design_does_not_launch():
+    d = default_design("mars_climate") | {"launch_vehicle": "electron"}
+    s = simulate(d, 1)
+    assert not s["launched"] and score(s)["grade"] == "F"
+
+
+def test_score_bounds_and_grade():
+    for seed in range(20):
+        sc = score(simulate(default_design("wildfire"), seed))
+        assert 0 <= sc["total"] <= sum(sc["max"].values())
+        assert sc["grade"] in "SABCF"
+
+
+def test_monte_carlo():
+    mc = monte_carlo(default_design("wildfire"), runs=50)
+    assert 0.7 <= mc["success_rate"] <= 1.0
+    assert mc["science_p10"] <= mc["science_median"] <= mc["science_p90"]
+
+
+def test_room_roles_and_approvals():
+    from engine.rooms import RoomStore
+    s = RoomStore()
+    code = s.create("mars_climate")
+    s.join(code, "ana", ["science"])
+    s.join(code, "bo", ["manager", "systems", "comms"])
+    assert not s.set_field(code, "ana", "bus", "flagship")  # not her role
+    for p, roles in (("ana", ["science"]), ("bo", ["manager", "systems", "comms"])):
+        for r in roles:
+            assert s.approve(code, p, r)
+    assert s.all_approved(code)
+    assert s.set_field(code, "ana", "orbit", "low")
+    assert not s.all_approved(code)  # any change resets approvals
+    assert s.get(code)["design"]["orbit"] == "low"
+
+
+def test_leaderboard(tmp_path):
+    from engine import leaderboard as lb
+    p = tmp_path / "lb.json"
+    for i in range(5):
+        lb.add({"scenario": "wildfire", "score": i * 100, "name": f"p{i}"}, p)
+    lb.add({"scenario": "europa", "score": 999, "name": "x"}, p)
+    t = lb.top("wildfire", 3, p)
+    assert [r["score"] for r in t] == [400, 300, 200]
+
+
+@pytest.mark.parametrize("scenario", list(C.SCENARIOS))
+def test_blank_design_evaluates_with_choose_blockers(scenario):
+    from engine.model import COMPONENTS, blank_design
+    ev = evaluate(blank_design(scenario))
+    assert not ev["ok"]
+    missing = [i for i in ev["issues"] if i["area"] == "missing"]
+    assert len(missing) == len(COMPONENTS)
+    assert ev["science"]["score"] == 0
+    assert not simulate(blank_design(scenario), 1)["launched"]
+
+
+def test_partial_design_has_no_noise_from_missing_parts():
+    from engine.model import blank_design
+    d = blank_design("wildfire") | {"orbit": "sso", "instruments": ["thermal"]}
+    ev = evaluate(d)
+    areas = {i["area"] for i in ev["issues"] if i["severity"] == "blocker"}
+    assert areas == {"missing"}  # only "choose X", nothing derived from absent parts
+
+
+def test_normalize_rejects_unknown_parts():
+    from engine.model import normalize
+    d = normalize({"scenario": "moon?", "bus": "deathstar", "orbit": "geo", "instruments": ["wac", "nope", "wac"]})
+    assert d["scenario"] == "wildfire" and d["bus"] is None and d["orbit"] == "geo" and d["instruments"] == ["wac"]

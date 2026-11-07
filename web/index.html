@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mission Architect</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+
+  <!-- ============================== TITLE -->
+  <section id="title" class="screen active">
+    <canvas id="titleStars" width="320" height="180" class="px fill"></canvas>
+    <div class="title-wrap">
+      <img id="titlePlanet" class="px title-planet" alt="">
+      <h1 class="logo">MISSION<br>ARCHITECT</h1>
+      <p class="tagline">Space Mission Review Board &middot; Est. 2026</p>
+      <label class="name-field">Engineer name <input id="playerName" maxlength="20" placeholder="Your name"></label>
+      <div class="menu">
+        <button class="btn big" data-go="career">Career</button>
+        <button class="btn big" data-go="free">Free design</button>
+        <button class="btn big" data-go="team">Team room</button>
+        <button class="btn big" data-go="hall">Hall of fame</button>
+        <button class="btn big wide" data-go="tutorial">Tutorial: learn with your first mission</button>
+      </div>
+      <p class="credit">NASA Space Apps Challenge 2026 &middot; numbers simplified from real missions</p>
+    </div>
+  </section>
+
+  <!-- ============================== MISSION SELECT -->
+  <section id="select" class="screen">
+    <div class="desk-bg fill"></div>
+    <div class="select-wrap">
+      <h2 class="h-paper" id="selectTitle">Choose a mission file</h2>
+      <div id="folders" class="folders"></div>
+      <div class="select-bottom">
+        <div class="seg" id="difficultySeg"></div>
+        <label class="check" id="sandboxWrap"><input type="checkbox" id="sandbox"> Sandbox (no budget limit, not ranked)</label>
+        <button class="btn" data-go="title">Back</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== TEAM ROOM LOBBY -->
+  <section id="team" class="screen">
+    <div class="desk-bg fill"></div>
+    <div class="paper lobby">
+      <h2>Team room</h2>
+      <p>Up to four engineers design one spacecraft together. Each role edits only its own part of the catalog.
+        Every change cancels approvals. Launch needs all four approval stamps.</p>
+      <div class="row">
+        <button class="btn" id="createRoom">Create room</button>
+        <span class="or">or join</span>
+        <input id="roomCode" maxlength="4" placeholder="CODE" class="code-input">
+        <button class="btn" id="joinRoom">Join</button>
+      </div>
+      <div id="lobbyRoom" class="hidden">
+        <h3>Room <span id="lobbyCode" class="code"></span></h3>
+        <p>Claim one or more roles:</p>
+        <div id="roleCards" class="role-cards"></div>
+        <button class="btn big" id="enterRoom">Enter the review room</button>
+      </div>
+      <p class="err" id="lobbyErr"></p>
+      <button class="btn" data-go="title">Back</button>
+    </div>
+  </section>
+
+  <!-- ============================== DESK (main game) -->
+  <section id="desk" class="screen">
+    <header class="topbar">
+      <div><span id="tbDay" class="tb-day"></span> <span id="tbRoom"></span></div>
+      <div id="tbScenario" class="tb-center"></div>
+      <div class="tb-right"><span id="tbBudget"></span><button class="btn small" id="helpBtn">Help</button><button class="btn small" id="menuBtn">Menu</button></div>
+    </header>
+
+    <div class="desk-bg under-top"></div>
+
+    <!-- left: booth + mission request -->
+    <div class="col-left">
+      <div class="booth">
+        <div class="booth-window">
+          <img id="boothPlanet" class="px booth-planet" alt="">
+          <img id="clientImg" class="px client" alt="">
+        </div>
+        <div class="nameplate" id="clientName"></div>
+        <div class="speech" id="speech"></div>
+      </div>
+      <div class="paper request">
+        <div class="doc-head"><span>MISSION REQUEST</span><span id="reqId"></span></div>
+        <div id="reqGoals"></div>
+        <div class="req-line"><span>Budget</span><b id="reqBudget"></b></div>
+        <div class="req-line"><span>Science phase</span>
+          <span class="stepper"><button class="btn tiny" id="yearsDown">-</button><b id="reqYears"></b><button class="btn tiny" id="yearsUp">+</button></span></div>
+        <div class="req-small" id="reqCruise"></div>
+      </div>
+    </div>
+
+    <!-- middle: parts catalog binder -->
+    <div class="col-mid">
+      <nav class="tabs" id="tabs"></nav>
+      <div class="binder" id="binder"></div>
+    </div>
+
+    <!-- right: blueprint + review sheet -->
+    <div class="col-right">
+      <div class="blueprint">
+        <canvas id="bp" width="200" height="120" class="px"></canvas>
+        <div class="bp-slots" id="bpSlots"></div><div class="bp-label" id="bpLabel"></div>
+        <div id="stampMark" class="stamp-mark hidden"></div>
+      </div>
+      <div class="paper review">
+        <div class="doc-head"><span>REVIEW SHEET</span><span id="revStatus"></span></div>
+        <div id="meters"></div>
+        <div class="issues" id="issues"></div>
+      </div>
+      <div class="actions">
+        <div id="approvals" class="approvals"></div>
+        <button class="btn" id="riskBtn">Risk check</button>
+        <button class="btn stamp-btn" id="launchBtn">Approve &amp; launch</button>
+      </div>
+    </div>
+
+    <img id="stampTool" class="px stamp-tool hidden" alt="">
+    <div id="toast" class="toast hidden"></div>
+    <div id="hints" class="modal hidden">
+      <div class="paper handbook">
+        <div class="doc-head"><span>ENGINEER'S HANDBOOK</span><span id="hbMission"></span></div>
+        <div class="hb-wrap">
+          <nav id="hbNav" class="hb-nav"></nav>
+          <div id="hbBody" class="hb-body"></div>
+        </div>
+        <div class="hb-foot"><button class="btn small" id="hbClose">Close</button></div>
+      </div>
+    </div>
+    <div id="tut" class="tut hidden">
+      <img id="tutImg" class="px tut-img" alt="">
+      <div class="tut-body">
+        <div class="tut-name" id="tutName"></div>
+        <p id="tutText"></p>
+        <div class="tut-btns"><span id="tutStep"></span><span id="tutWait"></span>
+          <button class="btn small" id="tutSkip">Skip tutorial</button><button class="btn small" id="tutNext">Next</button></div>
+      </div>
+    </div>
+    <div id="menu" class="modal hidden">
+      <div class="paper modal-box">
+        <h3>Menu</h3>
+        <button class="btn" id="mResume">Resume</button>
+        <button class="btn" id="mHints">Engineer's handbook (hints)</button>
+        <button class="btn" id="mTutorial">Replay tutorial</button>
+        <button class="btn" id="mSound">Sound: on</button>
+        <button class="btn" id="mExport">Copy design code</button>
+        <button class="btn" id="mImport">Paste design code</button>
+        <button class="btn" id="mReset">Clear design (start blank)</button>
+        <button class="btn" id="mQuit">Quit to title</button>
+        <p class="req-small" id="mMsg"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== LAUNCH -->
+  <section id="launch" class="screen">
+    <canvas id="launchCanvas" width="320" height="180" class="px launch-canvas"></canvas>
+    <div class="teletype paper" id="teletype"></div>
+    <button class="btn skip" id="skipBtn">Skip</button>
+  </section>
+
+  <!-- ============================== NEWSPAPER -->
+  <section id="news" class="screen">
+    <div class="desk-bg fill"></div>
+    <article class="newspaper" id="paper"></article>
+    <div class="news-actions">
+      <button class="btn" id="nRedesign">Redesign</button>
+      <button class="btn" id="nNext">Next mission</button>
+      <button class="btn" id="nHall">Hall of fame</button>
+    </div>
+  </section>
+
+  <!-- ============================== HALL OF FAME -->
+  <section id="hall" class="screen">
+    <div class="desk-bg fill"></div>
+    <div class="paper hall">
+      <h2>Hall of fame</h2>
+      <div class="seg" id="hallTabs"></div>
+      <div id="hallList"></div>
+      <button class="btn" data-go="title">Back</button>
+    </div>
+  </section>
+
+</div>
+<script src="sprites.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
