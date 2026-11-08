@@ -67,15 +67,17 @@ const TECH = {
     heatshield: ["ablative"], abort: ["tower", "none"], landing: ["ocean"] } },
   stations: { name: "Station modules", cost: 120, unlocks: { payloads: ["core", "hab", "lab", "truss"] } },
   reusecrew: { name: "Reusable crew vehicles", cost: 100, unlocks: { heatshield: ["metallic"], abort: ["pusher"], landing: ["land_chutes", "propulsive"] } },
+  co_stellar: { name: "Stellar Logistics contract", cost: 0, offer: true, unlocks: {} },
+  co_habworks: { name: "HabWorks contract", cost: 0, offer: true, unlocks: {} },
   spaceplanes: { name: "Spaceplanes", cost: 160, unlocks: { shape: ["lifting_body", "winged"], seats: ["s7"], heatshield: ["tiles"], abort: ["seats"], landing: ["runway"] } },
   moonbase: { name: "Lunar surface outpost", cost: 150, unlocks: { payloads: ["lcargo", "lcargo_l", "lpower", "lrover", "lcrew_s", "lcrew"] } },
   marsbase: { name: "Mars expedition hardware", cost: 250, unlocks: { payloads: ["mhab", "mpower", "mcargo", "mtransit", "mcrew"] } },
 };
-const TECH_OF = {};
+const TECH_OF = { "payloads:cargo_c": "co_stellar", "payloads:lab_c": "co_habworks" };
 for (const [t, o] of Object.entries(TECH)) for (const [f, keys] of Object.entries(o.unlocks)) for (const k of keys) TECH_OF[`${f}:${k}`] = t;
 
 const newAgency = (difficulty = "normal") => ({ v: 1, month: 0, funds: 150, rep: 5, difficulty, tech: ["basics"], trust: {},
-  done: {}, log: [], medals: [], seen: [], boosters: {}, invites: [] });
+  done: {}, log: [], medals: [], seen: [], boosters: {}, invites: [], research: [], world: [], offers: [], iss_due: null });
 const INVITE_REP = 40;   // from this reputation other agencies start inviting you to joint missions
 const agency = () => store.get("agency", null);
 const saveAgency = (a) => store.set("agency", a);
@@ -119,7 +121,7 @@ function openHQ() {
   const a = agency();
   show("hq");
   const stars = Math.floor(a.rep / 20);
-  $("#hqName").textContent = `${(S.player || "Your").toUpperCase()} SPACE AGENCY`;
+  $("#hqName").textContent = `NASA MISSION OFFICE${S.player ? ` · ${S.player.toUpperCase()}` : ""}`;
   $("#hqDate").textContent = monthName(a.month).toUpperCase();
   $("#hqFunds").textContent = `${fmt(a.funds)} M$`;
   $("#hqRep").innerHTML = `<div class="bar"><i style="width:${a.rep}%"></i></div><span>${a.rep} / 100 ${"&#9733;".repeat(stars)}${"&#9734;".repeat(5 - stars)}</span>`;
@@ -140,12 +142,21 @@ function openHQ() {
       they pay ${pct(v.share)} of the cost, bonus ${fmt(v.bonus)} M$. Until ${esc(monthName(v.until))}.</div>
       <button class="btn small" data-acc="${i}">Accept</button><button class="btn tiny" data-dec="${i}">x</button></div>`;
   }).join("") : `<p class="req-small">${a.rep >= INVITE_REP ? "No invitations right now. New ones arrive every January." : `Reach reputation ${INVITE_REP} and other agencies will invite you to joint missions.`}</p>`;
+  const offers = (a.offers || []).map((o, i) => { const c = COMPANIES.find((x) => x.k === o.k);
+    return `<div class="invite">${icon("coin", 16)}<div><b>${esc(c.name)}</b> ${esc(c.pitch)} Until ${esc(monthName(o.until))}.</div>
+      <button class="btn small" data-off="${i}">Sign contract</button></div>`; }).join("");
+  if (offers) $("#hqInvites").innerHTML = offers + $("#hqInvites").innerHTML.replace(/<p class="req-small">[^<]*<\/p>/, "");
   $$("#hqInvites [data-acc]").forEach((b) => b.onclick = () => {
     const v = agency().invites[+b.dataset.acc]; SFX.chime();
     S.mode = "career"; store.set("difficulty", a.difficulty); startMission(v.sc, null, { invite: v });
   });
+  $$("#hqInvites [data-off]").forEach((b) => b.onclick = () => {
+    const x = agency(), o = x.offers.splice(+b.dataset.off, 1)[0], c = COMPANIES.find((y) => y.k === o.k);
+    x.tech.push(`co_${o.k}`); x.log.push({ month: x.month, text: `Contract signed with ${c.name}: ${S.cat.PAYLOADS[c.payload].name} is available` });
+    saveAgency(x); SFX.chime(); openHQ();
+  });
   $$("#hqInvites [data-dec]").forEach((b) => b.onclick = () => { const x = agency(); x.invites.splice(+b.dataset.dec, 1); saveAgency(x); openHQ(); });
-  $("#hqLog").innerHTML = a.log.length ? a.log.slice(-14).reverse().map((l) => `<div class="hl"><span>${esc(monthName(l.month))}</span><span>${esc(l.text)}</span></div>`).join("")
+  $("#hqLog").innerHTML = a.log.length ? a.log.slice(-14).reverse().map((l) => `<div class="hl ${l.world ? "world" : ""}"><span>${esc(monthName(l.month))}</span><span>${l.world ? icon("globe", 12) + " " : ""}${esc(l.text)}</span></div>`).join("")
     : `<p class="req-small">Nothing has flown yet. Pick a contract.</p>`;
   $("#hqContracts").innerHTML = ORDER.filter((k) => CONTRACTS[k]).map((k) => {
     const s = S.cat.SCENARIOS[k], st = contractState(k), best = a.done[k], need = st.open ? researchNeeded(k) : [];
@@ -164,8 +175,17 @@ function openHQ() {
     if (f.classList.contains("locked")) { SFX.error(); return toast(esc(contractState(f.dataset.sc).why)); }
     SFX.page(); store.set("difficulty", a.difficulty); startMission(f.dataset.sc);
   });
-  const newYear = $("#hqNextYear");
-  newYear.onclick = () => { advanceTo(a.month + 12 - (a.month % 12)); toast("A year passes. The annual budget arrives in January."); openHQ(); };
+  $("#hqNextYear").onclick = () => { SFX.page(); advanceTo(a.month + 3); toast("Three months pass."); openHQ(); };
+  // research in progress, ISS supply deadline, news ticker
+  $("#hqResearchNow").innerHTML = (a.research || []).length ? a.research.map((r) => `<div class="hq-partner">${icon("flask", 16)}<b>${esc(TECH[r.t].name)}</b>
+    <span>ready ${esc(monthName(r.done))}</span></div>`).join("") : `<p class="req-small">No research running. Open Research to start a project.</p>`;
+  const due = a.iss_due;
+  $("#hqIss").innerHTML = due == null ? "" : `<div class="iss-due ${due - a.month <= 3 ? "late" : ""}">${icon("person", 14)}<span>ISS supplies needed by <b>${esc(monthName(due))}</b>
+    (${Math.max(0, due - a.month)} months). Fly <i>ISS Supply and Crew Rotation</i> before then.</span></div>`;
+  const news = (a.world || []).slice(-8).reverse();
+  $("#hqTicker").innerHTML = news.length ? (() => { const items = news.map((w) => `<span class="${w.ok ? "good" : "bad"}">${esc(monthName(w.month))}: ${esc(w.text)}</span>`).join("");
+      return `<div class="tick-run">${items}${items}</div>`; })()
+    : `<span class="req-small">World news will appear here as time passes.</span>`;
   $("#hqResearch").onclick = () => openResearch();
   $("#hqReset").onclick = () => {
     if (!confirm("Start a new career? Your agency's history, money and research will be lost.")) return;
@@ -178,33 +198,87 @@ function openHQ() {
 // Time passes: every January the agency receives its budget (more if its reputation is high).
 function advanceTo(month) {
   const a = agency();
-  while (Math.floor(month / 12) > Math.floor(a.month / 12)) {
-    a.month = (Math.floor(a.month / 12) + 1) * 12;
-    const grant = Math.round(40 + a.rep * 1.5);
-    a.funds += grant;
-    a.log.push({ month: a.month, text: `Annual budget: +${grant} M$` });
-    a.invites = (a.invites || []).filter((v) => v.until > a.month);
-    maybeInvite(a);
+  a.research = a.research || []; a.world = a.world || []; a.offers = a.offers || [];
+  while (a.month < month) {
+    a.month += 1;
+    if (a.month % 12 === 0) {
+      const grant = Math.round(40 + a.rep * 1.5);
+      a.funds += grant;
+      a.log.push({ month: a.month, text: `NASA budget for ${2027 + a.month / 12}: +${grant} M$` });
+      a.invites = (a.invites || []).filter((v) => v.until > a.month);
+      maybeInvite(a);
+    }
+    for (const r of a.research.filter((x) => x.done <= a.month)) {
+      a.tech.push(r.t); a.log.push({ month: a.month, text: `Research complete: ${TECH[r.t].name}` });
+    }
+    a.research = a.research.filter((x) => x.done > a.month);
+    worldNews(a);
+    a.offers = a.offers.filter((o) => o.until > a.month);
+    maybeOffer(a);
+    if (a.iss_due == null && contractStateFor(a, "iss_resupply")) {
+      a.iss_due = a.month + 15;
+      a.log.push({ month: a.month, text: `NASA now keeps the ISS supplied: next delivery due ${monthName(a.iss_due)}` });
+    }
+    if (a.iss_due != null && a.month > a.iss_due) {
+      a.rep = Math.max(0, a.rep - 5); a.iss_due = a.month + 6;
+      a.log.push({ month: a.month, text: "The ISS ran low on supplies: crew rationing, reputation -5" });
+    }
   }
-  a.month = Math.max(a.month, month);
   saveAgency(a);
 }
 
+// Other agencies fly too: their successes and failures appear on the news ticker.
+const WORLD = [
+  ["ESA", ["Mars orbiter", "comet probe", "Jupiter moons probe", "space telescope"], ["Aurora", "Rosetta-II", "Juice", "Ariel"]],
+  ["JAXA", ["asteroid sampler", "lunar lander", "Mars moon probe"], ["Hayabusa", "SLIM", "MMX"]],
+  ["ISRO", ["lunar lander", "Mars orbiter", "Venus orbiter", "crewed flight"], ["Chandrayaan", "Mangalyaan", "Shukrayaan", "Gaganyaan"]],
+  ["CNSA", ["lunar sample return", "Mars rover", "space station module"], ["Chang'e", "Tianwen", "Tiangong"]],
+  ["CSA", ["radar satellite", "lunar rover"], ["Radarsat", "Lunar Utility"]],
+  ["KARI", ["lunar orbiter", "Earth observer"], ["Danuri", "Arirang"]],
+];
+function worldNews(a) {
+  const rnd = _rng(a.month * 7919 + 13);
+  if (rnd() > 0.22) return;
+  const [ag, kinds, names] = WORLD[Math.floor(rnd() * WORLD.length)], i = Math.floor(rnd() * kinds.length);
+  const name = `${names[i % names.length]}-${2 + Math.floor(rnd() * 6)}`, ok = rnd() < 0.72;
+  const text = ok ? `${ag}'s ${name} ${kinds[i]} ${["succeeded", "reached its target", "returned its first data"][Math.floor(rnd() * 3)]}`
+    : `${ag}'s ${name} ${kinds[i]} ${["was lost", "failed after launch", "lost contact on arrival"][Math.floor(rnd() * 3)]}`;
+  a.world.push({ month: a.month, text, ok }); a.world = a.world.slice(-30);
+  a.log.push({ month: a.month, text: `World: ${text}`, world: true });
+}
+
+// Companies offer their own hardware for the ISS; accepting adds it to your catalog.
+const COMPANIES = [
+  { k: "stellar", name: "Stellar Logistics", payload: "cargo_c", pitch: "offers its cargo pods for ISS supply runs: 3.5 t for 45 M$." },
+  { k: "habworks", name: "HabWorks", payload: "lab_c", pitch: "offers to dock its commercial module to the ISS: two bunks and lab space." },
+];
+function maybeOffer(a) {
+  if (!contractStateFor(a, "iss_resupply") || a.month % 9 !== 0) return;
+  const c = COMPANIES.find((x) => !a.tech.includes(`co_${x.k}`) && !a.offers.some((o) => o.k === x.k));
+  if (!c) return;
+  a.offers.push({ k: c.k, until: a.month + 12 });
+  a.log.push({ month: a.month, text: `${c.name} ${c.pitch}` });
+}
+
+const researchMonths = (t) => Math.max(3, Math.round(t.cost / 15));   // bigger projects take longer
 function openResearch(focus) {
   const a = agency(), m = $("#research");
   $("#rsFunds").textContent = `${fmt(a.funds)} M$ available`;
-  $("#rsList").innerHTML = Object.entries(TECH).filter(([k]) => k !== "basics").map(([k, t]) => {
+  $("#rsList").innerHTML = Object.entries(TECH).filter(([k, t]) => k !== "basics" && !t.offer).map(([k, t]) => {
     const own = a.tech.includes(k), parts = Object.entries(t.unlocks).flatMap(([f, keys]) => keys.map((x) => {
       const cat = { payloads: S.cat.PAYLOADS, rtg: { rtg: S.cat.RTG } }[f] || optionsFor(f, true);
       return (cat[x] || {}).name || x;
     }));
+    const busy = (a.research || []).find((r) => r.t === k), months = researchMonths(t);
     return `<div class="rs-item ${own ? "own" : ""} ${k === focus ? "focus" : ""}" data-t="${k}"><div><b>${esc(t.name)}</b><small>${esc(parts.join(", "))}</small></div>
-      ${own ? `<span class="rs-own">${icon("check", 14)} owned</span>` : `<button class="btn small" data-buy="${k}" ${a.funds < t.cost ? "disabled" : ""}>${t.cost} M$</button>`}</div>`;
+      ${own ? `<span class="rs-own">${icon("check", 14)} owned</span>` : busy ? `<span class="rs-own">ready ${esc(monthName(busy.done))}</span>`
+        : `<button class="btn small" data-buy="${k}" ${a.funds < t.cost || (a.research || []).length >= 2 ? "disabled" : ""}>${t.cost} M$ · ${months} mo</button>`}</div>`;
   }).join("");
   $$("#rsList [data-buy]").forEach((b) => b.onclick = () => {
     const x = agency(), t = TECH[b.dataset.buy];
     if (x.funds < t.cost) return;
-    x.funds -= t.cost; x.tech.push(b.dataset.buy); x.log.push({ month: x.month, text: `Research: ${t.name} (-${t.cost} M$)` });
+    x.funds -= t.cost; x.research = [...(x.research || []), { t: b.dataset.buy, done: x.month + researchMonths(t) }];
+    x.log.push({ month: x.month, text: `Research started: ${t.name} (-${t.cost} M$, ${researchMonths(t)} months)` });
     saveAgency(x); SFX.chime(); openResearch(b.dataset.buy);
     if ($("#desk").classList.contains("active")) { renderAll(); evaluateSoon(); } else if ($("#hq").classList.contains("active")) openHQ();
   });
@@ -262,7 +336,8 @@ function applyCareerResult(res) {
   a.log.push({ month: launchMonth, text: `${S.cat.SCENARIOS[sc].name}: ${sco.grade} (${sim.outcome})` });
   saveAgency(a);
   // development of the next mission overlaps this one: the clock moves to a year before this launch, at least 6 months on
-  advanceTo(Math.max(a.month + 6, launchMonth - 12 + (sim.launch_delay || 0)));
+  if (sc === "iss_resupply" && ok) { const x = agency(); x.iss_due = launchMonth + 24 + (sim.launch_delay || 0); saveAgency(x); }
+  advanceTo(Math.max(a.month + 3, launchMonth + (sim.launch_delay || 0)));   // building the spacecraft takes until launch day
   const after = agency(); maybeInvite(after); saveAgency(after);
   return { repGain, savings, reward: reward + jointBonus, rep: agency().rep, funds: agency().funds, medals: newMedals.map((m) => m.name),
     unlocked: ORDER.filter((k) => CONTRACTS[k] && contractState(k).open && !a.done[k]).map((k) => S.cat.SCENARIOS[k].name) };

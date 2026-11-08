@@ -137,8 +137,15 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
                 log(m, "landing", f"Touchdown on {ev['destination']['name']}! The landing system worked.",
                     "Parachutes, engines or airbags turned thousands of km/h into a gentle touchdown.", "good")
         elif phase == "science" and m == cruise_m + 1 and cruise_m > 0:
-            log(m, "arrival", f"Arrived at {ev['destination']['name']}: orbit insertion burn successful.",
-                "The engine fired to slow down enough to be captured by gravity.", "good")
+            # deep space is unforgiving: the one burn that captures the spacecraft must work first time
+            if ev["design"]["scenario"] and ev["destination"].get("earth_au", 0) > 0.005 and rng.random() < 0.03 * em * tech:
+                log(m, "insertion_failure", f"The orbit insertion burn at {ev['destination']['name']} failed. The spacecraft flew past and was lost.",
+                    "Mars Climate Orbiter (1999) was lost because one team used pounds and another newtons. Arrival burns "
+                    "happen far from Earth, with no second chance.", "fatal")
+                alive, outcome = False, "lost"
+            else:
+                log(m, "arrival", f"Arrived at {ev['destination']['name']}: orbit insertion burn successful.",
+                    "The engine fired to slow down enough to be captured by gravity.", "good")
 
         # battery ageing
         batt_cap *= (1 - BATTERY_FADE_YEAR / 12)

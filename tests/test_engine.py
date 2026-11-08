@@ -314,3 +314,11 @@ def test_joint_mission_partner_pays():
     a = evaluate(default_design("mars_climate"))
     b = evaluate(default_design("mars_climate") | {"joint": {"partner": "jaxa", "share": 0.25}})
     assert b["cost"]["total"] < a["cost"]["total"] * 0.8
+
+
+def test_deep_space_arrival_can_fail():
+    from engine.simulate import simulate
+    kinds = {e["kind"] for s in range(300) for e in simulate(default_design("mars_climate"), s)["events"]}
+    assert "insertion_failure" in kinds
+    earth = {e["kind"] for s in range(100) for e in simulate(default_design("wildfire"), s)["events"]}
+    assert "insertion_failure" not in earth

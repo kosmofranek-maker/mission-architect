@@ -58,18 +58,20 @@
     $("#hqResearch").click();
     const f0 = agency().funds;
     document.querySelector('#rsList [data-buy="power"]').click();
-    ok(agency().funds === f0 - 50 && agency().tech.includes("power"), "research costs agency funds");
+    ok(agency().funds === f0 - 50 && agency().research.length === 1 && !agency().tech.includes("power"), "research costs funds and takes time");
+    advanceTo(agency().month + 4);
+    ok(agency().tech.includes("power") && /NASA/.test($("#hqName").textContent), "research completes after a few months; you work for NASA");
     $("#rsClose").click();
     document.querySelector('#hqContracts [data-sc="wildfire"]').click();
     await until(() => !$("#letter").classList.contains("hidden") || S.ev);
     if (!$("#letter").classList.contains("hidden")) $("#letterGo").click();
     await until(() => S.ev && S.ev.design.scenario === "wildfire");
     $("#tutSkip") && S.tut && $("#tutSkip").click();
-    ok(/JAN 2027/.test($("#tbDay").textContent), "desk shows the agency calendar");
+    ok(/MAY 2027/.test($("#tbDay").textContent), "desk shows the agency calendar");
     document.querySelector('.tab[data-tab="bus"]').click();
     ok(document.querySelector('.card.research') && /Research: Large spacecraft buses/.test($("#binder").textContent), "locked parts point to research");
     loadDesign(S.cat.DEFAULTS.wildfire);
-    await until(() => S.ev && S.ev.ok && S.ev.design.start_month === 0);
+    await until(() => S.ev && S.ev.ok && S.ev.design.start_month === agency().month);
     $("#launchBtn").click();
     await until(() => $("#launch").classList.contains("active"), 6000);
     await wait(300); $("#skipBtn").click();
@@ -82,6 +84,8 @@
     { const x = agency(); x.rep = 45; saveAgency(x); advanceTo(agency().month + 12); }
     openHQ();
     ok(agency().invites.length >= 1 && $$("#hqInvites [data-acc]").length >= 1, "high reputation brings invitations from other agencies");
+    ok(agency().world.length >= 1 && $("#hqTicker .tick-run"), "news ticker shows other agencies' missions");
+    ok(agency().iss_due != null, "the ISS needs regular supplies");
     const inv = agency().invites[0];
     document.querySelector("#hqInvites [data-acc]").click();
     await until(() => !$("#letter").classList.contains("hidden") || S.ev);

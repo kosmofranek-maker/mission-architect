@@ -119,6 +119,13 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   TESS-like orbits, photometer, cold IR telescope, coronagraph). 17 missions. Station drawing redone (modules in one
   line, truss across the core, wings at truss ends, auto-scaled), real ISS look.
 
+- Career as NASA (2026-11-08): HQ is the NASA Mission Office. Research takes time (cost/15 months, min 3, max 2 at
+  once), "Skip time" advances 3 months, the calendar jumps to the launch date after each flight (building takes
+  time), January brings NASA's budget. Deep-space arrivals can fail (3% orbit insertion, Mars Climate Orbiter
+  lesson). The ISS needs supplies regularly (deadline; missing it costs reputation). Fictional companies offer ISS
+  hardware (Stellar Logistics cargo pods, HabWorks module) that you unlock by signing. A news ticker and the log
+  show other agencies' successful and failed missions. Startup waits for all scripts (ensureScripts).
+
 ## Next
 - Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
 - Sound effects (stamp, teletype, launch) via WebAudio, optional.

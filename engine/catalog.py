@@ -119,6 +119,13 @@ PAYLOADS = {
     "cargo_l": {"name": "Large cargo ship (6 t supplies)", "group": "cargo", "mass": 15000, "cost": 140, "target": "leo",
                 "supplies": 6000, "requires": ["core"],
                 "learn": "Twice the supplies in one trip. Needs a bigger rocket."},
+    # commercial hardware offered by companies (career: unlocked when you accept their offer)
+    "cargo_c": {"name": "Stellar Logistics cargo pod (3.5 t)", "group": "cargo", "mass": 7000, "cost": 45, "target": "leo",
+                "supplies": 3500, "requires": ["core"],
+                "learn": "A company builds and operates it; NASA just buys the delivery. Cheaper than its own ships."},
+    "lab_c": {"name": "HabWorks commercial module", "group": "module", "mass": 12000, "cost": 260, "target": "leo",
+              "power_use": 6, "beds": 2, "research": 1, "requires": ["core"], "berth": True,
+              "learn": "A privately built module docks to the station: two more bunks and lab space the company rents out."},
     "crew": {"name": "Crew capsule (4 seats)", "group": "crew", "mass": 13000, "cost": 120, "target": "leo", "crew": 4,
              "requires": ["hab"],
              "learn": "Four astronauts ride up, live aboard for six months and come home in the same capsule."},
@@ -414,7 +421,7 @@ SCENARIOS = {
         "story": ("The ISS is already up there: 420 tonnes, as big as a football field. Your job is the supply line: "
                   "crews of four every six months and cargo ships so nobody goes hungry."),
         "program": {"place": "station", "slot_months": 3, "slots": 8, "stay": 6,
-                    "payloads": ["cargo", "cargo_l", "crew"],
+                    "payloads": ["cargo", "cargo_l", "crew", "cargo_c", "lab_c"],
                     "need": [], "existing": ["iss"], "base_power": 0, "stock0": 0,
                     "crew_goal": 80, "research_goal": 60, "ops_month": 8},
         "goals": [

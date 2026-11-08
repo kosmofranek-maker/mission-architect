@@ -347,7 +347,16 @@ const curOrbit = () => S.cat.ORBITS[destKey()][S.design.orbit] || Object.values(
 const level = () => (S.design && S.design.difficulty) || "normal";
 
 // ---------------------------------------------------------------------------- boot
+// Make sure program.js and career.js really ran (a slow or dropped download would leave the game half-built).
+async function ensureScripts() {
+  const need = [["program.js", () => typeof renderManifest === "function"], ["career.js", () => typeof openHQ === "function"]];
+  for (const [file, ok] of need) {
+    for (let i = 0; i < 40 && !ok(); i++) await wait(50);
+    if (!ok()) await new Promise((done) => { const sc = document.createElement("script"); sc.src = `${file}?retry=${Date.now()}`; sc.onload = sc.onerror = done; document.body.appendChild(sc); });
+  }
+}
 async function boot() {
+  await ensureScripts();
   fit(); addEventListener("resize", fit);
   titleScene($("#titleStars"));
   $("#titlePlanet").src = planet("europa", 64);
@@ -382,7 +391,8 @@ async function boot() {
     if (k === "hq") { const x = newAgency(); x.month = 30; x.funds = 340; x.rep = 38; x.tech.push("deepcomms", "radar", "heavy"); x.trust = { esa: 2, isro: 1 };
       x.done = { wildfire: { grade: "A", score: 700 }, storm_watch: { grade: "B", score: 560 }, lunar_ice: { grade: "S", score: 820 } }; x.medals = ["orbit", "moon"];
       x.log = [{ month: 18, text: "Wildfire Watch: A (success)" }, { month: 24, text: "Annual budget: +97 M$" }, { month: 29, text: "Lunar Ice Prospector: S (success)" }];
-      saveAgency(x); S.mode = "career"; openHQ(); if (v === "research") openResearch("bigbus"); }
+      x.month = 6; x.done.storm_watch = { grade: "B", score: 560 }; x.research = [{ t: "bigbus", done: 40 }]; saveAgency(x); advanceTo(36);
+      S.mode = "career"; openHQ(); if (v === "research") openResearch("bigbus"); }
     if (k === "station") { startMission(v, S.cat.DEFAULTS[v]); const g = document.createElement("canvas"); }
     if (k === "compare") {
       startMission(v, S.cat.DEFAULTS[v]); const e = drawer.add({ name: "Preset design", scenario: v, design: S.cat.DEFAULTS[v] });
