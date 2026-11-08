@@ -980,7 +980,7 @@ function renderBinder() {
     h += `<div class="cards">` + Object.entries(opts).map(([k, o]) => {
       const sel = MULTI.has(field) ? S.design[field].includes(k) : S.design[field] === k;
       const lockT = field === "partners" ? (!partnerOpen(k) ? `Opens at agency reputation ${PARTNER_REP[k]}` : null)
-        : !isUnlocked(field, k) ? `Research: ${TECH[TECH_OF[`${field}:${k}`]].name} (${TECH[TECH_OF[`${field}:${k}`]].cost} M$)` : null;
+        : !isUnlocked(field, k) ? lockText(TECH_OF[`${field}:${k}`]) : null;
       if (lockT && !sel) return `<div class="card research" data-tech="${field === "partners" ? "" : TECH_OF[`${field}:${k}`]}">
         <div class="ci">${icon(PART_ICON[field](k), 32)}</div><div class="cn">${esc(o.name)}</div><div class="cs">${statLine(field, k, o)}</div>
         <div class="lockline">${icon("lock", 12)} ${esc(lockT)}</div></div>`;
@@ -1005,7 +1005,7 @@ function renderBinder() {
       setField(f, cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]);
     } else setField(f, k);
   });
-  $$("#binder [data-tech]").forEach((el) => el.onclick = () => { if (el.dataset.tech) { SFX.page(); openResearch(el.dataset.tech); } else { SFX.error(); toast("Partners join agencies with a better reputation. Fly successful missions first."); } });
+  $$("#binder [data-tech]").forEach((el) => el.onclick = () => { if (el.dataset.tech) { openLock(el.dataset.tech); } else { SFX.error(); toast("Partners join agencies with a better reputation. Fly successful missions first."); } });
   $$("#binder [data-rtg]").forEach((b) => b.onclick = () =>
     setField("rtg", Math.max(0, Math.min(S.cat.RTG.max, S.design.rtg + Number(b.dataset.rtg)))));
 }
@@ -1934,14 +1934,14 @@ function playLaunch(res, skipTo = 0) {
     const tl = res.sim.timeline, mi = Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length));
     const e = tl[Math.max(0, mi)] || { modules: S.cat.SCENARIOS[d.scenario].program.existing, crew: 0, stock_kg: 0, month: 0 };
     const abs = res.evaluation.program.start + e.month - 1;
-    drawOutpost(g, place, outpostState(e.modules, e.crew, res.evaluation.program.flights, abs), 160, place === "station" ? 80 : gyS - 12, place === "station" ? 1.5 : 2, "real", t * 10);
+    drawOutpost(g, place, outpostState(e.modules, e.crew, res.evaluation.program.flights, abs), 160, place === "station" ? 82 : gyS - 12, place === "station" ? stationScale(e.modules, 300, 150) : 2, "real", t * 10);
     text(`MONTH ${e.month}  CREW ${e.crew}`, 8, 16, 8, "#f4efe2");
     text(`SUPPLIES ${fmt((e.stock_kg || 0) / 1000, 1)} T`, 8, 28, 8, "#e9e3d6");
   }
   // Your crew vehicle flies to the space station again and again.
   function vehiclePhase(t) {
     g.drawImage(starCv, 0, 0); g.drawImage(limbCv, 0, 40);
-    drawOutpost(g, "station", { modules: ["iss"], crew: 4 }, 200, 80, 1.3, "real");
+    drawOutpost(g, "station", { modules: ["iss"], crew: 4 }, 205, 82, stationScale(["iss"], 210, 150), "real");
     const k = ((t - LT.space) % 4) / 4, x = 20 + Math.min(1, k * 1.3) * 120, y = 70 + Math.sin(k * 3) * 4;
     drawVehicle(g, d, x, y, 1.2, "real");
     const tl = res.sim.timeline, mi = Math.min(tl.length - 1, Math.floor((li / Math.max(1, lines.length)) * tl.length)), e = tl[Math.max(0, mi)] || {};
@@ -2104,7 +2104,7 @@ function showNews(res) {
     </div>`;
   const pc = $("#newsPhoto"), g = pc.getContext("2d");
   stars(pc, 60, res.seed);
-  const im = new Image(); im.onload = () => { g.imageSmoothingEnabled = false; g.drawImage(im, 150, 4, 68, 68); if (res.sim.vehicle) { drawOutpost(g, "station", { modules: ["iss"], crew: 4 }, 110, 38, 0.72); drawVehicle(g, res.design, 40, 38, 0.9); } else if (res.sim.program) { const ls = res.sim.timeline[res.sim.timeline.length - 1] || {}; drawOutpost(g, S.cat.SCENARIOS[res.design.scenario].program.place, outpostState(ls.modules || [], ls.crew || 0, res.evaluation.program.flights, null), 90, 38, S.cat.SCENARIOS[res.design.scenario].program.place === "station" ? 0.72 : 1); } else drawCraft(g, 90, 38, res.design); };
+  const im = new Image(); im.onload = () => { g.imageSmoothingEnabled = false; g.drawImage(im, 150, 4, 68, 68); if (res.sim.vehicle) { drawOutpost(g, "station", { modules: ["iss"], crew: 4 }, 120, 38, stationScale(["iss"], 150, 70)); drawVehicle(g, res.design, 40, 38, 0.9); } else if (res.sim.program) { const ls = res.sim.timeline[res.sim.timeline.length - 1] || {}; drawOutpost(g, S.cat.SCENARIOS[res.design.scenario].program.place, outpostState(ls.modules || [], ls.crew || 0, res.evaluation.program.flights, null), 90, 38, S.cat.SCENARIOS[res.design.scenario].program.place === "station" ? stationScale(ls.modules || [], 160, 70) : 1); } else drawCraft(g, 90, 38, res.design); };
   im.src = planet(PLANET_OF[destKeyOf(res.design)], 48);
   animateNews(sc);
   const idx = ORDER.indexOf(res.design.scenario);

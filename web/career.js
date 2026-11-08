@@ -97,7 +97,7 @@ function partnerOpen(pk) { return !inCareer() || agency().rep >= (PARTNER_REP[pk
 // technologies a contract's reference design uses that the agency doesn't own yet
 function researchNeeded(sc) {
   const a = agency(), d = S.cat.DEFAULTS[sc], need = new Set();
-  const add = (f, k) => { const t = TECH_OF[`${f}:${k}`]; if (t && !a.tech.includes(t)) need.add(t); };
+  const add = (f, k) => { const t = TECH_OF[`${f}:${k}`]; if (t && !a.tech.includes(t) && !TECH[t].offer) need.add(t); };
   for (const f of ["launch_vehicle", "bus", "solar", "battery", "comms", "ground", "computer", "adcs", "propulsion", "edl",
     "shape", "seats", "heatshield", "abort", "landing"]) if (d[f]) add(f, d[f]);
   (d.instruments || []).forEach((k) => add("instruments", k));
@@ -168,7 +168,7 @@ function openHQ() {
       <div class="f-lvl">${s.difficulty} &middot; +${CONTRACTS[k].reward} M$</div>
       ${!st.open ? `<div class="f-why">${icon("lock", 12)} ${esc(st.why)}</div>`
         : best && PASS.includes(best.grade) ? `<div class="f-ok">Flown. Fly again to improve.</div>`
-        : need.length ? `<div class="f-need">Research first: ${need.map((t) => esc(TECH[t].name)).join(", ")}</div>` : `<div class="f-ok">Ready to design</div>`}
+        : need.length ? `<div class="f-need">Research first: ${need.map((t) => { const r = (a.research || []).find((x) => x.t === t); return esc(TECH[t].name) + (r ? ` (ready ${esc(monthName(r.done))})` : ""); }).join(", ")}</div>` : `<div class="f-ok">Ready to design</div>`}
     </div>`;
   }).join("");
   $$("#hqContracts .folder").forEach((f) => f.onclick = () => {
@@ -260,6 +260,16 @@ function maybeOffer(a) {
   a.log.push({ month: a.month, text: `${c.name} ${c.pitch}` });
 }
 
+// What a locked card says: research it, or wait for the company's offer (contracts can't be researched).
+function lockText(t) {
+  const x = TECH[t];
+  if (x.offer) { const c = COMPANIES.find((y) => `co_${y.k}` === t); return `Offered by ${c ? c.name : "a company"}: sign their contract at headquarters when the offer arrives`; }
+  return `Research: ${x.name} (${x.cost} M$)`;
+}
+function openLock(t) {
+  if (TECH[t] && TECH[t].offer) { SFX.error(); return toast("This comes from a company contract, not research. Watch the Invitations box at headquarters for their offer."); }
+  SFX.page(); openResearch(t);
+}
 const researchMonths = (t) => Math.max(3, Math.round(t.cost / 15));   // bigger projects take longer
 function openResearch(focus) {
   const a = agency(), m = $("#research");

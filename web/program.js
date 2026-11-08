@@ -51,7 +51,7 @@ function renderManifest(head) {
   h += `<h4>Add a flight</h4><div class="cards">` + P.payloads.map((k) => {
     const o = S.cat.PAYLOADS[k];
     if (!isUnlocked("payloads", k)) return `<div class="card research" data-tech="${TECH_OF[`payloads:${k}`]}"><div class="ci">${icon(PAYLOAD_ICON[k] || "star", 32)}</div>
-      <div class="cn">${esc(o.name)}</div><div class="cs">${payloadStats(k)}</div><div class="lockline">${icon("lock", 12)} Research: ${esc(TECH[TECH_OF[`payloads:${k}`]].name)} (${TECH[TECH_OF[`payloads:${k}`]].cost} M$)</div></div>`;
+      <div class="cn">${esc(o.name)}</div><div class="cs">${payloadStats(k)}</div><div class="lockline">${icon("lock", 12)} ${esc(lockText(TECH_OF[`payloads:${k}`]))}</div></div>`;
     return `<div class="card ${locked ? "disabled" : ""}" data-add="${k}"><div class="ci">${icon(PAYLOAD_ICON[k] || "star", 32)}</div>
       <div class="cn">${esc(o.name)}</div><div class="cs">${payloadStats(k)}</div><div class="cl">${esc(o.learn || "")}</div></div>`;
   }).join("") + `</div>`;
@@ -65,7 +65,7 @@ function renderManifest(head) {
     const m = man.map((x) => ({ ...x })), i = +b.dataset.i; m[i].slot = Math.max(0, Math.min(P.slots - 1, m[i].slot + Number(b.dataset.sd))); put(m);
   });
   $$("#binder [data-del]").forEach((b) => b.onclick = () => put(man.filter((_, i) => i !== +b.dataset.del)));
-  $$("#binder [data-tech]").forEach((el) => el.onclick = () => { SFX.page(); openResearch(el.dataset.tech); });
+  $$("#binder [data-tech]").forEach((el) => el.onclick = () => openLock(el.dataset.tech));
   $$("#binder [data-add]").forEach((c) => c.onclick = () => {
     if (man.length >= 16) return toast("16 flights is the most one program office can manage.");
     put([...man, { p: c.dataset.add, lv: bestLV(c.dataset.add), slot: defaultSlot(c.dataset.add) }]);
@@ -154,61 +154,75 @@ function drawOutpost(g, place, state, cx, cy, s = 1, pal = "real", t = 0) {
   for (let k = 0; k < (state.landers || 0); k++) { const x = -40 - k * 12; r(x, 4, 8, 5, col("#9c9284", "#9cc0ea")); r(x - 2, 9, 2, 3, col("#7d7d7d", "#9cc0ea")); r(x + 8, 9, 2, 3, col("#7d7d7d", "#9cc0ea")); }
   for (let k = 0; k < Math.min(6, state.crew || 0); k++) { const x = 18 + k * 5 + ((t + k * 7) % 20 < 10 ? 0 : 1); r(x, 6, 3, 3, col("#f4efe2", "#ffffff")); r(x, 9, 3, 3, col("#e9e3d6", "#dce9f8")); }
 }
-// A tidy station layout, like the ISS seen from above:
-// pressurised modules in one line along x, the truss crossing the core along y, solar wings at the truss ends.
-// Nothing overlaps however many modules or trusses there are (drawing caps at 4 trusses and 6 modules).
+// Station seen from above, laid out like the real ISS: one long truss across the middle, solar wings only at the
+// truss ends (two pairs per end, like P4/P6 and S4/S6), each pair unfolding in opposite directions, perpendicular
+// to the truss; radiators near the centre; the pressurised modules form one line that crosses the truss.
+const ISS_WINGS = [-74, -56, 46, 64];
+function stationLayout(mods) {
+  const iss = mods.includes("iss");
+  const tr = iss ? 4 : Math.min(4, mods.filter((m) => m === "truss").length);
+  const cols = iss ? ISS_WINGS : Array.from({ length: tr }, (_, k) => [40 + k * 18, -(40 + k * 18) - 10]).flat();
+  const chain = iss ? [] : mods.filter((m) => m === "hab" || m === "lab").slice(0, 6);
+  return { iss, tr, cols, chain, core: iss || mods.includes("core") };
+}
 function drawStation(g, mods, state, cx, cy, s, B, t) {
   const col = (real, blue) => (B ? blue : real);
   const r = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(cx + x * s), Math.round(cy + y * s), Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))); };
-  const iss = mods.includes("iss");
-  const trusses = iss ? 4 : Math.min(4, mods.filter((m) => m === "truss").length);
-  const chain = iss ? ["hab", "lab", "lab", "hab", "lab", "hab"] : mods.filter((m) => m === "hab" || m === "lab").slice(0, 6);
-  const core = iss || mods.includes("core");
-  const line = col("#9c9284", "#9cc0ea"), light = col("#ffffff", "#ffffff");
-  // truss along y with solar wings at each step
-  if (trusses) {
-    const reach = 12 + (trusses - 1) * 10 + 4;
-    r(-1, -reach, 3, reach * 2, line);
-    for (let k = 0; k < trusses; k++) {
-      const yo = 12 + k * 10;
-      for (const side of [-1, 1]) {
-        const y = side * yo - 3;
-        for (const dir of [-1, 1]) {
-          const x0 = dir < 0 ? -34 : 4;
-          r(x0, y, 30, 7, col("#25456b", "#5b86b8"));
-          r(x0, y, 30, 1, col("#8fb3e8", "#dce9f8")); r(x0, y + 6, 30, 1, col("#1d3a5e", "#9cc0ea"));
-          for (let x = x0 + 5; x < x0 + 30; x += 5) r(x, y, 1, 7, col("#3d6fa8", "#9cc0ea"));
-        }
-        r(-3, side * yo - 1, 7, 3, line);                                   // joint on the truss
-      }
-      if (k === 0) { r(4, -9, 6, 3, col("#e9e3d6", "#dce9f8")); r(-9, 6, 6, 3, col("#e9e3d6", "#dce9f8")); }  // radiators
-    }
+  const L = stationLayout(mods), line = col("#9c9284", "#9cc0ea"), white = col("#e9e3d6", "#dce9f8"), light = col("#ffffff", "#ffffff");
+  const wing = (x, y, h) => {                       // one solar array wing: 10 wide, h long, cells every 4 units
+    r(x, y, 10, h, col("#25456b", "#5b86b8")); r(x, y, 1, h, col("#8fb3e8", "#dce9f8")); r(x + 9, y, 1, h, col("#1d3a5e", "#9cc0ea"));
+    for (let yy = y + 4; yy < y + h - 1; yy += 4) r(x, yy, 10, 1, col("#3d6fa8", "#9cc0ea"));
+    r(x + 4, y, 2, h, col("#c9a24a", "#9cc0ea"));     // the mast that unfolds the blanket
+  };
+  const module = (x, y, w, h, kind) => {
+    r(x, y, w, h, kind === "lab" ? col("#cfd8c8", "#dce9f8") : kind === "core" ? col("#d8aa45", "#c9a24a") : white);
+    r(x, y, 1, h, light); r(x + w - 1, y, 1, h, col("#9c9284", "#9cc0ea"));
+    if (kind === "hab") for (let yy = y + 3; yy < y + h - 2; yy += 4) r(x + w / 2 - 1, yy, 2, 2, col("#3d6fa8", "#5b86b8"));
+    if (kind === "lab") r(x + w / 2 - 1, y + 2, 2, h - 4, col("#5d8a3c", "#5b86b8"));
+  };
+  // ---- pressurised modules (one line along y)
+  if (L.iss) {
+    module(-4, -28, 8, 8, "hab");                     // Harmony
+    module(-15, -27, 11, 6, "lab");                   // Columbus
+    module(4, -27, 14, 6, "lab");                     // Kibo
+    r(18, -26, 6, 4, line);                           // Kibo's exposed facility
+    module(-4, -20, 8, 17, "lab");                    // Destiny
+    module(-4, -3, 8, 6, "core");                     // Unity, under the truss
+    module(-4, 3, 8, 12, "hab");                      // Zarya
+    module(-4, 15, 8, 14, "hab");                     // Zvezda
+    r(-22, 22, 16, 4, col("#25456b", "#5b86b8")); r(6, 22, 16, 4, col("#25456b", "#5b86b8"));   // Zvezda's small arrays
+    r(-6, 22, 2, 4, line); r(4, 22, 2, 4, line);
+  } else {
+    if (L.core) module(-5, -5, 10, 10, "core");
+    L.chain.forEach((k, i) => {
+      const fwd = i % 2 === 0, j = Math.floor(i / 2), y = fwd ? -5 - (j + 1) * 15 : 5 + j * 15 + 1;
+      r(-2, fwd ? y + 14 : y - 1, 4, 1, line);       // docking ring
+      module(-4, y, 8, 14, k);
+    });
   }
-  // pressurised modules along x: right, left, right, left...
-  const pos = (i) => (i % 2 === 0 ? 10 + Math.floor(i / 2) * 21 : -10 - (Math.floor(i / 2) + 1) * 21);
-  chain.forEach((k, i) => {
-    const x = pos(i);
-    r(i % 2 === 0 ? x : x + 18, -2, 3, 4, line);                              // docking ring between modules
-    const xm = i % 2 === 0 ? x + 3 : x;
-    r(xm, -4, 18, 8, col(k === "hab" ? "#e9e3d6" : "#cfd8c8", "#dce9f8"));
-    r(xm, -4, 18, 1, light); r(xm, 3, 18, 1, col("#9c9284", "#9cc0ea"));
-    if (k === "hab") { r(xm + 3, -1, 2, 2, col("#3d6fa8", "#5b86b8")); r(xm + 8, -1, 2, 2, col("#3d6fa8", "#5b86b8")); r(xm + 13, -1, 2, 2, col("#3d6fa8", "#5b86b8")); }
-    else { r(xm + 3, -1, 12, 2, col("#5d8a3c", "#5b86b8")); }
-  });
-  if (core) { r(-10, -5, 20, 10, col("#d8aa45", "#c9a24a")); r(-10, -5, 20, 1, col("#f4e7b0", "#dce9f8")); r(-10, 4, 20, 1, col("#9a7428", "#9cc0ea"));
-    r(-3, -2, 6, 4, col("#9a7428", "#9cc0ea")); }
-  // visiting vehicles at the two ends of the module line
-  const right = chain.length ? pos(chain.length % 2 === 0 ? chain.length - 2 : chain.length - 1) + 21 : 10;
-  const left = chain.length > 1 ? pos(chain.length % 2 === 0 ? chain.length - 1 : chain.length - 2) - 9 : -18;
-  if (state.crew && core) { r(right + 1, -3, 6, 6, col("#f4efe2", "#ffffff")); r(right + 7, -2, 2, 4, col("#1d1a17", "#5b86b8")); r(right, -1, 1, 2, line); }
-  if (state.cargo && core) { r(left, -3, 8, 6, col("#7d7d7d", "#9cc0ea")); r(left + 8, -1, 1, 2, line); }
+  // ---- the truss, radiators and solar wings
+  if (L.tr) {
+    const reach = Math.max(...L.cols.map((x) => Math.abs(x < 0 ? x : x + 10))) + 2;
+    r(-reach, -1, reach * 2, 3, line);
+    for (let x = -reach; x < reach; x += 6) r(x, -1, 1, 3, col("#7d7d7d", "#5b86b8"));       // truss bays
+    for (const side of [-1, 1]) {                      // radiators near the centre
+      for (let k = 0; k < (L.iss ? 3 : 1); k++) r(side < 0 ? -12 - (k + 1) * 6 : 12 + k * 6, 3, 4, 12, white);
+      r(side * 36 - 1, -2, 3, 5, col("#5b534b", "#9cc0ea"));                                   // rotary joint (SARJ)
+    }
+    for (const x of L.cols) { wing(x, -36, 34); wing(x, 3, 34); r(x - 1, -3, 12, 7, col("#7d7d7d", "#9cc0ea")); }
+  }
+  // ---- visiting vehicles: crew at the front, cargo at the back
+  const front = L.iss ? -28 : -5 - Math.ceil(L.chain.length / 2) * 15;
+  const back = L.iss ? 29 : 5 + Math.floor(L.chain.length / 2) * 15 + 1;
+  if (state.crew && L.core) { r(-3, front - 7, 6, 6, col("#f4efe2", "#ffffff")); r(-2, front - 9, 4, 2, col("#1d1a17", "#5b86b8")); r(-1, front - 1, 2, 1, line); }
+  if (state.cargo && L.core) { r(-3, back + 1, 6, 8, col("#7d7d7d", "#9cc0ea")); r(-1, back, 2, 1, line); }
 }
 
 // biggest scale at which the whole station fits the given box
 function stationScale(mods, W, H) {
-  const iss = mods.includes("iss"), tr = iss ? 4 : Math.min(4, mods.filter((m) => m === "truss").length);
-  const n = iss ? 6 : Math.min(6, mods.filter((m) => m === "hab" || m === "lab").length);
-  const halfH = tr ? 12 + (tr - 1) * 10 + 4 : 8, halfW = Math.max(tr ? 34 : 12, 10 + Math.ceil(n / 2) * 21 + 10);
+  const L = stationLayout(mods);
+  const halfW = L.tr ? Math.max(...L.cols.map((x) => Math.abs(x < 0 ? x : x + 10))) + 3 : 14;
+  const halfH = Math.max(L.tr ? 37 : 8, L.iss ? 38 : 5 + Math.ceil(L.chain.length / 2) * 15 + 10);
   return Math.min(2, W / 2 / halfW, H / 2 / halfH);
 }
 function outpostState(modules, crew, flights, upto) {
