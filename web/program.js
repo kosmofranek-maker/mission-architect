@@ -6,7 +6,7 @@ const isProgram = () => S.design && (S.cat.SCENARIOS[S.design.scenario].kind ===
 const progSpec = () => scen().program;
 const PAYLOAD_ICON = { core: "bus", hab: "bus", lab: "flask", truss: "solar", cargo: "capsule", cargo_l: "capsule", crew: "person",
   lcargo: "chute", lcargo_l: "chute", lpower: "rtg", lrover: "wheel", lcrew_s: "person", lcrew: "person",
-  mhab: "bus", mpower: "solar", mcargo: "chute", mtransit: "nozzle", mcrew: "person" };
+  cargo_c: "capsule", cargo_dc: "rocket", lab_c: "flask", mhab: "bus", mpower: "solar", mcargo: "chute", mtransit: "nozzle", mcrew: "person" };
 const kt = (kg) => `${fmt(kg / 1000, 1)} t`;
 
 function bestLV(p) {
