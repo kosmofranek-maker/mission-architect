@@ -2235,4 +2235,5 @@ function startPoll() {
 }
 function stopPoll() { if (S.poll) clearInterval(S.poll); S.poll = null; }
 
-boot();
+// start only after every script (program.js, career.js) has loaded: boot may finish its fetch before they do
+if (document.readyState === "complete") boot(); else addEventListener("load", boot);
