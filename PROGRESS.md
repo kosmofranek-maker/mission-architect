@@ -126,9 +126,22 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   hardware (Stellar Logistics cargo pods, HabWorks module) that you unlock by signing. A news ticker and the log
   show other agencies' successful and failed missions. Startup waits for all scripts (ensureScripts).
 
-## Next
-- Franek to play it and give visual feedback (the Reddit reference post could not be fetched; style is assumed from Papers, Please).
-- Sound effects (stamp, teletype, launch) via WebAudio, optional.
-- Balance pass: Wildfire/Lunar defaults reach A easily.
-- Test multiplayer with 2 real browsers.
-- git commit, deploy (Hetzner Docker or Render), demo video + screenshots for the submission.
+- HQ polish (2026-11-08): readable left column without scrolling, contract cards grow with their text (flex rows,
+  middle column scrolls), old saved careers are repaired on load, ISS drawn like the real one (long truss, wing pairs
+  at the ends, radiators, module line), real companies offer ISS hardware (Northrop Grumman Cygnus, Sierra Space Dream
+  Chaser, Axiom module) via contracts, not research.
+
+## Next (agreed ideas for the contest, in priority order)
+1. Real mission comparison: after the flight the newspaper shows "your spacecraft vs the real one" (MRO, Juno/Europa
+   Clipper, OSIRIS-REx, ISS resupply...): mass, power, cost, rocket, cruise, what NASA did differently. ~2-3 h.
+2. Team vs team challenge: two rooms get the same mission + challenge code/seed, shared results board
+   (cheaper / more science / safer). Rooms already exist. ~3 h.
+3. Judge / demo mode: title-screen button runs a 90 s guided tour (design, launch, dashboard, newspaper, NASA career,
+   station). Also used to record the submission video. ~2 h.
+4. Downloadable one-page mission report (print/PDF) + share link that opens exactly this design and flight. ~2 h.
+5. "Learn more" links to NASA pages on parts and missions (RTG, DSN, Canadarm, Cygnus...). ~1 h.
+6. Polish/English language toggle (big: all texts). Only if time is left.
+- Outside the game, before 14-15.11: demo video + screenshots for the submission, test the team room with 2 real
+  browsers, README tuned for judges.
+- Later, after the contest (not now): desktop/Steam version = port engine to JS + Electron/Tauri, Steamworks
+  (100 USD fee), rename NASA/company trademarks or add a clear "not affiliated" notice.
