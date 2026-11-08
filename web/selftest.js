@@ -52,6 +52,9 @@
     document.querySelector('.tab[data-tab="power"]').click();
     ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
     // ---- career: an agency with calendar, money, reputation, research and contracts
+    { const old = newAgency(); old.offers = [{ k: "stellar", until: 99 }]; old.tech.push("co_stellar"); old.research = [{ t: "gone", done: 5 }];
+      store.set("agency", old); go("career");
+      ok($$("#hqContracts .folder").length > 0 && $("#hqLog"), "an old saved career still opens"); }
     store.set("agency", null); go("career");
     ok($("#hq").classList.contains("active") && $$("#hqContracts .folder").length === 17, "career opens agency HQ with 17 contracts");
     ok(!document.querySelector('#hqContracts [data-sc="wildfire"]').classList.contains("locked") && document.querySelector('#hqContracts [data-sc="lunar_ice"]').classList.contains("locked"), "first contracts open, later ones locked");

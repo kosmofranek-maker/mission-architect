@@ -80,7 +80,20 @@ for (const [t, o] of Object.entries(TECH)) for (const [f, keys] of Object.entrie
 const newAgency = (difficulty = "normal") => ({ v: 1, month: 0, funds: 150, rep: 5, difficulty, tech: ["basics"], trust: {},
   done: {}, log: [], medals: [], seen: [], boosters: {}, invites: [], research: [], world: [], offers: [], iss_due: null });
 const INVITE_REP = 40;   // from this reputation other agencies start inviting you to joint missions
-const agency = () => store.get("agency", null);
+// Saved careers from older versions may mention companies, research or contracts that no longer exist: clean them up.
+const agency = () => {
+  const a = store.get("agency", null);
+  if (!a || !S.cat) return a;
+  const coKeys = new Set(COMPANIES.map((c) => c.k));
+  a.offers = (a.offers || []).filter((o) => coKeys.has(o.k));
+  a.research = (a.research || []).filter((r) => TECH[r.t]);
+  a.tech = (a.tech || ["basics"]).filter((t) => TECH[t]);
+  a.invites = (a.invites || []).filter((v) => S.cat.PARTNERS[v.partner] && S.cat.SCENARIOS[v.sc] && CONTRACTS[v.sc]);
+  a.boosters = Object.fromEntries(Object.entries(a.boosters || {}).filter(([k]) => S.cat.LAUNCH_VEHICLES[k]));
+  a.done = Object.fromEntries(Object.entries(a.done || {}).filter(([k]) => S.cat.SCENARIOS[k]));
+  a.world = a.world || []; a.log = a.log || []; a.medals = a.medals || []; a.seen = a.seen || []; a.trust = a.trust || {};
+  return a;
+};
 const saveAgency = (a) => store.set("agency", a);
 const inCareer = () => S.mode === "career" && !!agency();
 
