@@ -140,15 +140,16 @@ function openHQ() {
   $("#hqFunds").textContent = `${fmt(a.funds)} M$`;
   $("#hqRep").innerHTML = `<div class="bar"><i style="width:${a.rep}%"></i></div><span>${a.rep} / 100 ${"&#9733;".repeat(stars)}${"&#9734;".repeat(5 - stars)}</span>`;
   $("#hqDiff").textContent = S.cat.DIFFICULTY[a.difficulty].name;
-  $("#hqMedals").innerHTML = MILESTONES.map((m) => `<div class="medal ${a.medals.includes(m.k) ? "on" : ""}" title="${esc(m.name)}">${icon(m.icon, 20)}</div>`).join("") + `<span class="medal-count">${a.medals.length} / ${MILESTONES.length}</span>`;
+  $("#hqMedals").innerHTML = MILESTONES.map((m) => `<div class="medal ${a.medals.includes(m.k) ? "on" : ""}" title="${esc(m.name)}">${icon(m.icon, 22)}<span>${esc(m.name)}</span></div>`).join("");
+  $("#hqMedalCount").textContent = `${a.medals.length} / ${MILESTONES.length}`;
   $("#hqPartners").innerHTML = Object.entries(S.cat.PARTNERS).map(([k, p]) => {
     const open = a.rep >= PARTNER_REP[k], t = a.trust[k] || 0;
-    return `<div class="hq-mini ${open ? "" : "locked"}" title="${esc(p.name)}${open ? `, trust ${t}/3` : `: opens at reputation ${PARTNER_REP[k]}`}">${icon(`flag_${k}`, 14)}<b>${esc(p.name.split(" (")[0])}</b>
-      <span>${open ? `${"&#9679;".repeat(t)}${"&#9675;".repeat(3 - t)}` : `rep ${PARTNER_REP[k]}`}</span></div>`;
+    return `<div class="hq-mini ${open ? "" : "locked"}" title="${esc(p.name)}${open ? `, trust ${t}/3` : `: opens at reputation ${PARTNER_REP[k]}`}">${icon(`flag_${k}`, 18)}<b>${esc(p.name)}</b>
+      <span>${open ? `trust ${"&#9679;".repeat(t)}${"&#9675;".repeat(3 - t)}` : `opens at rep ${PARTNER_REP[k]}`}</span></div>`;
   }).join("");
   const fleet = Object.entries(a.boosters || {}).filter(([, n]) => n > 0);
-  $("#hqFleet").innerHTML = fleet.length ? fleet.map(([k, n]) => `<div class="hq-row" title="Next launch ${pct(S.cat.REUSE_DISCOUNT)} cheaper">${icon("rocket", 14)}<b>${esc(S.cat.LAUNCH_VEHICLES[k].name.split(" (")[0])}</b><span>${n} booster${n > 1 ? "s" : ""}</span></div>`).join("")
-    : `<p class="hq-empty">Land a Falcon 9 or New Glenn first stage.</p>`;
+  $("#hqFleet").innerHTML = fleet.length ? fleet.map(([k, n]) => `<div class="hq-row">${icon("rocket", 18)}<b>${esc(S.cat.LAUNCH_VEHICLES[k].name.split(" (")[0])}</b><span>${n} booster${n > 1 ? "s" : ""}, next launch ${pct(S.cat.REUSE_DISCOUNT)} cheaper</span></div>`).join("")
+    : `<p class="hq-empty">Fly Falcon 9 or New Glenn and land the first stage to build a fleet.</p>`;
   $("#hqInvites").innerHTML = (a.invites || []).length ? a.invites.map((v, i) => {
     const p = S.cat.PARTNERS[v.partner], s = S.cat.SCENARIOS[v.sc];
     return `<div class="invite">${icon(`flag_${v.partner}`, 16)}<div><b>${esc(p.name)} invites you</b> to fly <b>${esc(s.name)}</b> together:
@@ -190,7 +191,7 @@ function openHQ() {
   });
   $("#hqNextYear").onclick = () => { SFX.page(); advanceTo(a.month + 3); toast("Three months pass."); openHQ(); };
   // research in progress, ISS supply deadline, news ticker
-  $("#hqResearchNow").innerHTML = (a.research || []).length ? a.research.map((r) => `<div class="hq-row">${icon("flask", 14)}<b>${esc(TECH[r.t].name)}</b><span>${esc(monthName(r.done))}</span></div>`).join("") : `<p class="hq-empty">Nothing running.</p>`;
+  $("#hqResearchNow").innerHTML = (a.research || []).length ? a.research.map((r) => `<div class="hq-row">${icon("flask", 18)}<b>${esc(TECH[r.t].name)}</b><span>ready ${esc(monthName(r.done))}</span></div>`).join("") : `<p class="hq-empty">Nothing running. Open Research to start a project.</p>`;
   const due = a.iss_due;
   $("#hqIss").innerHTML = due == null ? "" : `<div class="iss-due ${due - a.month <= 3 ? "late" : ""}">${icon("person", 14)}<span>ISS supplies needed by <b>${esc(monthName(due))}</b>
     (${Math.max(0, due - a.month)} months). Fly <i>ISS Supply and Crew Rotation</i> before then.</span></div>`;
