@@ -144,7 +144,7 @@
     ok(true, "rejected stamp lands and tool lifts");
     // handbook from the in-game menu
     $("#menuBtn").click(); $("#mHints").click();
-    ok(!$("#hints").classList.contains("hidden") && $$("#hbNav [data-s]").length === 12, "handbook opens with 12 stages (with build and NASA advice)");
+    ok(!$("#hints").classList.contains("hidden") && $$("#hbNav [data-s]").length === 13, "handbook opens with 13 stages (with build, NASA advice and glossary)");
     ok(/only given at Cadet/.test($("#hbBody").textContent) && /Your design right now/.test($("#hbBody").textContent), "engineer handbook: status, no tips");
     $("#hbClose").click();
     await pick("launch", "launch_vehicle", "falcon9");
@@ -152,6 +152,19 @@
     ok(!document.querySelector(".tab .todo"), "no tab left with missing parts");
     await pick("instr", "instruments", "radar");
     ok(S.ev.science.goals.find((g) => g.tag === "subsurface").fraction > 0, "radar adds subsurface science");
+    const sciBefore = S.ev.science.score;
+    document.querySelector('#reqGoals .goal.pick[data-goal="climate"]').click();
+    await until(() => S.ev.design.priority === "climate" && S.ev.science.score !== sciBefore);
+    ok($("#reqGoals .goal.primary") && S.ev.science.goals.find((g) => g.primary).tag === "climate", "primary objective picked on the mission request");
+    await pick("comms", "processing", "center");
+    ok(S.ev.cost.items["Science data center"] > 0 && S.ev.user.science_mult > 1, "user segment: science data center costs money and returns more science");
+    document.querySelector('.tab[data-tab="orbit"]').click();
+    ok($("#orbitCv") && /orbit/.test($("#orbitStatus").textContent) && $("#orbitT"), "orbit view shows shadow and ground contact");
+    $("#orbitT").value = 0; $("#orbitT").oninput();
+    ok(/shadow: running on the battery/.test($("#orbitStatus").textContent), "moving time puts the spacecraft in the planet's shadow");
+    openHints("glossary");
+    ok($$("#hbBody .line").length >= 25 && /Delta-v/.test($("#hbBody").textContent), "handbook glossary explains the terms");
+    $("#hbClose").click();
     $("#yearsUp").click(); await until(() => S.ev.design.years === 5); ok(true, "years stepper");
     $("#launchBtn").click();
     await until(() => $("#launch").classList.contains("active"), 4000);
@@ -176,6 +189,9 @@
     ok(tradesNow() >= 1 && cmlNow().steps.length === 4, "concept maturity ladder computed");
     // ---- Cadet: follow the advisor's suggestions only, for every mission
     store.set("difficulty", "easy");
+    S.mode = "free"; openSelect();
+    ok($$("#folders .folder").length === ORDER.length && [...$$("#folders .folder")].every((f) => f.scrollHeight <= f.clientHeight + 2 && /Budget/.test(f.textContent)),
+      "every mission file shows its whole description");
     for (const sc of ORDER) {
       S.mode = "free"; openSelect();
       document.querySelector(`.folder[data-sc="${sc}"]`).click();

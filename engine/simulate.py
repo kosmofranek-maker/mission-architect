@@ -233,7 +233,7 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
                     "Without money for the team and antennas, a working spacecraft is switched off.", "fatal")
                 alive, outcome = False, "cancelled"
 
-        if alive and phase == "science" and rng.random() < P_DISCOVERY:
+        if alive and phase == "science" and rng.random() < P_DISCOVERY * ev.get("user", {}).get("discovery_mult", 1.0):
             bonus += 0.05
             log(m, "discovery", "Surprise discovery! The science team found something unexpected.",
                 "Many missions' biggest results were not planned. Long, healthy missions find more.", "good")

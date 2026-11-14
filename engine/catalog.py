@@ -943,6 +943,20 @@ SPARES = {
                        "already exist. If the launch fails, the twin flies on the next rocket. NASA built Voyager, Viking "
                        "and the Mars Exploration Rovers in pairs."},
 }
+# User segment: what happens to the data on the ground before scientists can use it. ops_mult scales the yearly
+# operations cost, science_mult the science the users get out of the same data, discovery_mult the odds of a surprise find.
+PROCESSING = {
+    "raw": {"name": "Raw data only", "ops_mult": 0.8, "science_mult": 0.9, "discovery_mult": 0.5,
+            "learn": "The mission hands over raw numbers. Every science team must clean and calibrate them alone, "
+                     "so fewer results come out while the spacecraft is still flying."},
+    "standard": {"name": "Calibrated data products", "ops_mult": 1.0, "science_mult": 1.0, "discovery_mult": 1.0,
+                 "learn": "A small pipeline turns raw data into calibrated maps and tables on a regular schedule. "
+                          "This is what most missions deliver to their users."},
+    "center": {"name": "Science data center", "ops_mult": 1.35, "science_mult": 1.08, "discovery_mult": 2.0,
+               "learn": "A full team processes, archives and shares the data within days and helps outside scientists "
+                        "use it. It costs more every year, and more eyes on the data means more discoveries."},
+}
+PRIORITY_WEIGHT = 1.5   # the goal chosen as the primary objective counts this much more (other goals count less)
 SPARE_WAIT_MONTHS = 12  # time to prepare the second unit and book another rocket
 
 DIFFICULTY = {
@@ -961,11 +975,11 @@ ROLES = {
                 "goal": "Keep mass margin ≥ 15% and power margin ≥ 20%.",
                 "learn": "Makes everything fit, fly and stay powered."},
     "science": {"name": "Science Lead", "icon": "🔭",
-                "owns": ["orbit", "instruments"],
+                "owns": ["orbit", "instruments", "priority"],
                 "goal": "Reach a science score of at least 70.",
                 "learn": "Wants every instrument and the closest possible orbit."},
     "comms": {"name": "Comms & Operations", "icon": "📡",
-              "owns": ["comms", "ground", "computer"],
+              "owns": ["comms", "ground", "computer", "processing"],
               "goal": "Return at least 80% of the data collected.",
               "learn": "Gets the data home. Every bit not downlinked is lost science."},
 }

@@ -205,6 +205,7 @@ const PART_ICON = {
     lamp: "uv", lidar: "laser", radar: "radar", mag: "magneto", massspec: "flask", sounder: "thermo",
     particles: "particles", pancam: "camera", drill: "drill", raman: "laser", seismo: "seismo", tagsam: "flask",
     sar: "radar", photometer: "telescope", irtel: "telescope", coronagraph: "camera" }[k] || "star"),
+  processing: (k) => ({ raw: "disk", standard: "chip", center: "station" }[k]),
   testing: (k) => ({ minimal: "warn", standard: "check", tlyf: "star" }[k]), spare: (k) => (k === "spare" ? "rocket" : "bus"),
   shape: (k) => (k === "capsule" ? "capsule" : "rocket"), seats: () => "person", heatshield: () => "flame",
   abort: (k) => (k === "none" ? "none" : "rocket"), landing: (k) => (k === "runway" ? "rocket" : k === "propulsive" ? "nozzle" : "chute"),

@@ -151,6 +151,16 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   removed features.
   Tests: 103 pytest, self-test 90 checks.
 
+- Review round (2026-11-14): merged kosmo80's PRs #1-#5 (honest resource labels + review doc, CML 2 needs no blockers,
+  MDL-inspired review panel, user-segment data delivery rows, instrument-to-science fit on cards). Review fixes on
+  top: Flight Director gets no explanations in the MDL panel or on instrument cards; the three delivery lessons are
+  segment notes, not table rows. From the review's open items and the challenge text:
+  primary objective (`priority`, click a goal, 1.5x weight, total unchanged), science data processing (`processing`:
+  raw / standard / center, Comms tab), orbit view with time slider (own sketch, not Mission Viz), challenge link
+  (`#challenge=<mission>:<seed>:<difficulty>`, fixed seed), glossary (27 terms). Mission select shows all 17 files in
+  full (6 columns, rows sized to content). Not done: GMAT reference scenario (needs a real GMAT run), telescope
+  band/optics chain. Tests: 110 pytest, 2 node checks, self-test.
+
 ## Next (agreed ideas for the contest, in priority order)
 1. Real mission comparison: after the flight the newspaper shows "your spacecraft vs the real one" (MRO, Juno/Europa
    Clipper, OSIRIS-REx, ISS resupply...): mass, power, cost, rocket, cruise, what NASA did differently. ~2-3 h.
