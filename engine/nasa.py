@@ -206,6 +206,57 @@ REAL_MISSIONS = {
                    "collects data and retreats. Its electronics sit in a metal vault and its solar wings span 30 metres."}],
 }
 
+# More to compare, by real mission name. Numbers are rounded public figures; strings are shown as they are.
+#   years = planned science phase, instruments = science instruments on board,
+#   crew / flights / stay = crewed programs, seats / safety / seat_cost = crew vehicles.
+REAL_EXTRA = {
+    "Landsat 9": {"years": "5 years", "instruments": 2},
+    "PUNCH": {"years": "2 years", "instruments": "4 cameras, one per satellite"},
+    "GOES-16": {"years": "15 years", "instruments": 6},
+    "Lunar Prospector": {"years": "1.5 years", "instruments": 5},
+    "Lunar Reconnaissance Orbiter": {"years": "1 year planned, still working", "instruments": 7},
+    "NEAR Shoemaker": {"years": "1 year at Eros"},
+    "Dawn": {"years": "11 years", "instruments": 3},
+    "Magellan": {"years": "4 years", "instruments": "1 radar"},
+    "IM-1 Odysseus": {"years": "about 1 week", "instruments": "6 NASA payloads"},
+    "OSIRIS-REx": {"years": "7 years there and back", "instruments": 5},
+    "Kepler": {"years": "3.5 years planned, 9 flown", "instruments": "1 photometer"},
+    "Mars Reconnaissance Orbiter": {"years": "2 years planned, still working", "instruments": 6},
+    "Perseverance": {"years": "2 years planned, still driving", "instruments": 7},
+    "Europa Clipper": {"years": "about 4 years", "instruments": 9},
+    "International Space Station": {"crew": "7", "flights": "42 to build it", "stay": "since 2000, no break"},
+    "Commercial Resupply Services": {"crew": "7 on the station", "flights": "20 cargo flights", "stay": "6 months per crew"},
+    "Artemis": {"crew": "4, of which 2 land", "flights": "several per landing", "stay": "about a week at first"},
+    "Mars Design Reference Architecture 5.0": {"crew": "6", "flights": "7 or more", "stay": "about 17 months"},
+    "Crew Dragon": {"seats": "4", "safety": "1 loss in 270 flights", "seat_cost": "about 55 M$"},
+}
+
+
+def _extra_rows(ev: dict, name: str) -> list[dict]:
+    x, d, rows = REAL_EXTRA.get(name, {}), ev["design"], []
+
+    def add(label, yours, key):
+        if key in x:
+            real = x[key]
+            rows.append({"label": label, "yours": yours, "real": f"{real}" if isinstance(real, str) else f"{real:,}", "ratio": None})
+
+    if ev.get("program"):
+        pr = ev["program"]
+        crew = max((r["crew"] for r in pr["plan"]), default=0)
+        add("Crew", f"{crew:g}", "crew")
+        add("Flights", f"{len(pr['flights'])}", "flights")
+        add("Time with crew", f"{pr['crewed_months']} months", "stay")
+    elif ev.get("vehicle"):
+        v = ev["vehicle"]
+        add("Seats", f"{v['seats']}", "seats")
+        add("Safety", f"1 loss in {v['one_in']:,.0f} flights", "safety")
+        add("Cost per seat", f"{v['seat_cost']:,.0f} M$", "seat_cost")
+    else:
+        add("Science phase", f"{ev['years']:g} years", "years")
+        add("Instruments", f"{len(d['instruments'])}", "instruments")
+    return rows
+
+
 # Advice, with the source it comes from. `when` decides whether it applies to the current design.
 TIPS = [
     {"id": "reserve", "src": "cubesat", "stage": "launch",
@@ -414,9 +465,16 @@ def real_compare(ev: dict) -> list[dict]:
         if probe and r["power"] and ev["power"]["generation"]:
             rows.append({"label": "Power", "yours": f"{ev['power']['generation']:,.0f} W", "real": f"about {r['power']:,} W",
                          "ratio": ev["power"]["generation"] / r["power"]})
-        if lv or ev.get("program"):
-            rows.append({"label": "Rocket", "yours": lv["name"] if lv else f"{len(ev['program']['flights'])} flights",
-                         "real": r["rocket"], "ratio": None})
+        extra = _extra_rows(ev, r["name"])
+        if not probe:
+            rows = extra + rows          # for programs and vehicles the crew numbers say more than the money
+        if lv:
+            rows.append({"label": "Rocket", "yours": lv["name"], "real": r["rocket"], "ratio": None})
+        elif ev.get("program"):
+            used = sorted({C.LAUNCH_VEHICLES[f["lv"]]["name"].split(" (")[0] for f in ev["program"]["flights"] if f.get("lv")})
+            rows.append({"label": "Rockets", "yours": ", ".join(used) or "none yet", "real": r["rocket"], "ratio": None})
+        if probe:
+            rows += extra
         note = ""
         mass_row = next((x for x in rows if x["label"] == "Launch mass"), None)
         if mass_row:

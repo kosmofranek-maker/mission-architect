@@ -202,7 +202,7 @@ h1, h2, h3 { font-family: "Silkscreen", monospace; font-weight: 700; margin: 0 0
 .plan-wrap { margin: 0 0 6px; border: 2px solid var(--ink); line-height: 0; }
 .plan-wrap canvas { width: 100%; height: auto; display: block; }
 .manifest { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
-.mrow { display: grid; grid-template-columns: 18px 18px 1fr 150px 128px; grid-template-areas: "n i name lv slot" ". . st st del";
+.mrow { display: grid; grid-template-columns: 18px 18px minmax(0, 1fr) 150px auto; grid-template-areas: "n i name lv del" ". . st slot slot";
   gap: 2px 6px; align-items: center; background: var(--paperL); border: 2px solid var(--ink); padding: 3px 6px; font-size: 17px; }
 .mrow.bad { border-color: var(--red); }
 .mrow .m-n { grid-area: n; font-family: "Silkscreen"; font-size: 11px; }
@@ -212,11 +212,12 @@ h1, h2, h3 { font-family: "Silkscreen", monospace; font-weight: 700; margin: 0 0
 .mrow select { grid-area: lv; font-family: "VT323", monospace; font-size: 16px; background: #fff8e6; border: 2px solid var(--ink); max-width: 150px; }
 .mrow .m-fixed { grid-area: lv; font-size: 15px; color: var(--blueD); }
 .mrow .m-fixed + .m-fixed { grid-area: slot; }
-.mrow .m-slot { grid-area: slot; display: flex; gap: 4px; align-items: center; font-size: 15px; white-space: nowrap; }
+.mrow .m-slot { grid-area: slot; justify-self: end; display: flex; gap: 6px; align-items: center; font-size: 15px; white-space: nowrap; }
 .mrow .m-bad { grid-area: st; color: var(--red); font-size: 15px; }
 .mrow .m-ok { grid-area: st; color: var(--greenD); font-size: 15px; display: flex; gap: 4px; align-items: center; }
-.mrow .m-del { grid-area: del; justify-self: end; }
-html.mobile .mrow { grid-template-columns: 18px 18px 1fr; grid-template-areas: "n i name" "lv lv lv" "slot slot slot" "st st del"; }
+.mrow .m-del { grid-area: del; justify-self: end; align-self: start; }
+html.mobile .mrow { grid-template-columns: 18px 18px minmax(0, 1fr) auto; grid-template-areas: "n i name del" "lv lv lv lv" "slot slot slot slot" "st st st st"; }
+html.mobile .mrow .m-slot { justify-self: start; }
 html.mobile .mrow select { max-width: none; }
 
 /* ------------------------------------------------ career headquarters */
@@ -601,7 +602,8 @@ html.mobile .letter-foot { flex-direction: column; gap: 8px; align-items: stretc
   align-items: center; justify-content: center; line-height: 1; transform: rotate(8deg); } .dos-grade small { font-size: 8px; }
 table.mel td, table.mel th { font-size: 16px; } table.mel th { font-size: 9px; } table.mel tr.tot td { border-top: 2px solid var(--ink); font-weight: bold; }
 .dos-code { font-size: 11px; word-break: break-all; font-family: monospace; }
-.menu .btn.wide:not(.big) { margin-top: 0; }
+.title-lib { position: absolute; top: 16px; right: 16px; z-index: 2; }
+html.mobile .title-lib { top: 8px; right: 8px; font-size: 10px; padding: 4px 8px; }
 html.mobile .proc-box { width: 96vw; max-height: 92vh; }
 html.mobile .proc-steps { grid-template-columns: repeat(2, 1fr); } html.mobile .seg-grid { grid-template-columns: 1fr 1fr; }
 html.mobile .modal.top { position: fixed; }

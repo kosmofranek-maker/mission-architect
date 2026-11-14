@@ -3,7 +3,7 @@
 (async () => {
   const errs = []; addEventListener("error", (e) => errs.push(e.message)); addEventListener("unhandledrejection", (e) => errs.push(String(e.reason)));
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const until = async (fn, ms = 5000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) throw new Error("timeout: " + fn); await wait(50); } };
+  const until = async (fn, ms = 5000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) throw new Error("timeout: " + fn + " [toast: " + ((document.getElementById("toast") || {}).textContent || "") + "]"); await wait(50); } };
   const log = [];
   const ok = (cond, msg) => { if (!cond) throw new Error(msg); log.push(msg); };
   const has = (f, k) => S.ev && (Array.isArray(S.ev.design[f]) ? S.ev.design[f].includes(k) : S.ev.design[f] === k);

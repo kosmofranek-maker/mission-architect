@@ -96,6 +96,16 @@ def test_reserve_rule_is_worth_fifty_points():
     assert any("10%" in a for a in score(sim)["analysis"])
 
 
+def test_real_comparison_has_enough_to_compare_for_every_mission():
+    for scenario in C.SCENARIOS:
+        for r in evaluate(default_design(scenario))["nasa"]["real"]:
+            assert len(r["rows"]) >= 4, (scenario, r["name"], [x["label"] for x in r["rows"]])
+    mars = {x["label"]: x for x in evaluate(default_design("mars_base"))["nasa"]["real"][0]["rows"]}
+    assert mars["Crew"]["real"] == "6" and mars["Flights"]["yours"] == "6" and mars["Flights"]["real"] == "7 or more" and "Rockets" in mars
+    ship = {x["label"] for x in evaluate(default_design("crew_transport"))["nasa"]["real"][0]["rows"]}
+    assert {"Seats", "Safety", "Cost per seat"} <= ship
+
+
 def test_real_mission_rows_compare_like_with_like():
     r = evaluate(default_design("mars_climate"))["nasa"]["real"][0]
     assert r["name"] == "Mars Reconnaissance Orbiter" and {x["label"] for x in r["rows"]} >= {"Launch mass", "Cost", "Rocket"}

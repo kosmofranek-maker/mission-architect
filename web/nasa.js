@@ -111,7 +111,7 @@ function openLibrary() {
 function realBox(res) {
   const real = res.evaluation.nasa && res.evaluation.nasa.real[0];
   if (!real) return "";
-  const rows = real.rows.slice(0, 3).map((r) => `<div class="rl"><span>${esc(r.label)}</span><span>${esc(r.yours)}</span><span>${esc(r.real)}</span></div>`).join("");
+  const rows = real.rows.filter((r) => Math.max(r.yours.length, r.real.length) <= 22).slice(0, 3).map((r) => `<div class="rl"><span>${esc(r.label)}</span><span>${esc(r.yours)}</span><span>${esc(r.real)}</span></div>`).join("");
   return `<h5>The real one: ${esc(real.name)} (${real.year})</h5>
     <div class="real"><div class="rl rh"><span></span><span>Yours</span><span>NASA's</span></div>${rows}</div>`;
 }
