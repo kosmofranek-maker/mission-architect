@@ -1,0 +1,15 @@
+const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
+const source = fs.readFileSync('web/game.js', 'utf8');
+const context = vm.createContext({});
+vm.runInContext(source.slice(source.indexOf('function instrumentScienceFit('), source.indexOf('function statLine(')), context);
+const f = context.instrumentScienceFit;
+const i = {tags: ['thermal'], where: 'orbit'};
+const goals = [{tag: 'thermal', label: 'Find heat', required: true}];
+assert.match(f('a', i, goals, {}, null), /Potential match only/);
+assert.match(f('a', i, goals, {}, {science:{per_instrument:{a:0}}}), /No science contribution/);
+assert.match(f('a', i, goals, {}, {science:{per_instrument:{a:12.34}}}), /12.3 capability points/);
+assert.match(f('a', i, [], {}, null), /No mission goal/);
+assert.match(f('a', i, goals, {surface:true}, null), /Wrong operating environment/);
+assert.match(f('a', i, goals, {blind:['a'],blind_why:'Clouds'}, null), /Clouds/);
+assert.match(f('a', i, goals, {}, null), /required/);
+console.log('Instrument fit: 7 regression checks passed');
