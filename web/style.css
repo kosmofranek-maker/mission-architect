@@ -290,13 +290,6 @@ html.mobile .agency-report { position: static; margin-top: 8px; }
 .hq-top .h-paper { margin: 0; }
 .iss-due { background: var(--paperL); border: 2px solid var(--ink); padding: 3px 8px; font-size: 16px; line-height: 1.05; display: flex; gap: 6px; align-items: center; flex: 1; }
 .iss-due.late { background: #f3c9b8; border-color: var(--red); }
-.ticker { background: #141217; color: #e9e3d6; border: 2px solid var(--ink); height: 26px; overflow: hidden; position: relative; font-size: 17px; white-space: nowrap; }
-.ticker .tick-run { position: absolute; left: 0; top: 3px; display: flex; gap: 40px; animation: tickerRun 60s linear infinite; }
-.ticker .tick-run span { flex: none; }
-.ticker .good { color: #8fe07a; } .ticker .bad { color: #ff8a78; }
-.ticker .req-small { color: var(--gray); padding: 3px 8px; display: block; }
-@keyframes tickerRun { to { transform: translateX(-50%); } }
-.hq-log .hl.world { color: var(--ink2); }
 
 /* ------------------------------------------------ design comparison */
 .cmp-box { width: 900px; max-height: 680px; display: flex; flex-direction: column; }

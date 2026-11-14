@@ -77,7 +77,7 @@ const TECH_OF = { "payloads:cargo_c": "co_ng", "payloads:cargo_dc": "co_sierra",
 for (const [t, o] of Object.entries(TECH)) for (const [f, keys] of Object.entries(o.unlocks)) for (const k of keys) TECH_OF[`${f}:${k}`] = t;
 
 const newAgency = (difficulty = "normal") => ({ v: 1, month: 0, funds: 150, rep: 5, difficulty, tech: ["basics"],
-  done: {}, log: [], medals: [], seen: [], boosters: {}, research: [], world: [], offers: [], iss_due: null });
+  done: {}, log: [], medals: [], seen: [], boosters: {}, research: [], offers: [], iss_due: null });
 // Saved careers from older versions may mention companies, research or contracts that no longer exist: clean them up.
 const agency = () => {
   const a = store.get("agency", null);
@@ -88,7 +88,7 @@ const agency = () => {
   a.tech = (a.tech || ["basics"]).filter((t) => TECH[t]);
   a.boosters = Object.fromEntries(Object.entries(a.boosters || {}).filter(([k]) => S.cat.LAUNCH_VEHICLES[k]));
   a.done = Object.fromEntries(Object.entries(a.done || {}).filter(([k]) => S.cat.SCENARIOS[k]));
-  a.world = a.world || []; a.log = a.log || []; a.medals = a.medals || []; a.seen = a.seen || []; delete a.trust; delete a.invites;
+  delete a.world; a.log = (a.log || []).filter((l) => !l.world); a.medals = a.medals || []; a.seen = a.seen || []; delete a.trust; delete a.invites;
   return a;
 };
 const saveAgency = (a) => store.set("agency", a);
@@ -150,7 +150,7 @@ function openHQ() {
     x.tech.push(`co_${o.k}`); x.log.push({ month: x.month, text: `Contract signed with ${c.name}: ${S.cat.PAYLOADS[c.payload].name} is available` });
     saveAgency(x); SFX.chime(); openHQ();
   });
-  $("#hqLog").innerHTML = a.log.length ? a.log.slice(-14).reverse().map((l) => `<div class="hl ${l.world ? "world" : ""}"><span>${esc(monthName(l.month))}</span><span>${l.world ? icon("globe", 12) + " " : ""}${esc(l.text)}</span></div>`).join("")
+  $("#hqLog").innerHTML = a.log.length ? a.log.slice(-14).reverse().map((l) => `<div class="hl"><span>${esc(monthName(l.month))}</span><span>${esc(l.text)}</span></div>`).join("")
     : `<p class="req-small">Nothing has flown yet. Pick a contract.</p>`;
   $("#hqContracts").innerHTML = ORDER.filter((k) => CONTRACTS[k]).map((k) => {
     const s = S.cat.SCENARIOS[k], st = contractState(k), best = a.done[k], need = st.open ? researchNeeded(k) : [];
@@ -170,15 +170,11 @@ function openHQ() {
     SFX.page(); store.set("difficulty", a.difficulty); startMission(f.dataset.sc);
   });
   $("#hqNextYear").onclick = () => { SFX.page(); advanceTo(a.month + 3); toast("Three months pass."); openHQ(); };
-  // research in progress, ISS supply deadline, news ticker
+  // research in progress, ISS supply deadline
   $("#hqResearchNow").innerHTML = (a.research || []).length ? a.research.map((r) => `<div class="hq-row">${icon("flask", 18)}<b>${esc(TECH[r.t].name)}</b><span>ready ${esc(monthName(r.done))}</span></div>`).join("") : `<p class="hq-empty">Nothing running. Open Research to start a project.</p>`;
   const due = a.iss_due;
   $("#hqIss").innerHTML = due == null ? "" : `<div class="iss-due ${due - a.month <= 3 ? "late" : ""}">${icon("person", 14)}<span>ISS supplies needed by <b>${esc(monthName(due))}</b>
     (${Math.max(0, due - a.month)} months). Fly <i>ISS Supply and Crew Rotation</i> before then.</span></div>`;
-  const news = (a.world || []).slice(-8).reverse();
-  $("#hqTicker").innerHTML = news.length ? (() => { const items = news.map((w) => `<span class="${w.ok ? "good" : "bad"}">${esc(monthName(w.month))}: ${esc(w.text)}</span>`).join("");
-      return `<div class="tick-run">${items}${items}</div>`; })()
-    : `<span class="req-small">World news will appear here as time passes.</span>`;
   $("#hqResearch").onclick = () => openResearch();
   $("#hqReset").onclick = () => {
     if (!confirm("Start a new career? Your agency's history, money and research will be lost.")) return;
@@ -191,7 +187,7 @@ function openHQ() {
 // Time passes: every January the agency receives its budget (more if its reputation is high).
 function advanceTo(month) {
   const a = agency();
-  a.research = a.research || []; a.world = a.world || []; a.offers = a.offers || [];
+  a.research = a.research || []; a.offers = a.offers || [];
   while (a.month < month) {
     a.month += 1;
     if (a.month % 12 === 0) {
@@ -203,7 +199,6 @@ function advanceTo(month) {
       a.tech.push(r.t); a.log.push({ month: a.month, text: `Research complete: ${TECH[r.t].name}` });
     }
     a.research = a.research.filter((x) => x.done > a.month);
-    worldNews(a);
     a.offers = a.offers.filter((o) => o.until > a.month);
     maybeOffer(a);
     if (a.iss_due == null && contractStateFor(a, "iss_resupply")) {
@@ -216,26 +211,6 @@ function advanceTo(month) {
     }
   }
   saveAgency(a);
-}
-
-// Other agencies fly too: their successes and failures appear on the news ticker.
-const WORLD = [
-  ["ESA", ["Mars orbiter", "comet probe", "Jupiter moons probe", "space telescope"], ["Aurora", "Rosetta-II", "Juice", "Ariel"]],
-  ["JAXA", ["asteroid sampler", "lunar lander", "Mars moon probe"], ["Hayabusa", "SLIM", "MMX"]],
-  ["ISRO", ["lunar lander", "Mars orbiter", "Venus orbiter", "crewed flight"], ["Chandrayaan", "Mangalyaan", "Shukrayaan", "Gaganyaan"]],
-  ["CNSA", ["lunar sample return", "Mars rover", "space station module"], ["Chang'e", "Tianwen", "Tiangong"]],
-  ["CSA", ["radar satellite", "lunar rover"], ["Radarsat", "Lunar Utility"]],
-  ["KARI", ["lunar orbiter", "Earth observer"], ["Danuri", "Arirang"]],
-];
-function worldNews(a) {
-  const rnd = _rng(a.month * 7919 + 13);
-  if (rnd() > 0.22) return;
-  const [ag, kinds, names] = WORLD[Math.floor(rnd() * WORLD.length)], i = Math.floor(rnd() * kinds.length);
-  const name = `${names[i % names.length]}-${2 + Math.floor(rnd() * 6)}`, ok = rnd() < 0.72;
-  const text = ok ? `${ag}'s ${name} ${kinds[i]} ${["succeeded", "reached its target", "returned its first data"][Math.floor(rnd() * 3)]}`
-    : `${ag}'s ${name} ${kinds[i]} ${["was lost", "failed after launch", "lost contact on arrival"][Math.floor(rnd() * 3)]}`;
-  a.world.push({ month: a.month, text, ok }); a.world = a.world.slice(-30);
-  a.log.push({ month: a.month, text: `World: ${text}`, world: true });
 }
 
 // Companies offer their own hardware for the ISS; accepting adds it to your catalog.

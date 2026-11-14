@@ -146,8 +146,9 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
 - Cooperation with other agencies removed completely (Franek, 2026-11-14): no partners, Partners tab, partner
   flights, robotic-arm bonus, partner trust, invitations or joint missions. `PARTNERS` is gone from the catalog; old
   saved designs and careers with those fields still load (the fields are dropped). The HQ box is now "Company
-  offers" (Northrop Grumman, Sierra Space, Axiom stay). The world news ticker about other agencies stays: it is
-  news, not cooperation. Older notes above that mention partners describe removed features.
+  offers" (Northrop Grumman, Sierra Space, Axiom stay). The world news ticker about other agencies is removed
+  too (ticker, world log entries, `worldNews`). Older notes above that mention partners or the ticker describe
+  removed features.
   Tests: 103 pytest, self-test 90 checks.
 
 ## Next (agreed ideas for the contest, in priority order)

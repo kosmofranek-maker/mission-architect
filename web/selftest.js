@@ -86,7 +86,6 @@
     if (passedNow) ok(!document.querySelector('#hqContracts [data-sc="lunar_ice"]').classList.contains("locked"), "success opens the next contract");
     { const x = agency(); x.rep = 45; saveAgency(x); advanceTo(agency().month + 12); }
     openHQ();
-    ok(agency().world.length >= 1 && $("#hqTicker .tick-run"), "news ticker shows other agencies' missions");
     ok(agency().iss_due != null, "the ISS needs regular supplies");
     store.set("agency", null);
     // ---- surface mission: landing tab, sites, airbags need air
