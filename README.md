@@ -55,7 +55,7 @@ site block, `deploy/deploy.sh` redeploys by hand. Every push to `main` runs the 
 - `server.py` HTTP server + JSON API. `web/` the game client (HTML/CSS/JS, pixel sprites in `sprites.js`).
 
 ## NASA data and resources used
-The challenge's Resources tab lists nine items. The game uses every one of them, and the in-game **NASA library**
+The challenge's Resources tab lists nine items. The game adapts selected concepts and links to other resources for further learning. The in-game **NASA library**
 (title screen and menu) shows the same list with links.
 
 | Resource | What the game does with it |
@@ -77,3 +77,6 @@ Europa Clipper, CubeSats, Electron, Falcon 9/Heavy, Vulcan, SLS, the Deep Space 
 trade-offs, not to be an engineering tool. Characters and organisations in the game are fictional.
 Real-mission figures in the comparison are rounded public numbers. This is a student project for the NASA Space Apps
 Challenge; it is not made or endorsed by NASA.
+
+Resource audit and proposed improvements: [review document (Polish)](docs/NASA_RESOURCE_REVIEW_PL.md).
+GMAT and NASA Mission Viz are not integrated or used to validate the simulation. The 10% reserve is a game rule, not a universal NASA requirement.

@@ -55,10 +55,10 @@ RESOURCES = [
     {"key": "gmat", "name": "General Mission Analysis Tool (GMAT)", "by": "NASA Goddard and partners",
      "what": "Free, open-source software that real teams use to design and optimise trajectories and launch windows.",
      "used": "The game's delta-v, launch windows and cruise times are simplified versions of what GMAT computes. "
-             "Open it when you want to fly one of your orbits for real."},
+             "External learning resource only: the game does not run GMAT or use GMAT-validated trajectories."},
     {"key": "viz", "name": "NASA Mission Viz", "by": "NASA",
      "what": "Web pages that show orbits and transfers in 3D, including an Earth to Moon flight.",
-     "used": "The launch film draws the transfer arc and the final orbit for your destination in the same spirit."},
+     "used": "Visual inspiration only: our own launch film draws a transfer arc and final orbit. NASA Mission Viz is not integrated."},
     {"key": "vr", "name": "Visualize a Space Mission Using Virtual Reality", "by": "NASA Space Apps Challenge 2023",
      "what": "An earlier challenge: show a whole mission, its concept, trajectory and timeline.",
      "used": "The launch film and the flight dashboard show the same three things: the concept, the path and the timeline, month by month."},
