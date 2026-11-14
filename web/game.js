@@ -882,6 +882,23 @@ function windowLearn(w) {
   if (w.synodic) t.push(`Miss it and the next ${S.cat.DESTINATIONS[destKey()].name.split(" (")[0]} window is ${w.synodic} months later.`);
   return t.join(" ");
 }
+// Explain relevance without promising compatibility or science from an unselected part.
+function instrumentScienceFit(k, instrument, goals, destination, ev) {
+  const matched = goals.filter((g) => instrument.tags.includes(g.tag));
+  if ((destination.blind || []).includes(k)) return `Cannot observe this target: ${destination.blind_why || "the destination blocks this instrument's view."}`;
+  if ((instrument.where === "surface" && !destination.surface) || (instrument.where === "orbit" && destination.surface))
+    return "Wrong operating environment for this instrument.";
+  if (!matched.length) return "No mission goal uses this instrument. It still adds mass, power, data and cost.";
+  let text = "Supports: " + matched.map((g) => g.label + (g.required ? " (required)" : " (optional)")).join("; ") + ".";
+  const contribution = ev && ev.science && ev.science.per_instrument;
+  if (contribution && Object.prototype.hasOwnProperty.call(contribution, k)) {
+    text += Number(contribution[k]) > 0
+      ? " Current modelled contribution: " + Number(contribution[k]).toFixed(1) + " capability points (not final mission score)."
+      : " No science contribution in the current design: check orbit, pointing, data delivery and landing requirements.";
+  } else text += " Potential match only: select it to evaluate orbit, pointing and data delivery.";
+  return text;
+}
+
 function statLine(field, k, o) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()];
   const tgt = curOrbit().lv_target;
@@ -973,6 +990,7 @@ function renderBinder() {
       return `<div class="card ${sel ? "sel" : ""} ${level() !== "hard" && cardBad(field, k, o) ? "bad" : ""} ${locked ? "disabled" : ""}" data-f="${field}" data-k="${k}">
         <div class="ci">${icon(PART_ICON[field](k), 32)}</div>
         <div class="cn">${esc(o.name)}</div><div class="cs">${statLine(field, k, o)}</div>${tags}
+        ${field === "instruments" ? `<div class="cl">${esc(instrumentScienceFit(k, o, scen().goals, S.cat.DESTINATIONS[destKey()], S.ev))}</div>` : ""}
         ${o.learn ? `<div class="cl">${esc(o.learn)}</div>` : ""}</div>`;
     }).join("") + `</div>`;
   }
