@@ -4,6 +4,7 @@ from __future__ import annotations
 from . import catalog as C
 
 MAX = {"science": 500, "budget": 150, "margins": 100, "reliability": 100, "team": 100}
+RESERVE_RULE = 0.10  # "project reserves of at least 10% should be part of the budget" (CubeSat 101)
 GRADES = [(800, "S"), (650, "A"), (500, "B"), (350, "C"), (0, "F")]
 
 
@@ -37,7 +38,8 @@ def score(sim: dict) -> dict:
                 "roles": role_goals(ev), "analysis": ["The design never passed review, so it did not launch."]}
     parts = {
         "science": min(MAX["science"], sim["science_score"] * 5),
-        "budget": MAX["budget"] * max(0.0, min(1.0, sim["reserve_end"] / 0.25)),
+        # 100 for money left at the end, 50 for planning the 10% reserve NASA's CubeSat 101 asks for
+        "budget": 100 * max(0.0, min(1.0, sim["reserve_end"] / 0.25)) + (50 if ev["cost"]["reserve"] >= RESERVE_RULE else 0),
         "margins": 50 * _sweet(ev["mass"]["margin"]) + 50 * _sweet(ev["power"]["margin"], 0.2, 1.0),
         "reliability": MAX["reliability"] * (sim["months_survived"] / max(1, sim["months_planned"]))
         * (1.0 if sim["outcome"] in ("success", "partial") else 0.5),
@@ -91,6 +93,18 @@ def analysis(sim: dict, parts: dict) -> list[str]:
     good = [e for e in sim["events"] if e["kind"] == "discovery"]
     if good:
         out.append(f"{len(good)} surprise discoveries boosted science: long, healthy missions get lucky more often.")
+    if ev["cost"]["reserve"] < RESERVE_RULE:
+        out.append(f"You planned only {max(0, ev['cost']['reserve']):.0%} budget reserve. NASA's CubeSat 101 asks for at least 10% "
+                   "for unexpected events, so 50 budget points were not awarded.")
+    build = ev.get("build") or {}
+    relaunch = next((e for e in sim["events"] if e["kind"] == "launch_failure" and e["impact"] == "bad"), None)
+    if relaunch:
+        out.append("The rocket failed, and the second flight unit saved the mission. Building two at once was the cheap insurance.")
+    elif sim["outcome"] == "lost" and any(e["kind"] == "launch_failure" for e in sim["events"]) and not build.get("spare") \
+            and not sim.get("program"):
+        out.append("The only spacecraft was on that rocket. A second flight unit (build and test lab) would have flown next.")
+    if build.get("testing") == "minimal" and sum(1 for e in sim["events"] if e["impact"] in ("bad", "fatal")) >= 2:
+        out.append("Minimal testing left faults to be found in space. 'Test like you fly' finds them on the ground.")
     if sim["reserve_end"] < 0.1 and sim["outcome"] != "cancelled":
         out.append("Budget reserve ended below 10%. One more surprise could have ended the mission.")
     if not out:

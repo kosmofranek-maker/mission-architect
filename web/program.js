@@ -34,19 +34,19 @@ function renderManifest(head) {
   h += `<h4>Launch manifest${pr ? ` &middot; ${pr.flights.length} flight${pr.flights.length === 1 ? "" : "s"}` : ""}</h4>`;
   if (!pr || !pr.flights.length) h += `<p class="req-small">No flights yet. Add the first one from the catalog below.</p>`;
   else h += `<div class="manifest">` + pr.flights.map((fl) => {
-    const lvSel = fl.partner ? `<span class="m-fixed">${esc(fl.lv_name)}</span>` :
+    const lvSel =
       `<select data-lv="${fl.i}" ${locked ? "disabled" : ""}><option value="">choose rocket</option>${Object.entries(S.cat.LAUNCH_VEHICLES).map(([k, v]) => {
         const cap = v.capacity[S.cat.PAYLOADS[fl.p].target];
         return `<option value="${k}" ${k === fl.lv ? "selected" : ""} ${isUnlocked("launch_vehicle", k) || k === fl.lv ? "" : "disabled"}>${esc(v.name.split(" (")[0])} · ${cap ? kt(cap) : "can't reach"}${S.cat.CREW_RATED.includes(k) ? " · crew" : ""} · ${v.cost} M$</option>`;
       }).join("")}</select>`;
-    const slot = fl.partner ? `<span class="m-fixed">${esc(fl.slot_label)}</span>` :
+    const slot =
       `<span class="m-slot"><button class="btn tiny" data-sd="-1" data-i="${fl.i}" ${locked || fl.slot === 0 ? "disabled" : ""}>-</button><b>${esc(fl.slot_label)}</b><button class="btn tiny" data-sd="1" data-i="${fl.i}" ${locked || fl.slot >= P.slots - 1 ? "disabled" : ""}>+</button></span>`;
     const st = fl.problems.length ? `<span class="m-bad">${esc(fl.problems.join(", "))}</span>` :
-      `<span class="m-ok">${icon("check", 12)} ${fl.margin != null ? `${pct(1 - fl.margin)} of the rocket` : "partner flight"}${fl.reused ? " · reused booster" : ""}</span>`;
-    return `<div class="mrow ${fl.partner ? "partner" : ""} ${fl.problems.length ? "bad" : ""}">
-      <span class="m-n">${fl.n}</span>${icon(fl.partner ? `flag_${fl.partner}` : PAYLOAD_ICON[fl.p] || "star", 16)}
+      `<span class="m-ok">${icon("check", 12)} ${pct(1 - fl.margin)} of the rocket${fl.reused ? " · reused booster" : ""}</span>`;
+    return `<div class="mrow ${fl.problems.length ? "bad" : ""}">
+      <span class="m-n">${fl.n}</span>${icon(PAYLOAD_ICON[fl.p] || "star", 16)}
       <span class="m-name"><b>${esc(fl.name)}</b><small>${kt(fl.mass)}${fl.cost ? ` · ${fmt(fl.cost)} M$` : " · free"}</small></span>
-      ${lvSel}${slot}${st}${fl.partner ? "" : `<button class="btn tiny m-del" data-del="${fl.i}" ${locked ? "disabled" : ""}>x</button>`}</div>`;
+      ${lvSel}${slot}${st}<button class="btn tiny m-del" data-del="${fl.i}" ${locked ? "disabled" : ""}>x</button></div>`;
   }).join("") + `</div>`;
   h += `<h4>Add a flight</h4><div class="cards">` + P.payloads.map((k) => {
     const o = S.cat.PAYLOADS[k];
@@ -103,7 +103,7 @@ function drawPlanChart() {
   const stack = {};
   pr.flights.forEach((fl) => {
     const k = fl.launch, n = (stack[k] = (stack[k] || 0) + 1) - 1, x = X(fl.launch) - 5, y = 4 + n * 12;
-    const im = iconImg(fl.partner ? `flag_${fl.partner}` : PAYLOAD_ICON[fl.p] || "star");
+    const im = iconImg(PAYLOAD_ICON[fl.p] || "star");
     if (im.complete) g.drawImage(im, x, y, 11, 11); else im.onload = () => drawPlanChart();
     if (fl.problems.length) { g.fillStyle = "#ff6b5b"; g.fillRect(x + 10, y, 3, 3); }
   });
@@ -248,7 +248,7 @@ function programAdvisor() {
   const set = (m, text) => ({ program: true, text, apply: () => setField("manifest", m) });
   const clone = () => man.map((f) => ({ ...f }));
   // 1. blockers on existing flights
-  for (const fl of pr.flights.filter((f) => !f.partner && f.problems.length)) {
+  for (const fl of pr.flights.filter((f) => f.problems.length)) {
     const name = fl.name;
     if (fl.problems.some((p) => /rocket|heavy|reach|crew/.test(p))) {
       const lv = bestLV(fl.p); if (!lv) continue;
@@ -296,7 +296,6 @@ function programTips() {
   if (P.place === "moon") T.push("The base's small solar field gives 12 kW: enough for two astronauts, not four. A fission unit works through the 14-day night.");
   if (P.place === "mars") T.push("Mars windows open every 26 months. Land the habitat and power plant in the first window; send the crew only in the next one, with two transit stage segments launched in the same window.");
   if (ev && ev.kind === "program" && ev.program.min_reserve_months != null) T.push(`Spare supplies at the tightest moment: <b>${fmt(ev.program.min_reserve_months, 1)} months</b>. Two or more lets you survive one failed cargo flight.`);
-  T.push("Partners (Partners tab) build and launch some flights for free on their own dates, and a robotic arm makes docking safer.");
   return T;
 }
 

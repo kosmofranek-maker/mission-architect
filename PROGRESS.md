@@ -131,6 +131,25 @@ Deadline: weekend of 2026-11-14/15. Solo dev (Franek), Python.
   at the ends, radiators, module line), real companies offer ISS hardware (Northrop Grumman Cygnus, Sierra Space Dream
   Chaser, Axiom module) via contracts, not research.
 
+- NASA challenge resources (2026-11-14): the Resources tab has 9 items (documents and tools, no numeric tables).
+  All are used, via `engine/nasa.py` (attached to every evaluation as `ev["nasa"]`) and `web/nasa.js`:
+  CML ladder 1-4 on the review sheet (CML 3 needs a second, different design in the drawer; the stamp prints the
+  level), four mission segments (review sheet headings, process sheet, report), six-step NASA process sheet,
+  11 pieces of advice with quotes and sources (handbook stage "NASA advice", client speech when the design is clean),
+  master equipment list, real mission comparison for all 17 missions (newspaper box + report), NASA library (title,
+  menu), printable mission report with a share link (`#code=`).
+  New design fields `testing` (minimal / standard / tlyf) and `spare` (none / spare) in the new Build tab (Mission
+  Manager's): cost, failure odds, late risk; a spare survives a launch failure if the reserve pays for a second rocket.
+  Score: budget is now 100 for money left + 50 for planning at least 10% reserve.
+  Tests: 105 pytest, self-test 93 checks (desktop and phone size). Demo links `#process=`, `#advice=`, `#report=`, `#library`.
+
+- Cooperation with other agencies removed completely (Franek, 2026-11-14): no partners, Partners tab, partner
+  flights, robotic-arm bonus, partner trust, invitations or joint missions. `PARTNERS` is gone from the catalog; old
+  saved designs and careers with those fields still load (the fields are dropped). The HQ box is now "Company
+  offers" (Northrop Grumman, Sierra Space, Axiom stay). The world news ticker about other agencies stays: it is
+  news, not cooperation. Older notes above that mention partners describe removed features.
+  Tests: 103 pytest, self-test 90 checks.
+
 ## Next (agreed ideas for the contest, in priority order)
 1. Real mission comparison: after the flight the newspaper shows "your spacecraft vs the real one" (MRO, Juno/Europa
    Clipper, OSIRIS-REx, ISS resupply...): mass, power, cost, rocket, cruise, what NASA did differently. ~2-3 h.

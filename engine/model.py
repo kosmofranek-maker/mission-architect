@@ -98,11 +98,6 @@ def month_label(m: int) -> str:
     return f"{MONTHS[m % 12]} {C.EPOCH_YEAR + m // 12}"
 
 
-def partner_delay_of(pk: str, d: dict) -> float:
-    """Partners who already worked with you are late less often (career trust 0-3)."""
-    return C.PARTNERS[pk]["delay"] * (1 - 0.25 * d.get("trust", {}).get(pk, 0))
-
-
 def launch_windows(dest_key: str, start: int = 0) -> list[dict]:
     """The next three launch dates that leave at least a year to build, with what each one means."""
     rule = C.WINDOW_RULES.get(dest_key)
@@ -175,7 +170,8 @@ def blank_design(scenario: str = "wildfire") -> dict:
     return {"scenario": scenario, "difficulty": "normal", "sandbox": False, "orbit": None, "launch_vehicle": None,
             "bus": None, "solar": None, "rtg": 0, "battery": None, "comms": None, "ground": None, "computer": None,
             "adcs": None, "propulsion": None, "edl": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"],
-            "window": None, "start_month": 0, "partners": [], "manifest": [], "trust": {}, "joint": None, "boosters": {},
+            "window": None, "start_month": 0, "manifest": [], "boosters": {},
+            "testing": "standard", "spare": "none",
             "shape": None, "seats": None, "heatshield": None, "abort": None, "landing": None}
 
 
@@ -201,15 +197,9 @@ def normalize(design: dict) -> dict:
         d["edl"] = None
     if d["ground"] == "relay" and not C.DESTINATIONS[dest].get("relay"):
         d["ground"] = None
-    d["partners"] = [p for p in dict.fromkeys(d.get("partners") or []) if p in C.PARTNERS][:C.MAX_PARTNERS]
-    raw_trust = d.get("trust") if isinstance(d.get("trust"), dict) else {}
-    d["trust"] = {k: max(0, min(3, int(v))) for k, v in raw_trust.items() if k in C.PARTNERS and str(v).lstrip("-").isdigit()}
     for f in ("shape", "seats", "heatshield", "abort", "landing"):
         if C.SCENARIOS[sc].get("kind") != "vehicle" or d.get(f) not in C.VEHICLE[f]:
             d[f] = None
-    j = d.get("joint") if isinstance(d.get("joint"), dict) else None
-    d["joint"] = ({"partner": j["partner"], "share": max(0.0, min(0.4, float(j.get("share") or 0)))}
-                  if j and j.get("partner") in C.PARTNERS else None)
     raw_b = d.get("boosters") if isinstance(d.get("boosters"), dict) else {}
     d["boosters"] = {k: max(0, min(9, int(v))) for k, v in raw_b.items() if k in C.LAUNCH_VEHICLES and str(v).isdigit()}
     if C.SCENARIOS[sc].get("kind") == "program":
@@ -217,6 +207,10 @@ def normalize(design: dict) -> dict:
         d["manifest"] = normalize_manifest(design.get("manifest"), C.SCENARIOS[sc])
     else:
         d["manifest"] = []
+    if d["testing"] not in C.TESTING:
+        d["testing"] = "standard"
+    if d["spare"] not in C.SPARES:
+        d["spare"] = "none"
     if d["window"] not in ("w1", "w2", "w3"):
         d["window"] = None
     try:
@@ -236,7 +230,15 @@ def _issue(issues, severity, area, text, why):
     issues.append({"severity": severity, "area": area, "text": text, "why": why})
 
 
-def evaluate(design: dict) -> dict:
+def evaluate(design: dict, trades: int = 0) -> dict:
+    """Evaluate a design. `trades` = how many different designs the player has compared (for the CML ladder)."""
+    from . import nasa
+    ev = _evaluate(design)
+    ev["nasa"] = nasa.brief(ev, trades)
+    return ev
+
+
+def _evaluate(design: dict) -> dict:
     d = normalize(design)
     sc = C.SCENARIOS[d["scenario"]]
     if sc.get("kind") == "program":
@@ -255,14 +257,6 @@ def evaluate(design: dict) -> dict:
     edl, use = part["edl"], edl_use(d["scenario"])
     kind = kind_of(d["scenario"])
     instr = {k: C.INSTRUMENTS[k] for k in d["instruments"]}
-    partners = [C.PARTNERS[p] for p in d["partners"]]
-    for pk in d["partners"]:  # partner hardware rides along and takes an instrument slot
-        p = C.PARTNERS[pk]
-        inst = p.get("instrument_surface") if C.DESTINATIONS[sc["destination"]].get("surface") and p.get("instrument_surface") else p.get("instrument")
-        if inst:
-            instr[f"partner_{pk}"] = inst
-    tracking = sum(p.get("tracking_h", 0) for p in partners)
-    partner_delay = 1 - math.prod(1 - partner_delay_of(pk, d) for pk in d["partners"])
     diff = C.DIFFICULTY[d["difficulty"]]
     issues: list[dict] = []
     years = d["years"]
@@ -368,7 +362,7 @@ def evaluate(design: dict) -> dict:
     size = C.BUS_SIZE.get(d["bus"], 1.0)
     cold = max(0.0, 1 - 1 / dest["sun_au"] ** 2, orbit.get("cold", 0.0))  # 0 at Earth, 0.57 at Mars, 0.96 at Jupiter; surface nights are cold
     heaters = max(0.0, C.BUS_HEATERS.get(d["bus"], 0) * cold - C.RTG["waste_heat_w"] * d["rtg"])
-    contact = min(1.0, (ground["hours"] + (tracking if d["ground"] else 0)) * orbit["earth_view"] / 24)
+    contact = min(1.0, ground["hours"] * orbit["earth_view"] / 24)
     loads = {
         "Bus avionics": bus["power"],
         "Heaters": heaters,
@@ -434,7 +428,7 @@ def evaluate(design: dict) -> dict:
         rate = comms["max_mbps"] * ground["gain"]
     else:
         rate = min(comms["max_mbps"], comms["mbps_1au"] / dest["earth_au"] ** 2) * ground["gain"]
-    hours = (ground["hours"] + (tracking if d["ground"] and not relay else 0)) * (1.0 if relay else orbit["earth_view"])
+    hours = ground["hours"] * (1.0 if relay else orbit["earth_view"])
     down_gb = rate * hours * 3600 / 1000
     alloc, remaining = {}, down_gb
     for n, k in enumerate(sorted(gen_gb, key=gen_gb.get)):
@@ -478,21 +472,32 @@ def evaluate(design: dict) -> dict:
     hardware = sum(hw.values())
     schedule_cost = hardware * (1 + INTEGRATION) * ((win["cost_mult"] if win else 1.0) - 1)
     ops_year = ground["cost_year"] + BUS_OPS.get(d["bus"], 0)
+    testing, spare = C.TESTING[d["testing"]], C.SPARES[d["spare"]]
     cost = {
         **hw, "Integration & test (30%)": hardware * INTEGRATION, "Launch": lv["cost"],
         "Operations": ops_year * (years + cruise),
     }
+    if testing["cost_frac"]:
+        cost["Test like you fly" if testing["cost_frac"] > 0 else "Testing skipped"] = hardware * testing["cost_frac"]
+    if spare["cost_frac"]:
+        cost["Second flight unit"] = hardware * spare["cost_frac"]
+    risk_mult = round((win["risk_mult"] if win else 1.0) * testing["risk_mult"], 3)
+    slip = round(max(0.0, (win["slip"] if win else 0.0) + testing["slip_add"]), 3)
+    if d["testing"] == "minimal" and hardware:
+        _issue(issues, "warning", "schedule", f"Minimal testing: launch-failure and glitch odds x{testing['risk_mult']:.1f}.",
+               "CubeSat 101: 'Never assume that subsystems that work well during standalone testing will work together.' "
+               "Faults that a test would have found on the ground show up in space instead.")
+    elif d["testing"] == "tlyf" and hardware:
+        _issue(issues, "info", "schedule", f"Test like you fly: glitch odds x{testing['risk_mult']:.1f}, but the campaign takes time.",
+               "The mission is rehearsed on the ground exactly as it will run in space. It is the cheapest place to find a fault.")
+    if d["spare"] == "spare" and hardware:
+        _issue(issues, "info", "launch", "A second flight unit is on the shelf: a launch failure does not end the mission.",
+               "CubeSat 101: 'It's cheaper to build two satellites at once than to build one and later decide to build another.'")
     reused = bool(lv.get("reusable") and d["boosters"].get(d["launch_vehicle"], 0) > 0)
     if reused:
         cost["Launch"] = lv["cost"] * (1 - C.REUSE_DISCOUNT)
         _issue(issues, "info", "launch", f"Flight-proven booster: this {lv['name']} launch is {C.REUSE_DISCOUNT:.0%} cheaper.",
                "Your agency recovered this first stage on an earlier flight. Reusing rockets is how launch prices fell.")
-    if d["joint"]:
-        jp = C.PARTNERS[d["joint"]["partner"]]
-        cost[f"Joint mission: {jp['name'].split(' (')[0]} pays {d['joint']['share']:.0%}"] = -d["joint"]["share"] * sum(cost.values())
-    partner_pay = hardware * sum(p["share"] for p in partners)
-    if partner_pay:
-        cost["Paid by partners"] = -partner_pay
     if schedule_cost > 0.05:
         cost["Rush overtime" if win["rush"] > 0 else "Waiting for the window"] = schedule_cost
     total_cost = sum(cost.values())
@@ -504,11 +509,6 @@ def evaluate(design: dict) -> dict:
     elif reserve < 0.1 and not d["sandbox"]:
         _issue(issues, "warning", "cost", f"Budget reserve only {reserve:.0%}.",
                "Projects keep 10-25% reserve for problems found during testing.")
-    if partners:
-        _issue(issues, "info", "partners", f"Partners pay {partner_pay:,.0f} M$, but their hardware must arrive on time "
-               f"({partner_delay:.0%} chance of a delay).",
-               "International missions share cost and science, but every interface between agencies adds meetings, "
-               "paperwork and the risk that one side is late.")
     if win and win["rush"] >= 0.34:
         _issue(issues, "warning", "window", f"Only {win['build_months']} months to build and test before {win['label']}.",
                f"Rushed projects skip tests: launch-failure and glitch odds x{win['risk_mult']:.1f}, overtime costs more, and there is a "
@@ -572,10 +572,10 @@ def evaluate(design: dict) -> dict:
         "design": d, "scenario": sc, "destination": dest, "orbit_info": orbit, "ok": not blockers,
         "issues": issues,
         "windows": windows,
-        "partners": {"keys": d["partners"], "saving": partner_pay, "delay": partner_delay, "tracking_h": tracking},
         "reused_booster": reused,
-        "schedule": {"window": win, "risk_mult": win["risk_mult"] if win else 1.0, "slip": win["slip"] if win else 0.0,
+        "schedule": {"window": win, "risk_mult": risk_mult, "slip": slip,
                      "synodic": win["synodic"] if win else 0, "launch_month": win["month"] if win else d["start_month"]},
+        "build": {"testing": d["testing"], "spare": d["spare"] == "spare", "relaunch_cost": cost["Launch"]},
         "kind": kind, "edl": {"use": use, "mass": edl_mass, "landed": landed, "landing_risk": landing_risk,
                               "capsule_risk": capsule_risk},
         "mass": {"parts": parts, "edl": edl_mass, "propellant": propellant, "tanks": tanks, "dry": dry, "wet": wet,
@@ -609,7 +609,6 @@ def _evaluate_program(d: dict, sc: dict) -> dict:
         "issues": issues, "kind": "program", "program": pr_view,
         "orbit_info": {"name": "", "lv_target": "leo", "cruise_years": 0, "coverage": 1},
         "windows": [], "schedule": {"window": None, "risk_mult": 1.0, "slip": 0.0, "synodic": 0, "launch_month": pr["start"]},
-        "partners": {"keys": d["partners"], "saving": -pr["cost"].get("Paid by partners", 0), "delay": 0, "tracking_h": 0},
         "edl": {"use": None, "mass": 0, "landed": 0, "landing_risk": 0, "capsule_risk": 0},
         "mass": {"parts": {}, "propellant": 0, "tanks": 0, "dry": 0, "wet": 0, "capacity": 0, "margin": pr["mass_margin"],
                  "dv": 0, "bus_max_dry": 0, "edl": 0},
@@ -636,17 +635,12 @@ def _evaluate_vehicle(d: dict, sc: dict) -> dict:
     n = v["n"]
     view = {k: v[k] for k in ("capacity", "flights", "vehicles", "per_vehicle", "reusable", "one_in", "seat_cost", "years")}
     view.update(mass=n["mass"], seats=n["seats"], p_loss=n["p_loss"], p_launch=n["p_launch"], hull=n["hull"])
-    if d["joint"]:
-        jp = C.PARTNERS[d["joint"]["partner"]]
-        v["cost"][f"Joint program: {jp['name'].split(' (')[0]} pays {d['joint']['share']:.0%}"] = -d["joint"]["share"] * v["total"]
-        v["total"] = sum(v["cost"].values())
-        v["reserve"] = (v["budget"] - v["total"]) / v["budget"]
     return {
         "design": d, "scenario": sc, "destination": C.DESTINATIONS["earth"], "ok": not any(i["severity"] == "blocker" for i in issues),
         "issues": issues, "kind": "vehicle", "vehicle": view, "program_frac": {g["tag"]: g["fraction"] for g in v["goals"]},
         "orbit_info": {"name": "", "lv_target": "leo", "cruise_years": 0, "coverage": 1},
         "windows": [], "schedule": {"window": None, "risk_mult": 1.0, "slip": 0.0, "synodic": 0, "launch_month": d["start_month"] + 12},
-        "partners": {"keys": d["partners"], "saving": 0, "delay": 0, "tracking_h": 0}, "reused_booster": False,
+        "reused_booster": False,
         "edl": {"use": None, "mass": 0, "landed": 0, "landing_risk": 0, "capsule_risk": 0},
         "mass": {"parts": {}, "propellant": 0, "tanks": 0, "dry": n["mass"], "wet": n["mass"], "capacity": v["capacity"],
                  "margin": v["mass_margin"], "dv": 0, "bus_max_dry": 0, "edl": 0},

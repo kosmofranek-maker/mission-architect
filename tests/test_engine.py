@@ -226,16 +226,6 @@ def test_slip_costs_money_and_months():
     assert slipped and all(x["launch_delay"] == 19 for x in slipped)
 
 
-def test_partners_share_cost_add_hardware_and_delay():
-    a = evaluate(default_design("mars_climate"))
-    b = evaluate(default_design("mars_climate") | {"partners": ["esa", "isro", "jaxa"]})
-    assert b["design"]["partners"] == ["esa", "isro"]          # at most two
-    assert b["cost"]["total"] < a["cost"]["total"]
-    assert "partner_esa" in b["science"]["per_instrument"]
-    assert b["data"]["contact_hours"] > a["data"]["contact_hours"]
-    assert b["schedule"]["slip"] == a["schedule"]["slip"] and b["partners"]["delay"] > 0.1
-
-
 def _prog(sc, flights):
     from engine.model import blank_design
     return blank_design(sc) | {"manifest": [{"p": p, "lv": lv, "slot": s} for p, lv, s in flights]}
@@ -265,15 +255,6 @@ def test_mars_crew_needs_predeployed_habitat_and_stages():
     assert any(i["area"] == "order" for i in same_window["issues"])
     no_stages = evaluate(_prog("mars_base", [("mhab", "sls", 0), ("mpower", "falcon_heavy", 0), ("mcrew", "falcon9", 1)]))
     assert any("transit stage" in i["text"] for i in no_stages["issues"])
-
-
-def test_partner_flight_is_free_and_on_their_date():
-    base = _prog("orbital_outpost", [("core", "vulcan", 0), ("truss", "falcon9", 1), ("hab", "falcon9", 1)])
-    a, b = evaluate(base), evaluate(base | {"partners": ["esa"]})
-    assert len(b["program"]["flights"]) == len(a["program"]["flights"]) + 1
-    lab = b["program"]["flights"][-1]
-    assert lab["p"] == "lab" and lab["partner"] == "esa" and lab["cost"] == 0
-    assert b["science"]["score"] > a["science"]["score"]
 
 
 def test_program_simulation_is_reproducible():
@@ -310,15 +291,16 @@ def test_crew_vehicle_rules():
     assert safe["vehicle"]["one_in"] > 270 and safe["vehicle"]["seat_cost"] > evaluate(base)["vehicle"]["seat_cost"]
 
 
-def test_joint_mission_partner_pays():
-    a = evaluate(default_design("mars_climate"))
-    b = evaluate(default_design("mars_climate") | {"joint": {"partner": "jaxa", "share": 0.25}})
-    assert b["cost"]["total"] < a["cost"]["total"] * 0.8
-
-
 def test_deep_space_arrival_can_fail():
     from engine.simulate import simulate
     kinds = {e["kind"] for s in range(300) for e in simulate(default_design("mars_climate"), s)["events"]}
     assert "insertion_failure" in kinds
     earth = {e["kind"] for s in range(100) for e in simulate(default_design("wildfire"), s)["events"]}
     assert "insertion_failure" not in earth
+
+
+def test_old_designs_with_partner_fields_still_load():
+    """Saved designs from before cooperation with other agencies was removed must still evaluate."""
+    old = default_design("mars_climate") | {"partners": ["esa"], "joint": {"partner": "jaxa", "share": 0.25}, "trust": {"esa": 2}}
+    a, b = evaluate(default_design("mars_climate")), evaluate(old)
+    assert b["ok"] and b["cost"]["total"] == a["cost"]["total"] and "partners" not in b["design"]

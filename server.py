@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from engine import catalog as C
 from engine import leaderboard as LB
+from engine import nasa
 from engine.model import blank_design, default_design, evaluate, normalize
 from engine.rooms import FIELD_OWNER, RoomStore
 from engine.scoring import score
@@ -38,7 +39,9 @@ def clean(o):
 def catalog() -> dict:
     return {k: getattr(C, k) for k in ("DESTINATIONS", "SCENARIOS", "ORBITS", "LAUNCH_VEHICLES", "LV_TARGET_LABEL",
                                        "BUSES", "SOLAR_ARRAYS", "RTG", "BATTERIES", "COMMS", "GROUND", "COMPUTERS",
-                                       "ADCS", "PROPULSION", "INSTRUMENTS", "DIFFICULTY", "ROLES", "RADIATION_LABEL", "EDL", "PARTNERS", "MAX_PARTNERS", "PAYLOADS", "CREW_RATED", "SUPPLY_KG_PER_CREW_MONTH", "EXISTING", "VEHICLE")} | {
+                                       "ADCS", "PROPULSION", "INSTRUMENTS", "DIFFICULTY", "ROLES", "RADIATION_LABEL", "EDL", "PAYLOADS", "CREW_RATED", "SUPPLY_KG_PER_CREW_MONTH", "EXISTING", "VEHICLE", "TESTING", "SPARES")} | {
+        "NASA": {"RESOURCES": [{**r, "url": nasa.URL[r["key"]]} for r in nasa.RESOURCES], "PROCESS": nasa.PROCESS,
+                 "REAL": nasa.REAL_MISSIONS},
         "FIELD_OWNER": FIELD_OWNER,
         "DEFAULTS": {s: default_design(s) for s in C.SCENARIOS},
         "BLANK": {s: blank_design(s) for s in C.SCENARIOS},
@@ -120,7 +123,7 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             b = self._body()
             if u.path == "/api/evaluate":
-                return self._json(evaluate(b.get("design", {})))
+                return self._json(evaluate(b.get("design", {}), int(b.get("trades") or 0)))
             if u.path == "/api/risk":
                 return self._json(monte_carlo(normalize(b.get("design", {})), 200))
             if u.path == "/api/launch":

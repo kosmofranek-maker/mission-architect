@@ -1,9 +1,8 @@
 """Programs: missions made of many launches (a space station, a Moon base, a crewed Mars expedition).
 
-The design holds a manifest: a list of flights {"p": payload, "lv": rocket, "slot": n}. Partners add their own
-flights on their own dates. evaluate_program() checks every flight (mass, crew rating, what must already be in
+The design holds a manifest: a list of flights {"p": payload, "lv": rocket, "slot": n}. evaluate_program() checks every flight (mass, crew rating, what must already be in
 place), then plays the plan month by month: modules arrive, crews come and go, supplies are eaten, power is
-balanced. simulate_program() replays the same plan with launch failures, crashed landers, late partners and
+balanced. simulate_program() replays the same plan with launch failures, crashed landers and
 station life events. Both return the same shapes as the single-spacecraft engine so scoring and the UI reuse them.
 """
 from __future__ import annotations
@@ -25,16 +24,6 @@ def program_slots(sc: dict, start: int) -> list[dict]:
         months = [start + C.MIN_BUILD_MONTHS + i * P["slot_months"] for i in range(P["slots"])]
     return [{"i": i, "month": m, "label": (f"{month_label(m)} window" if P.get("windows") else month_label(m))}
             for i, m in enumerate(months)]
-
-
-def partner_flights(d: dict, sc: dict) -> list[dict]:
-    place = sc["program"]["place"]
-    out = []
-    for pk in d["partners"]:
-        offer = C.PARTNERS[pk].get("program", {}).get(place)
-        if offer and offer["p"] in C.PAYLOADS:
-            out.append({"p": offer["p"], "lv": None, "slot": min(offer["slot"], sc["program"]["slots"] - 1), "partner": pk})
-    return out
 
 
 def normalize_manifest(raw, sc: dict) -> list[dict]:
@@ -138,9 +127,7 @@ def evaluate_program(d: dict, sc: dict, diff: dict, issues: list, _issue) -> dic
     P = sc["program"]
     dest = C.DESTINATIONS[sc["destination"]]
     slots = program_slots(sc, d["start_month"])
-    partners = [C.PARTNERS[p] for p in d["partners"]]
-    arm = any(p.get("arm") for p in partners)
-    rows = [dict(f, partner=None) for f in d["manifest"]] + partner_flights(d, sc)
+    rows = [dict(f) for f in d["manifest"]]
     flights, payload_cost, launch_cost, margins = [], 0.0, 0.0, []
     if not d["manifest"]:
         _issue(issues, "blocker", "missing", "Plan your first flight.",
@@ -152,38 +139,34 @@ def evaluate_program(d: dict, sc: dict, diff: dict, issues: list, _issue) -> dic
         n = i + 1
         fl = {"i": i, "n": n, "p": f["p"], "name": pay["name"], "group": pay["group"], "slot": f["slot"],
               "slot_label": slot["label"], "launch": slot["month"], "arrival": slot["month"] + pay.get("cruise", 0),
-              "mass": pay["mass"], "partner": f["partner"], "lv": f["lv"], "crew_ok": True, "problems": []}
-        if f["partner"]:
-            pp = C.PARTNERS[f["partner"]]
-            fl.update(lv_name=f"{pp['rocket']} ({pp['name'].split(' (')[0]})", capacity=None, cost=0, margin=None)
+              "mass": pay["mass"], "lv": f["lv"], "crew_ok": True, "problems": []}
+        lv = C.LAUNCH_VEHICLES.get(f["lv"]) if f["lv"] else None
+        cap = lv["capacity"][pay["target"]] if lv else 0
+        fl.update(lv_name=lv["name"] if lv else None, capacity=cap, cost=pay["cost"] + (lv["cost"] if lv else 0))
+        payload_cost += pay["cost"]
+        launch_cost += lv["cost"] if lv else 0
+        if not lv:
+            fl["problems"].append("choose a rocket")
+            _issue(issues, "blocker", "missing", f"Flight {n}: choose a rocket for the {pay['name']}.",
+                   "Every payload needs its own launch vehicle.")
+            issues[-1]["field"] = "manifest"
+        elif cap <= 0:
+            fl["problems"].append("rocket can't get there")
+            _issue(issues, "blocker", "launch", f"Flight {n}: {lv['name']} cannot reach {C.LV_TARGET_LABEL[pay['target']]}.",
+                   "Small rockets can't give enough energy for that trip.")
+        elif pay["mass"] > cap:
+            fl["problems"].append("too heavy")
+            _issue(issues, "blocker", "launch",
+                   f"Flight {n}: the {pay['name']} ({pay['mass'] / 1000:.1f} t) is too heavy for {lv['name']} ({cap / 1000:.1f} t).",
+                   "Each launch can only lift so much. Pick a bigger rocket for this flight.")
         else:
-            lv = C.LAUNCH_VEHICLES.get(f["lv"]) if f["lv"] else None
-            cap = lv["capacity"][pay["target"]] if lv else 0
-            fl.update(lv_name=lv["name"] if lv else None, capacity=cap, cost=pay["cost"] + (lv["cost"] if lv else 0))
-            payload_cost += pay["cost"]
-            launch_cost += lv["cost"] if lv else 0
-            if not lv:
-                fl["problems"].append("choose a rocket")
-                _issue(issues, "blocker", "missing", f"Flight {n}: choose a rocket for the {pay['name']}.",
-                       "Every payload needs its own launch vehicle.")
-                issues[-1]["field"] = "manifest"
-            elif cap <= 0:
-                fl["problems"].append("rocket can't get there")
-                _issue(issues, "blocker", "launch", f"Flight {n}: {lv['name']} cannot reach {C.LV_TARGET_LABEL[pay['target']]}.",
-                       "Small rockets can't give enough energy for that trip.")
-            elif pay["mass"] > cap:
-                fl["problems"].append("too heavy")
-                _issue(issues, "blocker", "launch",
-                       f"Flight {n}: the {pay['name']} ({pay['mass'] / 1000:.1f} t) is too heavy for {lv['name']} ({cap / 1000:.1f} t).",
-                       "Each launch can only lift so much. Pick a bigger rocket for this flight.")
-            else:
-                fl["margin"] = (cap - pay["mass"]) / cap
-                margins.append(fl["margin"])
-            if pay["group"] == "crew" and lv and f["lv"] not in C.CREW_RATED:
-                fl["problems"].append("not rated for crew")
-                fl["crew_ok"] = False
-                _issue(issues, "blocker", "crew", f"Flight {n} carries astronauts, but {lv['name']} is not rated for crew.",
-                       "Human-rated rockets have a launch escape system and extra safety checks. Use Falcon 9, Vulcan or SLS.")
+            fl["margin"] = (cap - pay["mass"]) / cap
+            margins.append(fl["margin"])
+        if pay["group"] == "crew" and lv and f["lv"] not in C.CREW_RATED:
+            fl["problems"].append("not rated for crew")
+            fl["crew_ok"] = False
+            _issue(issues, "blocker", "crew", f"Flight {n} carries astronauts, but {lv['name']} is not rated for crew.",
+                   "Human-rated rockets have a launch escape system and extra safety checks. Use Falcon 9, Vulcan or SLS.")
         flights.append(fl)
     # what must already be in place, in launch order
     rank = {"module": 0, "stage": 1, "cargo": 2, "crew": 3}  # in one slot: modules dock first, crews arrive last
@@ -191,7 +174,7 @@ def evaluate_program(d: dict, sc: dict, diff: dict, issues: list, _issue) -> dic
     # reusable first stages come back and fly again on later flights of the same rocket
     flown, spare = {}, dict(d.get("boosters", {}))
     for fl in order:
-        lv = C.LAUNCH_VEHICLES.get(fl["lv"]) if fl["lv"] and not fl["partner"] else None
+        lv = C.LAUNCH_VEHICLES.get(fl["lv"]) if fl["lv"] else None
         if lv and lv.get("reusable"):
             if flown.get(fl["lv"]) or spare.get(fl["lv"], 0) > 0:
                 if not flown.get(fl["lv"]):
@@ -263,33 +246,23 @@ def evaluate_program(d: dict, sc: dict, diff: dict, issues: list, _issue) -> dic
     # money
     crewed_months = sum(1 for r in plan["rows"] if r["crew"])
     total_months = len(plan["rows"])
-    share = sum(p["share"] for p in partners if not p.get("program", {}).get(P["place"]))
     cost = {"Modules, ships and landers": payload_cost, "Launches": launch_cost,
             "Integration & test (15%)": payload_cost * 0.15,
             "Ground operations": P["ops_month"] * crewed_months + 2 * total_months}
-    if share:
-        cost["Paid by partners"] = -payload_cost * share
-    if d.get("joint"):
-        jp = C.PARTNERS[d["joint"]["partner"]]
-        cost[f"Joint program: {jp['name'].split(' (')[0]} pays {d['joint']['share']:.0%}"] = -d["joint"]["share"] * sum(cost.values())
     total_cost = sum(cost.values())
     budget = sc["budget"] * diff["budget_mult"]
     reserve = (budget - total_cost) / budget
     if total_cost > budget and not d["sandbox"]:
         _issue(issues, "blocker", "cost", f"The program costs {total_cost:,.0f} M$ but the budget is {budget:,.0f} M$.",
-               "Fewer or smaller flights, cheaper rockets, or partners who pay part of the bill.")
+               "Fewer or smaller flights, or cheaper rockets.")
     elif reserve < 0.1 and not d["sandbox"]:
         _issue(issues, "warning", "cost", f"Budget reserve only {reserve:.0%}.", "Programs this big always meet surprises.")
-    if partners:
-        _issue(issues, "info", "partners", "Partners: " + "; ".join(
-            f"{p['name']} {p.get('program_gives', p['gives']).lower()}" for p in partners), "Shared programs cost each country less, "
-            "but partner flights launch on the partner's own schedule and can be late.")
     peak = max(plan["rows"], key=lambda r: r["power_use"] - r["power_gen"]) if plan["rows"] else None
     power_margin = ((peak["power_gen"] - peak["power_use"]) / peak["power_use"]) if peak and peak["power_use"] else 0.5
     return {
         "slots": slots, "flights": flights, "plan": plan["rows"], "start": m0, "end": end,
         "crew_months": plan["crew_months"], "research_months": plan["research_months"],
-        "shortage": plan["shortage"], "min_reserve_months": plan["min_reserve_months"], "fractions": frac, "arm": arm,
+        "shortage": plan["shortage"], "min_reserve_months": plan["min_reserve_months"], "fractions": frac,
         "goals": goals, "science": science, "cost": cost, "total_cost": total_cost, "budget": budget, "reserve": reserve,
         "mass_margin": min(margins) if margins else 0.3, "power_margin": power_margin, "dest": dest,
         "crewed_months": crewed_months,
@@ -298,7 +271,6 @@ def evaluate_program(d: dict, sc: dict, diff: dict, issues: list, _issue) -> dic
 
 # ------------------------------------------------------------------------------------------ simulation
 def simulate_program(ev: dict, seed: int) -> dict:
-    from .model import partner_delay_of
     rng = random.Random(seed)
     d, sc, prog = ev["design"], ev["scenario"], ev["program"]
     P = sc["program"]
@@ -312,17 +284,11 @@ def simulate_program(ev: dict, seed: int) -> dict:
         events.append({"month": month - m0 + 1 if month >= m0 else 0, "kind": kind, "text": text, "why": why, "impact": impact})
 
     flights, shocks, recovered = [], {}, {}
-    berth = C.MODULE_BERTH_RISK * (0.4 if prog["arm"] else 1.0)
+    berth = C.MODULE_BERTH_RISK
     for fl in sorted(prog["flights"], key=lambda x: (x["launch"], x["i"])):
         fl = dict(fl)
         pay = C.PAYLOADS[fl["p"]]
         who = f"Flight {fl['n']} ({pay['name']})"
-        if fl["partner"] and rng.random() < partner_delay_of(fl["partner"], d) * em:
-            slip = P["slot_months"]
-            fl["launch"] += slip
-            fl["arrival"] += slip
-            log(fl["launch"], "slip", f"{C.PARTNERS[fl['partner']]['name'].split(' (')[0]} was late: {who} slipped {slip} months.",
-                "Partners build on their own schedule. A delay on their side ripples through everyone's plan.", "bad")
         if rng.random() < 0.02 * em:
             if pay["group"] == "crew":
                 log(fl["launch"], "abort", f"Launch abort! The escape system pulled the {who} crew to safety. The flight is lost.",
@@ -335,7 +301,7 @@ def simulate_program(ev: dict, seed: int) -> dict:
             log(fl["arrival"], "landing_failure", f"{who} crashed while landing.",
                 "Landing near a base is precise work: rocks, dust and darkness all add risk.", "bad")
             continue
-        if not fl["partner"] and C.LAUNCH_VEHICLES.get(fl["lv"], {}).get("reusable"):
+        if C.LAUNCH_VEHICLES.get(fl["lv"], {}).get("reusable"):
             if rng.random() < C.BOOSTER_LANDING:
                 recovered[fl["lv"]] = recovered.get(fl["lv"], 0) + 1
             else:

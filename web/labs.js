@@ -13,8 +13,8 @@ const LABS = {
   comms:    { name: "Communications Center", door: "#2f7a6a" },
   computer: { name: "Avionics Lab", door: "#3c5c25" },
   instr:    { name: "Science Instrument Lab", door: "#5f666c" },
-  partners: { name: "International Office", door: "#1d3f8f" },
   manifest: { name: "Program Planning Office", door: "#3b5a6e" },
+  build:    { name: "Assembly and Test Hall", door: "#4f7a34" },
   hull:     { name: "Crew Vehicle Hangar", door: "#7a6a3a" },
   shield:   { name: "Heat Shield Arc-Jet Lab", door: "#8a5a2c" },
   safety:   { name: "Escape and Landing Test Range", door: "#a8322a" },
@@ -200,17 +200,18 @@ function drawLab(canvas, id, t) {
       person(60, "#2c3b55", "#e8c4a6", "#5a3a22", t % 10 < 5 ? 0 : 1); person(110, "#4b5a3a", "#6e4630", "#1a1716", t % 14 < 7 ? 0 : 1);
       break;
     }
-    case "partners": {
-      wall("#4a3b2e", "#3a2e24"); floor("#5a4632", "#634d37"); lights();
-      [["#1d3f8f", "#f4efe2"], ["#f4efe2", "#bc002d"], ["#d52b1e", "#f4efe2"], ["#ff9933", "#138808"], ["#3d6fa8", "#f4efe2"]].forEach(([a, b], i) => {
-        const x = 18 + i * 22, wave = (t + i) % 6 < 3 ? 0 : 1;                              // flags on poles
-        r(x, 4, 1, 24, "#9c9284"); r(x + 1, 5 + wave, 12, 4, a); r(x + 1, 9 + wave, 12, 3, b);
-      });
-      r(140, 22, 90, 4, "#6b4a33"); r(146, 26, 3, 8, "#4e3624"); r(222, 26, 3, 8, "#4e3624");    // conference table
-      [150, 172, 194, 214].forEach((x, i) => person(x, ["#2c3b55", "#5a3a6e", "#7a3b26", "#4b5a3a"][i], ["#e3c19c", "#8a5a3b", "#c99a74", "#efd2bd"][i], "#2b2018", (t + i * 3) % 10 < 5 ? 0 : 1));
-      r(150, 4, 80, 14, "#1d1a17"); r(151, 5, 78, 12, "#25456b");                              // world map on the wall
-      [[156, 8, 10, 5], [170, 7, 8, 7], [182, 6, 16, 6], [200, 10, 10, 5], [214, 7, 10, 6]].forEach(([x, y, w, h]) => r(x, y, w, h, "#3c5c25"));
-      if (t % 8 < 4) r(225, 21, 2, 2, "#e8cf52");                                              // a signed paper
+    case "build": {
+      wall("#d9dcd6", "#b9beb6"); floor("#aeb3ab", "#b9beb6"); lights();
+      r(8, 5, 46, 9, "#3c6b25"); r(10, 7, 42, 5, "#e9e3d6"); r(12, 9, 30, 1, "#3c6b25");            // sign: test like you fly
+      r(20, 14, 34, 20, "#7d8a8f"); r(22, 16, 30, 16, "#4d5a60"); r(30, 19, 14, 10, "#1d1a17");      // thermal vacuum chamber
+      r(33, 21, 8, 6, t % 12 < 6 ? "#d9792b" : "#58b7c9"); r(54, 20, 3, 8, "#5b534b"); r(18, 13, 38, 1, "#1d1a17");
+      const sh = t % 2;                                                                               // shaker table
+      r(96, 28, 44, 6, "#5b534b"); r(98 + sh, 25, 40, 3, "#7d7d7d"); r(110 + sh, 15, 16, 10, "#d8aa45");
+      r(104 + sh, 18, 6, 4, "#3d6fa8"); r(126 + sh, 18, 6, 4, "#3d6fa8"); r(116 + sh, 12, 4, 3, "#e9e3d6");
+      screen(150, 8, 30, 12); for (let x = 0; x < 28; x += 2) r(151 + x, 14 + Math.round(Math.sin((x + t) * 0.9) * 3), 1, 1, "#7fd08a");
+      r(196, 16, 16, 10, "#d8aa45"); r(190, 19, 6, 4, "#3d6fa8"); r(212, 19, 6, 4, "#3d6fa8"); r(194, 26, 20, 8, "#6b4a33"); // second flight unit
+      r(196, 14, 16, 1, "#e9e3d6"); r(196, 15, 16, 1, "#b9b9b9");
+      person(72, "#f4efe2", "#c99a74", "#2b2018", t % 10 < 5 ? 0 : 1); person(232, "#f4efe2", "#c48d63", "#6b4a33", t % 14 < 7 ? 0 : 1);
       break;
     }
     case "instr": {

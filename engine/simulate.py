@@ -9,7 +9,7 @@ import math
 import random
 
 from . import catalog as C
-from .model import DV_MARGIN, evaluate, partner_delay_of
+from .model import DV_MARGIN, evaluate
 
 # base monthly probabilities (multiplied by difficulty event_mult)
 P_SOLAR_STORM = 0.025
@@ -58,13 +58,12 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
     sch = ev["schedule"]
     tech = sch["risk_mult"]  # rushed projects are tested less, so glitches and launch failures are likelier
     delay = 0
-    late = [C.PARTNERS[p]["name"].split(" (")[0] for p in ev["partners"]["keys"] if rng.random() < partner_delay_of(p, d) * em]
-    if late or rng.random() < sch["slip"] * em:
+    if rng.random() < sch["slip"] * em:
         delay = sch["synodic"] or 4
         waste = budget * C.SLIP_COST_MONTH * delay
         reserve -= waste
         where = ev["destination"]["name"]
-        who = f"{' and '.join(late)} hardware arrived late! " if late else "Late hardware! "
+        who = "Late hardware! "
         log(0, "slip", (f"{who}The spacecraft missed the {where} window and waited {delay} months for the next one "
                         f"({waste:,.0f} M$)." if sch["synodic"] else
                         f"{who}Launch slipped {delay} months ({waste:,.0f} M$ to keep the team working)."),
@@ -79,7 +78,24 @@ def simulate(design: dict, seed: int = 1, evaluation: dict | None = None) -> dic
                     "data_planned_gb": 0, "reserve_start": budget - ev["cost"]["total"]}
 
     # launch itself: small failure chance (rockets fail ~2-3 %)
-    if rng.random() < 0.02 * em * tech:
+    launch_failed = rng.random() < 0.02 * em * tech
+    if launch_failed and ev.get("build", {}).get("spare"):
+        wait = sch["synodic"] or C.SPARE_WAIT_MONTHS
+        relaunch = ev["build"]["relaunch_cost"]
+        reserve -= relaunch
+        delay += wait
+        log(0, "launch_failure", f"Launch vehicle anomaly! The first spacecraft is lost. The second flight unit "
+            f"launches {wait} months later on a new rocket ({relaunch:,.0f} M$).",
+            "This is why Voyager, Viking and the Mars rovers were built in pairs: a second unit costs far less than "
+            "starting again.", "bad")
+        if reserve < 0:
+            log(0, "budget_cut", "There was no money left for a second rocket. The spare never flew.",
+                "A spare unit only helps if the reserve can pay for another launch.", "fatal")
+            return {"seed": seed, "launched": True, "outcome": "cancelled", "events": events, "timeline": [],
+                    "science_fraction": 0.0, "science_score": 0.0, "months_survived": 0, "months_planned": total_m,
+                    "reserve_end": reserve / budget, "evaluation": ev, "launch_delay": delay,
+                    "data_planned_gb": 0, "reserve_start": budget - ev["cost"]["total"]}
+    elif launch_failed:
         log(0, "launch_failure", "Launch vehicle anomaly! The spacecraft is lost.",
             "Even mature rockets fail roughly 1 in 50 launches. That's why missions buy insurance or build spares.",
             "fatal")

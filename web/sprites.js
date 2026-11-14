@@ -77,10 +77,6 @@ const ICON_DRAW = {
     r(5, 1, 6, 1, PAL.blueD); r(3, 2, 10, 2, PAL.blue); r(2, 4, 12, 8, PAL.blue); r(3, 12, 10, 2, PAL.blue); r(5, 14, 6, 1, PAL.blueD);
     r(4, 4, 4, 3, PAL.green); r(5, 7, 3, 3, PAL.green); r(9, 9, 3, 3, PAL.green); r(10, 3, 2, 2, PAL.green); r(1, 7, 14, 1, PAL.blueL);
   },
-  flag_esa(r) { r(1, 3, 1, 12, PAL.grayD); r(2, 3, 13, 9, "#1d3f8f"); for (let a = 0; a < 6.28; a += 0.79) r(8 + Math.round(Math.cos(a) * 3), 7 + Math.round(Math.sin(a) * 3), 1, 1, PAL.white); },
-  flag_jaxa(r) { r(1, 3, 1, 12, PAL.grayD); r(2, 3, 13, 9, PAL.white); r(7, 5, 3, 5, "#bc002d"); r(6, 6, 5, 3, "#bc002d"); },
-  flag_csa(r) { r(1, 3, 1, 12, PAL.grayD); r(2, 3, 13, 9, PAL.white); r(2, 3, 3, 9, "#d52b1e"); r(12, 3, 3, 9, "#d52b1e"); r(8, 5, 1, 5, "#d52b1e"); r(7, 6, 3, 2, "#d52b1e"); r(6, 7, 5, 1, "#d52b1e"); },
-  flag_isro(r) { r(1, 3, 1, 12, PAL.grayD); r(2, 3, 13, 3, "#ff9933"); r(2, 6, 13, 3, PAL.white); r(2, 9, 13, 3, "#138808"); r(8, 7, 1, 1, "#000080"); },
   chute(r) {
     r(3, 2, 10, 2, PAL.red); r(2, 3, 12, 2, PAL.white); r(1, 5, 14, 1, PAL.red); r(5, 3, 2, 3, PAL.red); r(9, 3, 2, 3, PAL.red);
     for (let i = 0; i < 6; i++) { r(2 + i, 6 + i, 1, 1, PAL.grayL); r(13 - i, 6 + i, 1, 1, PAL.grayL); }
@@ -209,7 +205,7 @@ const PART_ICON = {
     lamp: "uv", lidar: "laser", radar: "radar", mag: "magneto", massspec: "flask", sounder: "thermo",
     particles: "particles", pancam: "camera", drill: "drill", raman: "laser", seismo: "seismo", tagsam: "flask",
     sar: "radar", photometer: "telescope", irtel: "telescope", coronagraph: "camera" }[k] || "star"),
-  partners: (k) => `flag_${k}`,
+  testing: (k) => ({ minimal: "warn", standard: "check", tlyf: "star" }[k]), spare: (k) => (k === "spare" ? "rocket" : "bus"),
   shape: (k) => (k === "capsule" ? "capsule" : "rocket"), seats: () => "person", heatshield: () => "flame",
   abort: (k) => (k === "none" ? "none" : "rocket"), landing: (k) => (k === "runway" ? "rocket" : k === "propulsive" ? "nozzle" : "chute"),
   edl: (k) => (k.startsWith("capsule") ? "capsule" : ["airbags", "skycrane"].includes(k) ? "chute" : "nozzle"),

@@ -192,8 +192,8 @@ const TABS = [
     hint: "Data is useless until it reaches Earth. Signals weaken with distance squared." },
   { id: "computer", label: "Computer", icon: "chip", role: "comms", fields: ["computer"],
     hint: "Stores data between contacts and must survive the local radiation." },
-  { id: "partners", label: "Partners", icon: "globe", role: "manager", fields: ["partners"],
-    hint: "Other space agencies can share the cost and bring their own hardware. Every partner also adds meetings, interfaces and a chance that their part arrives late. Up to two." },
+  { id: "build", label: "Build", icon: "check", role: "manager", fields: ["testing", "spare"],
+    hint: "Build and verify. How hard you test the spacecraft before launch, and whether you build a second one. Both cost money now and buy safety later. NASA's CubeSat 101 guide: test like you fly." },
   { id: "instr", label: "Instruments", icon: "telescope", role: "science", fields: ["instruments"],
     hint: "Pick instruments that serve the mission goals (dark tags). Watch mass, power and data volume." },
 ];
@@ -214,8 +214,7 @@ function tabs() {
       hint: "Only rockets rated for crew may carry astronauts. Reusable rockets get cheaper with every flight." }];
   if (k === "program") return [
     { id: "manifest", label: "Manifest", icon: "calendar", role: "systems", fields: ["manifest"],
-      hint: "Plan every launch: which payload, on which rocket, in which slot. Order matters, crews need somewhere to live and something to eat, and every rocket has a limit." },
-    { ...TABS.find((t) => t.id === "partners"), hint: "Partners build and launch some flights for free, on their own dates, or make docking safer. Up to two." }];
+      hint: "Plan every launch: which payload, on which rocket, in which slot. Order matters, crews need somewhere to live and something to eat, and every rocket has a limit." }];
   return TABS.filter((t) => t.id !== "edl" || k !== "orbiter").map((t) => {
     if (t.id === "edl" && k === "sample_return") return { ...t, label: "Return", icon: "capsule",
       hint: "The return capsule carries the sample through a fireball re-entry and parachutes it to the ground. The trip home also needs extra fuel." };
@@ -231,9 +230,9 @@ function fieldLabel(f) {
 }
 const FIELD_LABEL = { window: "Launch date", launch_vehicle: "Launch vehicle", orbit: "Orbit", bus: "Spacecraft bus", solar: "Solar array",
   rtg: "Nuclear power (RTG)", battery: "Battery", adcs: "Attitude control", propulsion: "Propulsion", comms: "Antenna",
-  ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system", partners: "Partners",
-  shape: "Hull shape", seats: "Seats", heatshield: "Heat shield", abort: "Launch escape system", landing: "Landing" };
-const MULTI = new Set(["instruments", "partners"]); // fields that hold a list
+  ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system",
+  testing: "Test campaign", spare: "Flight units", shape: "Hull shape", seats: "Seats", heatshield: "Heat shield", abort: "Launch escape system", landing: "Landing" };
+const MULTI = new Set(["instruments"]); // fields that hold a list
 
 const S = {
   cat: null, design: null, ev: null, mode: "free", tab: "launch", player: "", started: false,
@@ -366,7 +365,7 @@ async function boot() {
   $("#playerName").addEventListener("input", (e) => { S.player = e.target.value.trim(); store.set("player", S.player); });
   S.cat = await api("catalog");
   $$("[data-go]").forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
-  wireDesk(); wireLobby(); wireNews();
+  wireDesk(); wireLobby(); wireNews(); wireNasa();
   // direct links for demos/screenshots: #play=<scenario>, #news=<scenario>
   if (location.hash === "#sounds") { // sound board for tuning the effects
     const names = { click: "Button (switch)", select: "Card on desk", deselect: "Card picked up", page: "Binder page", paper: "Paper",
@@ -380,6 +379,8 @@ async function boot() {
   if (location.hash === "#selftest") { const sc = document.createElement("script"); sc.src = "selftest.js"; document.body.appendChild(sc); }
   const [k, v] = location.hash.slice(1).split("=");
   if (k === "career") { S.mode = "career"; if (v === "all") store.set("career", Object.fromEntries(ORDER.slice(0, 5).map((o) => [o, { grade: "B", score: 600 }]))); openSelect(); }
+  if (k === "library") openLibrary();
+  if (k === "code") { try { const d = JSON.parse(atob(v)); if (S.cat.SCENARIOS[d.scenario]) { S.noLetter = true; S.mode = "free"; startMission(d.scenario, d); } } catch { /* not a design link */ } }
   if (k === "tutorial") { go("tutorial"); for (let n = 0; n < Number(v || 0); n++) tutAdvance(); }
   if (v && S.cat.SCENARIOS[v.split(":")[0]]) {
     S.noLetter = true;
@@ -388,7 +389,7 @@ async function boot() {
     if (k === "design") { const [sc2, tab] = v.split(":"); startMission(sc2, S.cat.DEFAULTS[sc2]); if (tab) { S.tab = tab; renderTabs(); renderBinder(); } }
     if (k === "hints") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); openHints("power"); }
     if (k === "letter") { S.mode = "career"; startMission(v); }
-    if (k === "hq") { const x = newAgency(); x.month = 30; x.funds = 340; x.rep = 38; x.tech.push("deepcomms", "radar", "heavy"); x.trust = { esa: 2, isro: 1 };
+    if (k === "hq") { const x = newAgency(); x.month = 30; x.funds = 340; x.rep = 38; x.tech.push("deepcomms", "radar", "heavy");
       x.done = { wildfire: { grade: "A", score: 700 }, storm_watch: { grade: "B", score: 560 }, lunar_ice: { grade: "S", score: 820 } }; x.medals = ["orbit", "moon"];
       x.log = [{ month: 18, text: "Wildfire Watch: A (success)" }, { month: 24, text: "Annual budget: +97 M$" }, { month: 29, text: "Lunar Ice Prospector: S (success)" }];
       x.month = 6; x.done.storm_watch = { grade: "B", score: 560 }; x.research = [{ t: "bigbus", done: 40 }]; saveAgency(x); advanceTo(36);
@@ -399,6 +400,9 @@ async function boot() {
       S.design = { ...S.design, launch_vehicle: "falcon_heavy", years: S.design.years + 2 }; renderAll(); openCompare("current", e.id);
     }
     if (k === "stamp") { startMission(v, S.cat.DEFAULTS[v]); await wait(400); stampAnim("ok"); }
+    if (k === "process") { startMission(v, S.cat.DEFAULTS[v]); await wait(600); openProcess(); }
+    if (k === "advice") { startMission(v, S.cat.DEFAULTS[v]); await wait(600); openHints("nasa"); }
+    if (k === "report") { startMission(v, S.cat.DEFAULTS[v]); const r = await api("launch", { design: S.design, save: false, seed: 7 }); showNews(r); await wait(200); openDossier(r); }
     if (k === "news") { startMission(v, S.cat.DEFAULTS[v]); showNews(await api("launch", { design: S.design, save: false, seed: 7 })); }
     if (k === "launch") { const [sc3, at] = v.split(":"); startMission(sc3, S.cat.DEFAULTS[sc3]); playLaunch(await api("launch", { design: S.design, save: false, seed: 7 }), Number(at || 0)); }
   }
@@ -448,16 +452,14 @@ function openSelect() {
 }
 
 function startMission(sc, design, opts = {}) {
-  const d = { ...S.cat.BLANK[sc], instruments: [], partners: [], ...(design || {}) }; // older saved designs lack newer fields
+  const d = { ...S.cat.BLANK[sc], instruments: [], ...(design || {}) }; // older saved designs lack newer fields
   if (!design) {
     d.difficulty = store.get("difficulty", "normal");
     d.sandbox = S.mode === "free" && $("#sandbox").checked;
   }
-  if (S.mode === "career" && agency()) {                       // the agency calendar, partner trust and booster fleet shape the plan
-    const a = agency(); d.start_month = a.month; d.trust = { ...a.trust }; d.difficulty = a.difficulty; d.sandbox = false;
+  if (S.mode === "career" && agency()) {                       // the agency calendar and booster fleet shape the plan
+    const a = agency(); d.start_month = a.month; d.difficulty = a.difficulty; d.sandbox = false;
     d.boosters = { ...(a.boosters || {}) };
-    if (opts.invite) { d.joint = { partner: opts.invite.partner, share: opts.invite.share };
-      if (!d.partners.includes(opts.invite.partner) && d.partners.length < S.cat.MAX_PARTNERS) d.partners = [...d.partners, opts.invite.partner]; }
   }
   S.design = d; S.tab = S.cat.SCENARIOS[sc].kind === "program" ? "manifest" : "orbit"; S.introShown = false; S.ev = null; S._prevOk = undefined; S._prevMet = null;
   openDesk();
@@ -479,7 +481,7 @@ function evaluateSoon(ms = 90) {
   _evalTimer = setTimeout(async () => {
     const seq = ++_evalSeq;
     try {
-      const ev = await api("evaluate", { design: S.design });
+      const ev = await api("evaluate", { design: S.design, trades: tradesNow() });
       if (seq === _evalSeq) { S.ev = ev; renderEval(); }
     } catch (e) { toast(`Server error: ${esc(e.message)}`); }
   }, ms);
@@ -561,7 +563,7 @@ function recommend(f) {
       return null;
     }
     case "bus": {
-      const n = Math.max(1, d.instruments.length + d.partners.filter((p) => S.cat.PARTNERS[p].instrument).length), base = ev && ev.mass.dry != null ? ev.mass.dry - (d.bus ? c.BUSES[d.bus].mass : 0) : 0;
+      const n = Math.max(1, d.instruments.length), base = ev && ev.mass.dry != null ? ev.mass.dry - (d.bus ? c.BUSES[d.bus].mass : 0) : 0;
       const fit = Object.entries(avail("bus", c.BUSES)).filter(([, b]) => b.slots >= n && b.max_dry >= (base + b.mass) * 1.25);
       return fit.length ? { key: cheapest(fit)[0], why: `it is the cheapest bus with ${n}+ slot(s) that holds your parts with room to spare` }
         : { key: "flagship", why: "only the biggest bus can hold all this" };
@@ -628,12 +630,6 @@ function recommend(f) {
       return { key: fit.sort((a, b) => downlinkGb(x, b[0]) - downlinkGb(x, a[0]))[0][0], why: "it collects the most data per day" };
     }
     case "manifest": T.push(...programTips()); break;
-    case "partners": {
-      if (ev) T.push(ev.partners.keys.length ? `Your partners pay <b>${fmt(ev.partners.saving)} M$</b>; chance that someone is late: <b>${pct(ev.partners.delay)}</b>.` : "No partners yet: you pay for everything, and nobody else can make you late.");
-      T.push("Partner instruments ride along for free but need an instrument slot, mass and power like any other.");
-      T.push("A late partner can make a planetary mission miss its launch window: the next one may be years away.");
-      break;
-    }
     case "edl": {
       if (kindNow() === "sample_return") {
         T.push("The capsule is a separate stage: it adds mass, and the trip home needs extra Δv from your engine.");
@@ -650,10 +646,6 @@ function recommend(f) {
       const env = ev ? ev.radiation.env : dest.radiation, shield = d.bus === "flagship" ? 1 : 0, store = ev ? ev.data.storage_need_gb : 0;
       const fit = Object.entries(avail("computer", c.COMPUTERS)).filter(([, x]) => x.rad + shield >= env && x.storage_gb >= store);
       return { key: cheapest(fit.length ? fit : [["radhard", c.COMPUTERS.radhard]])[0], why: `radiation here is ${c.RADIATION_LABEL[env].toLowerCase()}, and it survives that` };
-    }
-    case "partners": {
-      const free = Object.entries(avail("partners", c.PARTNERS)).filter(([k]) => !d.partners.includes(k)).sort((a, b) => b[1].share - a[1].share);
-      return free.length ? { key: free[0][0], why: `they pay ${pct(free[0][1].share)} of the hardware` } : null;
     }
     case "window": {
       const ws = Object.entries(optionsFor("window"));
@@ -688,7 +680,6 @@ function recommend(f) {
 function issueField(i) {
   const t = i.text;
   if (i.field) return i.field;
-  if (i.area === "cost" && /budget is/.test(t) && S.design.partners.length < S.cat.MAX_PARTNERS) return "partners";
   return { window: "window", launch: "launch_vehicle", propulsion: "propulsion", radiation: "computer", adcs: "adcs", edl: "edl", orbit: "orbit" }[i.area]
     || (i.area === "bus" ? (/slots/.test(t) ? "bus" : "bus") : null)
     || (i.area === "power" ? (/Battery|eclipse/i.test(t) ? "battery" : /RTG/.test(t) ? null : "solar") : null)
@@ -752,7 +743,7 @@ function renderClient() {
     } else if (miss.length && !b) { mood = "neutral"; text = `"Good. ${miss.length} part${miss.length > 1 ? "s" : ""} still missing."`; }
     else if (b) { mood = "angry"; text = `"${b.text}" ${["Fix it before the board sees this.", "This will never fly.", "Try again."][b.text.length % 3]}`; }
     else if (w) { mood = "neutral"; text = `"It could fly, but: ${w.text.charAt(0).toLowerCase() + w.text.slice(1)}"`; }
-    else { mood = "happy"; text = `"Excellent work. I can take this design to the board."`; }
+    else { mood = "happy"; text = `"Excellent work. I can take this design to the board.${nasaTipLine()}"`; }
   }
   const key = `${S.design.scenario}:${mood}`;
   if (renderClient._k !== key) { $("#clientImg").src = portrait(c.look, mood); renderClient._k = key; }
@@ -839,7 +830,7 @@ function renderRequest() {
 function renderTabs() {
   $("#tabs").innerHTML = tabs().map((t) => {
     const locked = S.mode === "team" && !S.myRoles.includes(t.role);
-    const todo = t.fields.some((f) => f !== "rtg" && f !== "partners" && (f === "instruments" || f === "manifest" ? !(S.design[f] || []).length : S.design[f] == null));
+    const todo = t.fields.some((f) => f !== "rtg" && (f === "instruments" || f === "manifest" ? !(S.design[f] || []).length : S.design[f] == null));
     return `<div class="tab ${t.id === S.tab ? "on" : ""} ${locked ? "locked" : ""}" data-tab="${t.id}" title="${esc(LABS[t.id].name)}">${icon(locked ? "lock" : t.icon, 14)}${t.label}${todo ? '<span class="todo" title="still to choose"></span>' : ""}</div>`;
   }).join("");
   $$("#tabs .tab").forEach((el) => el.onclick = () => goLab(el.dataset.tab));
@@ -864,21 +855,19 @@ setInterval(() => {
 function optionsFor(field, all = false) {
   const o = optionsForAll(field);
   if (all || !o || !inCareer() || field === "window" || field === "orbit") return o;
-  return Object.fromEntries(Object.entries(o).filter(([k]) => (field === "partners" ? partnerOpen(k) : isUnlocked(field, k))));
+  return Object.fromEntries(Object.entries(o).filter(([k]) => isUnlocked(field, k)));
 }
 function optionsForAll(field) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()], use = { lander: "land", rover: "land", sample_return: "return" }[kindNow()];
   const keep = (obj, fn) => Object.fromEntries(Object.entries(obj).filter(([k, o]) => fn(o, k)));
   if (field === "edl") return keep(c.EDL, (o) => o.use === use);
   if (["shape", "seats", "heatshield", "abort", "landing"].includes(field)) return c.VEHICLE[field];
-  if (field === "partners") return Object.fromEntries(Object.entries(c.PARTNERS).map(([k, p]) => [k, { ...p,
-    learn: `${kindNow() === "program" ? p.program_gives || p.gives : p.gives} ${p.learn}` }]));
   if (field === "window") return Object.fromEntries(((S.ev && S.ev.windows) || []).map((w) => [w.key, { ...w, name: windowName(w), learn: windowLearn(w) }]));
   if (field === "ground") return keep(c.GROUND, (o) => !o.relay_mbps || dest.relay);
   if (field === "instruments") return keep(c.INSTRUMENTS, (o) => !o.where || (o.where === "surface") === !!dest.surface);
   return { launch_vehicle: c.LAUNCH_VEHICLES, orbit: c.ORBITS[destKey()], bus: c.BUSES, solar: c.SOLAR_ARRAYS,
     battery: c.BATTERIES, adcs: c.ADCS, propulsion: c.PROPULSION, comms: c.COMMS, ground: c.GROUND,
-    computer: c.COMPUTERS, instruments: c.INSTRUMENTS }[field];
+    computer: c.COMPUTERS, instruments: c.INSTRUMENTS, testing: c.TESTING, spare: c.SPARES }[field];
 }
 
 const energy = () => (S.ev && S.ev.schedule && S.ev.schedule.window ? S.ev.schedule.window.energy : 1);
@@ -903,11 +892,6 @@ function statLine(field, k, o) {
     case "heatshield": return `${o.reusable ? "reusable" : "single use"} · +${Math.round(o.frac * 100)}% mass · loses 1 crew in ${fmt(1 / o.risk)}`;
     case "abort": return `saves the crew ${pct(o.save)} of the time · ${o.mass_per_seat ? `${o.mass_per_seat} kg/seat` : `${fmt(o.mass)} kg`}`;
     case "landing": return `${o.reuse >= 1 ? "fully reusable" : `reuse ${pct(o.reuse)}`} · ${o.ship} M$/flight · loses 1 crew in ${fmt(1 / o.risk)}`;
-    case "partners": {
-      if (kindNow() === "program") { const off = o.program && o.program[progSpec().place];
-        return off ? `builds ${S.cat.PAYLOADS[off.p].name} · delay risk ${pct(o.delay)}` : o.arm ? `robotic arm · pays ${pct(o.share)}` : `pays ${pct(o.share)} of hardware`; }
-      return `pays ${pct(o.share)} of hardware · delay risk ${pct(o.delay)}`;
-    }
     case "window": return `build ${o.build_months} mo · rocket ${o.energy >= 1 ? "+" : ""}${Math.round((o.energy - 1) * 100)}% · cost x${o.cost_mult} · risk x${o.risk_mult}`;
     case "orbit": return onSurface() ? `night ${o.eclipse_h ? `${o.eclipse_h} h` : "forever"} · sunlit ${pct(1 - o.eclipse_frac)} · landing risk ${pct(o.landing_risk)}`
       : `Δv ${o.dv_insert} m/s · covers ${pct(o.coverage)} · shadow ${o.eclipse_h} h`;
@@ -922,6 +906,8 @@ function statLine(field, k, o) {
     case "ground": return o.relay_mbps ? `${o.relay_mbps} Mbps relay · ${o.hours} h/sol · ${o.cost_year} M$/yr` : `${o.hours} h/day · signal x${o.gain} · ${o.cost_year} M$/yr`;
     case "computer": return `${o.storage_gb} GB · radiation lvl ${o.rad} · ${o.cost} M$`;
     case "instruments": return `${o.mass} kg · ${o.power} W · ${o.data_mbps} Mbps · ${o.cost} M$`;
+    case "testing": return `${o.cost_frac ? `${o.cost_frac > 0 ? "+" : ""}${Math.round(o.cost_frac * 100)}% of hardware cost` : "no extra cost"} · failure odds x${o.risk_mult}${o.slip_add ? ` · late risk ${o.slip_add > 0 ? "+" : ""}${Math.round(o.slip_add * 100)}%` : ""}`;
+    case "spare": return o.cost_frac ? `+${Math.round(o.cost_frac * 100)}% of hardware cost · survives a launch failure` : "no extra cost · one chance";
   }
   return "";
 }
@@ -979,9 +965,8 @@ function renderBinder() {
     const opts = optionsFor(field, true);
     h += `<div class="cards">` + Object.entries(opts).map(([k, o]) => {
       const sel = MULTI.has(field) ? S.design[field].includes(k) : S.design[field] === k;
-      const lockT = field === "partners" ? (!partnerOpen(k) ? `Opens at agency reputation ${PARTNER_REP[k]}` : null)
-        : !isUnlocked(field, k) ? lockText(TECH_OF[`${field}:${k}`]) : null;
-      if (lockT && !sel) return `<div class="card research" data-tech="${field === "partners" ? "" : TECH_OF[`${field}:${k}`]}">
+      const lockT = !isUnlocked(field, k) ? lockText(TECH_OF[`${field}:${k}`]) : null;
+      if (lockT && !sel) return `<div class="card research" data-tech="${TECH_OF[`${field}:${k}`]}">
         <div class="ci">${icon(PART_ICON[field](k), 32)}</div><div class="cn">${esc(o.name)}</div><div class="cs">${statLine(field, k, o)}</div>
         <div class="lockline">${icon("lock", 12)} ${esc(lockT)}</div></div>`;
       const tags = field === "instruments" ? `<div class="tagrow">${o.tags.map((t) => `<span class="tag ${goalTags.has(t) ? "hit" : ""}">${t}</span>`).join("")}</div>` : "";
@@ -999,13 +984,10 @@ function renderBinder() {
     const f = el.dataset.f, k = el.dataset.k;
     if (MULTI.has(f)) {
       const cur = S.design[f];
-      if (f === "partners" && !cur.includes(k) && cur.length >= S.cat.MAX_PARTNERS) {
-        SFX.error(); return toast(`At most ${S.cat.MAX_PARTNERS} partners: each one adds meetings, interfaces and delay risk.`);
-      }
       setField(f, cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]);
     } else setField(f, k);
   });
-  $$("#binder [data-tech]").forEach((el) => el.onclick = () => { if (el.dataset.tech) { openLock(el.dataset.tech); } else { SFX.error(); toast("Partners join agencies with a better reputation. Fly successful missions first."); } });
+  $$("#binder [data-tech]").forEach((el) => el.onclick = () => { if (el.dataset.tech) openLock(el.dataset.tech); });
   $$("#binder [data-rtg]").forEach((b) => b.onclick = () =>
     setField("rtg", Math.max(0, Math.min(S.cat.RTG.max, S.design.rtg + Number(b.dataset.rtg)))));
 }
@@ -1024,21 +1006,23 @@ function renderReview() {
   const D = S.design, battBad = D.battery && p.eclipse_need_wh > p.battery_usable_wh;
   const pending = (ic, label, need) => meter(ic, label, 0, `needs ${need}`, "", null);
   if (ev.kind === "program") $("#meters").innerHTML = programMeters(ev); else if (ev.kind === "vehicle") $("#meters").innerHTML = vehicleMeters(ev); else $("#meters").innerHTML =
-    (!D.launch_vehicle || !D.orbit ? pending("weight", "MASS", !D.orbit ? "orbit" : "rocket") :
+    segHead("launch") + (!D.launch_vehicle || !D.orbit ? pending("weight", "MASS", !D.orbit ? "orbit" : "rocket") :
       meter("weight", "MASS", mf, m.capacity ? `${fmt(m.wet)}/${fmt(m.capacity)} kg` : "can't reach",
         mf > 1 ? "bad" : m.margin < req ? "warn" : "", 1 - req)) +
-    (D.solar == null && !D.rtg ? pending("bolt", "POWER", "solar") :
+    segHead("space") + (D.solar == null && !D.rtg ? pending("bolt", "POWER", "solar") :
       meter("bolt", "POWER", pf, `${fmt(p.load)}/${fmt(p.generation)} W`, pf > 1 ? "bad" : p.margin < 0.2 ? "warn" : "", 1 / 1.2)) +
     (!D.battery || !D.orbit ? pending("battery", onSurface() ? "NIGHT" : "ECLIPSE", !D.orbit ? "orbit" : "battery") :
       meter("battery", onSurface() ? "NIGHT" : "ECLIPSE", p.battery_usable_wh ? p.eclipse_need_wh / p.battery_usable_wh : 1,
         `${fmt(p.eclipse_need_wh)}/${fmt(p.battery_usable_wh)} Wh`, battBad ? "bad" : "")) +
-    (!D.instruments.length || !D.comms || !D.ground ? pending("disk", "DATA", !D.instruments.length ? "instr." : !D.comms ? "antenna" : "ground") :
+    segHead("ground") + (!D.instruments.length || !D.comms || !D.ground ? pending("disk", "DATA", !D.instruments.length ? "instr." : !D.comms ? "antenna" : "ground") :
       meter("disk", "DATA", d.return, `${pct(d.return)} home`, d.return < 0.5 ? "bad" : d.return < 0.8 ? "warn" : "", 0.8)) +
     (ev.edl.use === "land" ? (!D.edl || !D.orbit ? pending("chute", "LANDING", !D.orbit ? "site" : "system")
       : meter("chute", "LANDING", 1 - ev.edl.landing_risk, `${pct(1 - ev.edl.landing_risk)} safe`, ev.edl.landing_risk > 0.06 ? "warn" : "", 0.94)) : "") +
-    meter("coin", "COST", c.total / c.budget, `${fmt(c.total)}/${fmt(c.budget)} M$`,
+    segHead("user") + meter("coin", "COST", c.total / c.budget, `${fmt(c.total)}/${fmt(c.budget)} M$`,
       c.total > c.budget && !S.design.sandbox ? "bad" : c.reserve < 0.1 ? "warn" : "", 0.9) +
     meter("star", "SCIENCE", ev.science.score / 100, `${fmt(ev.science.score)} / 100`, ev.science.score < 40 ? "bad" : ev.science.score < 70 ? "warn" : "", 0.7);
+  renderCml();
+  $$("#meters .seg-head").forEach((el) => (el.onclick = () => { SFX.page(); openProcess(); }));
   const lvH = level() === "hard", cell = (ic, v, st) => `<span class="ms ${lvH ? "" : st}">${icon(ic, 12)}${v}</span>`;
   $("#mStatus").innerHTML =
     cell("weight", D.launch_vehicle && D.orbit && m.capacity ? pct(mf) : "-", mf > 1 ? "bad" : m.margin < req ? "warn" : "") +
@@ -1158,7 +1142,7 @@ function drawBlueprint() {
     const o = S.cat.INSTRUMENTS[k], n = d.instruments.length, x = cx - s / 2 + ((i + 1) * s) / (n + 1);
     r(x - 1, cy + s / 2 - 5, 3, 3, COL[o.tags[0]] || L);
   });
-  const free = S.cat.BUSES[d.bus].slots - d.instruments.length - d.partners.filter((p) => S.cat.PARTNERS[p].instrument).length;
+  const free = S.cat.BUSES[d.bus].slots - d.instruments.length;
   $("#bpSlots").textContent = free >= 0 ? `${free} free instrument slot(s)` : `${-free} instrument(s) too many!`;
 }
 
@@ -1224,7 +1208,7 @@ function stampAnim(kind) {
     mark.classList.add("hidden");
     tool.className = "px stamp-tool"; void tool.offsetWidth; tool.classList.add("down");
     setTimeout(() => {
-      mark.className = `stamp-mark ${kind}`; mark.textContent = kind === "ok" ? "APPROVED" : "REJECTED";
+      mark.className = `stamp-mark ${kind}`; const cm = cmlNow(); mark.innerHTML = `${kind === "ok" ? "APPROVED" : "REJECTED"}${kind === "ok" && cm ? `<small>${esc(cmlName(cm))}</small>` : ""}`;
       mark.style.setProperty("--rot", `${-17 + Math.random() * 10}deg`);
       const desk = $("#desk"); desk.classList.remove("shake"); void desk.offsetWidth; desk.classList.add("shake");
       SFX.thud();
@@ -1365,9 +1349,10 @@ function loadDesign(design) {
 // ---------------------------------------------------------------------------- engineer's handbook (hints per stage)
 function soundLabel() { $("#mSound").textContent = `Sound: ${store.get("sound", true) ? "on" : "off"}`; }
 const STAGE_AREAS = { launch: ["launch"], orbit: ["schedule"], bus: ["bus"], power: ["power"], adcs: ["adcs"],
-  prop: ["propulsion"], edl: ["edl"], partners: ["partners"], comms: ["comms"], computer: ["radiation"], instr: ["science"], review: ["cost"] };
+  prop: ["propulsion"], edl: ["edl"], build: [], comms: ["comms"], computer: ["radiation"], instr: ["science"], review: ["cost"] };
 const STAGES = () => [...tabs(), { id: "review", label: "Review & launch", icon: "check", fields: [],
-  hint: "The review board only approves a design with zero blockers. Warnings are allowed but cost points." }];
+  hint: "The review board only approves a design with zero blockers. Warnings are allowed but cost points." },
+  { id: "nasa", label: "NASA advice", icon: "star", fields: [], hint: "" }];
 
 function stageIssues(st) {
   if (!S.ev) return [];
@@ -1385,6 +1370,12 @@ function openHints(stageId) {
   }).join("");
   $$("#hbNav [data-s]").forEach((el) => (el.onclick = () => openHints(el.dataset.s)));
   const st = stages.find((x) => x.id === stageId);
+  if (st.id === "nasa") {
+    $("#hbBody").innerHTML = nasaAdviceHtml();
+    $("#hbLib").onclick = () => { $("#hints").classList.add("hidden"); openLibrary(); };
+    $("#hbProc").onclick = () => { $("#hints").classList.add("hidden"); openProcess(); };
+    return $("#hints").classList.remove("hidden");
+  }
   const chosen = st.fields.filter((f) => f !== "rtg").map((f) => {
     const v = S.design[f];
     const name = f === "manifest" ? (v.length ? `${v.length} flight(s)` : null) : MULTI.has(f) ? (v.length ? v.map((k) => partName(f, k)).join(", ") : null) : v ? partName(f, v) : null;
@@ -2090,16 +2081,18 @@ function showNews(res) {
         <canvas id="newsPhoto" width="240" height="75" class="px news-photo"></canvas>
         ${quote}
         <h5>What the review board says</h5>
-        ${sc.analysis.map((a) => `<p>${esc(a)}</p>`).join("")}
+        ${sc.analysis.slice(0, 3).map((a) => `<p>${esc(a)}</p>`).join("")}
+        ${sc.analysis.length > 3 ? `<p class="more">${sc.analysis.length - 3} more finding${sc.analysis.length > 4 ? "s" : ""} in the mission report.</p>` : ""}
       </div>
       <div>
         <h5>Final score: <span id="finalScore">0</span> / ${Object.values(sc.max).reduce((a, b) => a + b, 0)}</h5>
         ${Object.keys(sc.parts).map((k) => `<div class="score-row"><span>${labels[k]}</span>
           <div class="bar"><i data-w="${(sc.parts[k] / sc.max[k]) * 100}" style="width:0;background:var(--ink)"></i></div><span>${sc.parts[k]}/${sc.max[k]}</span></div>`).join("")}
         <h5>Team goals</h5>
-        ${Object.entries(sc.roles).map(([k, ok]) => `<div>${icon(ok ? "check" : "cross", 14)} ${esc(S.cat.ROLES[k].name)}: ${esc(S.cat.ROLES[k].goal)}</div>`).join("")}
+        <div class="goal-grid">${Object.entries(sc.roles).map(([k, ok]) => `<div title="${esc(S.cat.ROLES[k].goal)}">${icon(ok ? "check" : "cross", 14)} ${esc(S.cat.ROLES[k].name)}</div>`).join("")}</div>
         <h5>From the mission log</h5>
-        ${highlights.length ? highlights.map((e) => `<p>Month ${e.month}: ${esc(e.text)}</p>`).join("") : "<p>A quiet mission. No surprises.</p>"}
+        ${highlights.length ? highlights.slice(0, 1).map((e) => `<p>Month ${e.month}: ${esc(e.text)}</p>`).join("") : "<p>A quiet mission. No surprises.</p>"}
+        ${realBox(res)}
       </div>
     </div>`;
   const pc = $("#newsPhoto"), g = pc.getContext("2d");

@@ -48,7 +48,7 @@
     ok(S.tab === "instr", "tutorial advances to instruments after the pick");
     $("#tutSkip").click();
     ok(!S.tut && $("#tut").classList.contains("hidden"), "skip closes tutorial");
-    ok($$("#tabs .tab").length === 10 && !$(".tab.door") && $("#labCanvas").dataset.lab === "instr", "9 plain tabs, lab scene shown");
+    ok($$("#tabs .tab").length === 10 && !$(".tab.door") && $("#labCanvas").dataset.lab === "instr", "10 plain tabs (with build and test), lab scene shown");
     document.querySelector('.tab[data-tab="power"]').click();
     ok($("#labCanvas").dataset.lab === "power" && $("#binder").classList.contains("walk-l") && /Power Lab/.test($(".lab-plate").textContent), "walking to the power lab");
     // ---- career: an agency with calendar, money, reputation, research and contracts
@@ -86,15 +86,8 @@
     if (passedNow) ok(!document.querySelector('#hqContracts [data-sc="lunar_ice"]').classList.contains("locked"), "success opens the next contract");
     { const x = agency(); x.rep = 45; saveAgency(x); advanceTo(agency().month + 12); }
     openHQ();
-    ok(agency().invites.length >= 1 && $$("#hqInvites [data-acc]").length >= 1, "high reputation brings invitations from other agencies");
     ok(agency().world.length >= 1 && $("#hqTicker .tick-run"), "news ticker shows other agencies' missions");
     ok(agency().iss_due != null, "the ISS needs regular supplies");
-    const inv = agency().invites[0];
-    document.querySelector("#hqInvites [data-acc]").click();
-    await until(() => !$("#letter").classList.contains("hidden") || S.ev);
-    if (!$("#letter").classList.contains("hidden")) $("#letterGo").click();
-    await until(() => S.ev && S.ev.design.joint);
-    ok(S.ev.design.joint.partner === inv.partner && S.design.partners.includes(inv.partner), "accepted invitation becomes a joint mission");
     store.set("agency", null);
     // ---- surface mission: landing tab, sites, airbags need air
     S.mode = "free"; openSelect();
@@ -109,7 +102,7 @@
     S.mode = "free"; openSelect();
     document.querySelector('.folder[data-sc="orbital_outpost"]').click();
     await until(() => S.ev && S.ev.design.scenario === "orbital_outpost");
-    ok($$("#tabs .tab").length === 2 && $("#planChart") && $$('#binder [data-add]').length === 7, "program desk: manifest + partners, 7 payloads");
+    ok($$("#tabs .tab").length === 1 && $("#planChart") && $$('#binder [data-add]').length === 7, "program desk: manifest only, 7 payloads");
     document.querySelector('#binder [data-add="hab"]').click();
     await until(() => S.ev && S.ev.program.flights.length === 1);
     ok(S.ev.issues.some((i) => i.area === "order"), "habitat before the core is blocked");
@@ -152,15 +145,12 @@
     ok(true, "rejected stamp lands and tool lifts");
     // handbook from the in-game menu
     $("#menuBtn").click(); $("#mHints").click();
-    ok(!$("#hints").classList.contains("hidden") && $$("#hbNav [data-s]").length === 11, "handbook opens with 11 stages");
+    ok(!$("#hints").classList.contains("hidden") && $$("#hbNav [data-s]").length === 12, "handbook opens with 12 stages (with build and NASA advice)");
     ok(/only given at Cadet/.test($("#hbBody").textContent) && /Your design right now/.test($("#hbBody").textContent), "engineer handbook: status, no tips");
     $("#hbClose").click();
     await pick("launch", "launch_vehicle", "falcon9");
     ok(S.ev.ok, "design flight ready: " + S.ev.issues.filter((i) => i.severity === "blocker").map((i) => i.text).join("; "));
     ok(!document.querySelector(".tab .todo"), "no tab left with missing parts");
-    const before = S.ev.cost.total;
-    await pick("partners", "partners", "isro");
-    ok(S.ev.cost.total < before && S.ev.partners.tracking_h === 4, "partner pays part and lends antennas");
     await pick("instr", "instruments", "radar");
     ok(S.ev.science.goals.find((g) => g.tag === "subsurface").fraction > 0, "radar adds subsurface science");
     $("#yearsUp").click(); await until(() => S.ev.design.years === 5); ok(true, "years stepper");
@@ -179,6 +169,12 @@
     ok(/Total cost/.test($("#cmpBody").textContent) && $("#cmpVerdict").textContent.length > 5, "comparison table with risk odds + verdict");
     $("#cmpClose").click();
     ok(/THE ORBITAL TIMES/.test($("#paper").textContent) && $(".grade-stamp b").textContent.length === 1, "launch + newspaper with grade");
+    ok(/The real one: Mars Reconnaissance Orbiter/i.test($("#paper").textContent), "newspaper shows the real NASA mission");
+    $("#nReport").click();
+    ok(!$("#dossier").classList.contains("hidden") && $$("#dosBody .seg-grid > div").length >= 4 && $$("#dosBody table.mel tr").length > 8
+      && /Mars Reconnaissance Orbiter/.test($("#dosBody").textContent), "mission report: four segments, equipment list, real mission");
+    $("#dosClose").click();
+    ok(tradesNow() >= 1 && cmlNow().steps.length === 4, "concept maturity ladder computed");
     // ---- Cadet: follow the advisor's suggestions only, for every mission
     store.set("difficulty", "easy");
     for (const sc of ORDER) {
@@ -241,6 +237,19 @@
     await pick("bus", "bus", "smallsat"); await pick("power", "solar", "small"); await pick("power", "battery", "b1000");
     await pick("adcs", "adcs", "wheels"); await pick("prop", "propulsion", "mono"); await pick("comms", "comms", "xlga");
     await pick("comms", "ground", "commercial"); await pick("computer", "computer", "radtol"); await pick("launch", "launch_vehicle", "electron");
+    ok($$("#cmlStrip i").length === 4 && $$("#meters .seg-head").length === 4, "review sheet: CML ladder and four mission segments");
+    const costBefore = S.ev.cost.total;
+    await pick("build", "testing", "tlyf"); await pick("build", "spare", "spare");
+    await until(() => S.ev.build.spare && S.ev.cost.total > costBefore);
+    ok(S.ev.schedule.risk_mult < 1 && S.ev.cost.items["Second flight unit"] > 0, "build lab: test like you fly and a second flight unit");
+    $("#cmlStrip").click();
+    ok(!$("#proc").classList.contains("hidden") && $$("#procBody .proc-steps div").length === 6 && $$("#procBody .seg-grid > div").length === 4, "mission process sheet: six steps, four segments");
+    $("#procLib").click();
+    ok(!$("#library").classList.contains("hidden") && $$("#libBody .lib-item").length === 9, "NASA library lists the nine challenge resources");
+    $("#libClose").click();
+    openHints("nasa");
+    ok($$("#hbBody .tip").length >= 10 && /CubeSat 101/.test($("#hbBody").textContent), "handbook: NASA advice with sources");
+    $("#hbClose").click();
     ok(S.ev.ok && $("#launchBtn").disabled, "team launch locked until approvals");
     for (const r of Object.keys(S.cat.ROLES)) {
       document.querySelector(`.appr[data-role="${r}"]`).click();

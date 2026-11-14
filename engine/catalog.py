@@ -54,40 +54,6 @@ WINDOW_RULES = {
     "asteroid": {"synodic": 14, "first": 6, "cycle": 6, "shift": 2.1},
 }
 # --------------------------------------------------------------------------------------
-# International partners. Each pays part of the hardware and/or brings hardware of its own, but every interface
-# adds meetings, paperwork and a chance their part is late. Programs (stations, bases) get a flight instead.
-# --------------------------------------------------------------------------------------
-PARTNERS = {
-    "esa": {"name": "ESA (Europe)", "share": 0.12, "delay": 0.08,
-            "instrument": {"name": "European spectrometer", "mass": 16, "power": 18, "cost": 0, "data_mbps": 1.0,
-                           "duty": 0.2, "value": 18, "tags": ["composition", "climate", "water"], "pointing_deg": 0.5},
-            "gives": "Pays 12% of the hardware and adds a European spectrometer (uses one instrument slot).",
-            "learn": "ESA built instruments for Juno, Cassini and Europa Clipper and flew its own probes to Mars, Venus and a comet.",
-            "rocket": "Ariane 6", "program": {"station": {"p": "lab", "slot": 3}, "moon": {"p": "lcargo_l", "slot": 2},
-                                              "mars": {"p": "mpower", "slot": 0}},
-            "program_gives": "Builds a module or lander and launches it on Ariane 6 for free, on ESA's own date."},
-    "jaxa": {"name": "JAXA (Japan)", "share": 0.10, "delay": 0.06,
-             "instrument": {"name": "Japanese multiband camera", "mass": 9, "power": 12, "cost": 0, "data_mbps": 3.0,
-                            "duty": 0.1, "value": 18, "tags": ["imaging", "topography", "thermal"], "pointing_deg": 0.5},
-             "gives": "Pays 10% of the hardware and adds a Japanese multiband camera (uses one instrument slot).",
-             "learn": "JAXA's Hayabusa missions brought back samples from two asteroids.",
-             "rocket": "H3", "program": {"station": {"p": "cargo", "slot": 4}, "moon": {"p": "lrover", "slot": 3},
-                                         "mars": {"p": "mcargo", "slot": 1}},
-             "program_gives": "Builds and launches a cargo ship or rover on an H3 rocket for free, on JAXA's own date."},
-    "csa": {"name": "CSA (Canada)", "share": 0.08, "delay": 0.05,
-            "instrument": {"name": "Canadian laser altimeter", "mass": 12, "power": 18, "cost": 0, "data_mbps": 0.1,
-                           "duty": 1.0, "value": 18, "tags": ["topography"], "pointing_deg": 0.1, "where": "orbit"},
-            "instrument_surface": {"name": "Canadian X-ray rock spectrometer", "mass": 2, "power": 6, "cost": 0,
-                                   "data_mbps": 0.05, "duty": 0.2, "value": 16, "tags": ["composition"], "pointing_deg": 10},
-            "gives": "Pays 8% of the hardware and adds a Canadian instrument (uses one instrument slot).",
-            "learn": "Canada built the laser that mapped asteroid Bennu, the X-ray spectrometer on Curiosity and the space station's robot arms.",
-            "arm": True, "program_gives": "Adds a robotic arm: docking and berthing go wrong far less often, and it pays 8% of the hardware."},
-    "isro": {"name": "ISRO (India)", "share": 0.06, "delay": 0.07, "tracking_h": 4,
-             "gives": "Pays 6% of the hardware and lends its deep-space antennas: +4 hours of contact per day.",
-             "learn": "India reached Mars orbit on its first try and landed near the Moon's south pole with Chandrayaan-3.",
-             "program_gives": "Pays 6% of the hardware."},
-}
-MAX_PARTNERS = 2
 
 # --------------------------------------------------------------------------------------
 # Programs: missions built from many launches (a space station, a Moon base, a crewed Mars expedition).
@@ -955,6 +921,30 @@ INSTRUMENTS = {
                   "learn": "Counts charged particles. Helps interpret the magnetometer signal."},
 }
 
+# Build and verify (CubeSat 101): how hard the spacecraft is tested before launch, and whether a second one is built.
+# cost_frac is a share of the hardware cost; risk_mult scales launch-failure and glitch odds; slip_add changes the
+# chance that the spacecraft is not ready for its launch date.
+TESTING = {
+    "minimal": {"name": "Minimal testing", "cost_frac": -0.08, "risk_mult": 1.6, "slip_add": -0.02,
+                "learn": "Each box is switched on once and shipped. It saves money and weeks, and leaves the surprises "
+                         "for space, where nobody can fix them."},
+    "standard": {"name": "Standard test campaign", "cost_frac": 0.0, "risk_mult": 1.0, "slip_add": 0.0,
+                 "learn": "Vibration, thermal vacuum and a functional test of the finished spacecraft. "
+                          "This is what the 30% integration and test cost already pays for."},
+    "tlyf": {"name": "Test like you fly", "cost_frac": 0.08, "risk_mult": 0.6, "slip_add": 0.04,
+             "learn": "The whole mission is rehearsed on the ground, day by day, on an engineering copy and on the flight "
+                      "unit. It costs more and takes longer, and it finds the faults that only show up when everything runs together."},
+}
+SPARES = {
+    "none": {"name": "One flight unit", "cost_frac": 0.0,
+             "learn": "One spacecraft, one chance. If the rocket fails, the mission is over."},
+    "spare": {"name": "Second flight unit", "cost_frac": 0.35,
+              "learn": "Building two at once costs far less than building another one later: the design, tools and tests "
+                       "already exist. If the launch fails, the twin flies on the next rocket. NASA built Voyager, Viking "
+                       "and the Mars Exploration Rovers in pairs."},
+}
+SPARE_WAIT_MONTHS = 12  # time to prepare the second unit and book another rocket
+
 DIFFICULTY = {
     "easy": {"name": "Cadet", "budget_mult": 1.3, "event_mult": 0.5, "margin_req": 0.05},
     "normal": {"name": "Engineer", "budget_mult": 1.0, "event_mult": 1.0, "margin_req": 0.10},
@@ -963,7 +953,7 @@ DIFFICULTY = {
 
 ROLES = {
     "manager": {"name": "Mission Manager", "icon": "🧭",
-                "owns": ["difficulty", "launch_vehicle", "years", "window", "partners"],
+                "owns": ["difficulty", "launch_vehicle", "years", "window", "testing", "spare"],
                 "goal": "Keep at least 10% of the budget in reserve.",
                 "learn": "Owns money and schedule. Says 'no' a lot."},
     "systems": {"name": "Systems Engineer", "icon": "🔧",
