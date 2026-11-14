@@ -100,4 +100,3 @@ def test_real_mission_rows_compare_like_with_like():
     r = evaluate(default_design("mars_climate"))["nasa"]["real"][0]
     assert r["name"] == "Mars Reconnaissance Orbiter" and {x["label"] for x in r["rows"]} >= {"Launch mass", "Cost", "Rocket"}
     assert "lighter" in r["note"] or "heavier" in r["note"] or "same" in r["note"]
-
