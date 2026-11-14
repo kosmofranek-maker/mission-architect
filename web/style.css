@@ -62,21 +62,24 @@ h1, h2, h3 { font-family: "Silkscreen", monospace; font-weight: 700; margin: 0 0
 .credit { position: absolute; bottom: -96px; color: #e9eef2; font-size: 18px; text-shadow: 2px 2px 0 #000; }
 
 /* ------------------------------------------------ mission select */
-.select-wrap { position: absolute; inset: 30px 40px; display: flex; flex-direction: column; gap: 18px; }
+.select-wrap { position: absolute; inset: 14px 40px; display: flex; flex-direction: column; gap: 10px; }
 .h-paper { background: var(--paper); border: 2px solid var(--ink); align-self: flex-start; padding: 6px 14px; }
-.folders { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 22px 18px; flex: 1; min-height: 0; }
+.folders { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: max-content; align-content: start; gap: 18px 10px;
+  flex: 1; min-height: 0; overflow-y: auto; padding: 16px 6px 6px 0; }
 .folder .f-kind { position: absolute; top: 6px; left: 8px; font-family: "Silkscreen"; font-size: 9px; color: var(--paper); background: var(--ink); padding: 1px 5px; }
 .folder { position: relative; background: #c9a86a; border: 2px solid var(--ink); box-shadow: 5px 5px 0 rgba(0,0,0,.5);
-  padding: 8px 10px 6px; cursor: pointer; display: flex; flex-direction: column; gap: 1px; font-size: 16px; line-height: 1; overflow: hidden; }
+  padding: 24px 8px 6px; cursor: pointer; display: block; font-size: 16px; line-height: 1; min-height: 120px; }
+.folder > div { margin-bottom: 2px; }
 .folder::before { content: ""; position: absolute; top: -14px; left: 12px; width: 110px; height: 16px; background: #c9a86a;
   border: 2px solid var(--ink); border-bottom: none; }
 .folder:hover:not(.locked) { transform: translateY(-4px); }
 .folder.locked { filter: grayscale(.8) brightness(.6); cursor: not-allowed; }
-.folder .f-planet { width: 44px; height: 44px; align-self: center; flex: none; }
-.folder .f-name { font-family: "Silkscreen", monospace; font-size: 13px; }
+.folder .f-planet { position: absolute; top: 3px; right: 6px; width: 28px; height: 28px; }
+.folder .f-name { font-family: "Silkscreen", monospace; font-size: 12px; margin-top: 6px; }
 .folder .f-lvl { color: var(--redD); }
-.folder .f-best { position: absolute; top: 6px; right: 8px; font-family: "Silkscreen"; font-size: 26px; }
-.folder .f-lock { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.folder .f-best { position: absolute; top: 4px; right: 40px; font-family: "Silkscreen"; font-size: 20px; }
+.folder .f-lock { position: absolute; right: 4px; bottom: 4px; }
+.folder .f-lock img { width: 24px; height: 24px; }
 .select-bottom { display: flex; gap: 22px; align-items: center; }
 
 /* ------------------------------------------------ lobby */
@@ -443,7 +446,7 @@ html.mobile .credit { position: static; text-align: center; margin-top: 16px; }
 /* mission select, lobby, hall */
 html.mobile .select-wrap { position: static; padding: 12px; inset: auto; }
 html.mobile .folders { grid-template-columns: 1fr; gap: 26px; }
-html.mobile .folder .f-planet { width: 72px; height: 72px; }
+html.mobile .folder .f-planet { width: 40px; height: 40px; }
 html.mobile .select-bottom { flex-direction: column; align-items: stretch; gap: 10px; }
 html.mobile .seg button { flex: 1; font-size: 11px; padding: 6px 4px; }
 html.mobile .lobby, html.mobile .hall { position: static; width: auto; margin: 12px; inset: auto; }
@@ -620,3 +623,21 @@ html.mobile .modal.top { position: fixed; }
 .news-cols .real { margin-top: 2px; }
 .seg-grid.five { grid-template-columns: repeat(5, 1fr); margin-bottom: 4px; } html.mobile .seg-grid.five { grid-template-columns: 1fr 1fr; }
 html.mobile .proc-box .cmp-foot .req-small { display: none; }
+
+/* ------------------------------------------------ primary objective, orbit view, MDL review, segment notes */
+.goal.pick { cursor: pointer; } .goal.pick:hover { background: #fff8e2; }
+.goal.primary { background: #f6e3a3; outline: 2px solid var(--ink); }
+.goal .pri { font-family: "Silkscreen"; font-size: 8px; color: var(--redD); display: block; }
+.orbit-view { display: grid; grid-template-columns: 256px 1fr; gap: 8px; margin: 0 0 8px; border: 2px solid var(--ink); background: var(--paperL); }
+.orbit-view canvas { width: 256px; height: 104px; display: block; }
+.ov-side { padding: 4px 6px 4px 0; font-size: 16px; line-height: 1.05; display: flex; flex-direction: column; gap: 3px; }
+.ov-side b { font-family: "Silkscreen"; font-size: 9px; } .ov-side .good { color: #3c6b25; } .ov-side .bad { color: var(--redD); }
+.ov-side small { color: var(--ink2); font-size: 15px; } .ov-side label { display: flex; gap: 6px; align-items: center; }
+.ov-side input[type=range] { flex: 1; min-width: 0; accent-color: var(--ink); } .ov-side .btn { align-self: flex-start; }
+.proc-body h5 { font-family: "Silkscreen"; font-size: 10px; margin: 6px 0 2px; }
+.proc-body ul { margin: 0 0 4px; padding-left: 20px; } .proc-body li { font-size: 18px; }
+.sn { font-size: 15px; color: var(--ink2); border-top: 1px dashed var(--paper2); line-height: 1; padding: 2px 0; }
+.card .cl.fit { color: var(--blueD); }
+html.mobile .folders { overflow: visible; padding: 16px 0 0; }
+html.mobile .orbit-view { grid-template-columns: 1fr; } html.mobile .orbit-view canvas { width: 100%; height: auto; } html.mobile .ov-side { padding: 4px 6px; }
+html.mobile .folder .f-best { right: 54px; }

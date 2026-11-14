@@ -22,6 +22,12 @@ design, watch the launch and the mission unfold month by month on the teletype, 
   micrometeoroids, budget cuts and surprise discoveries. Same seed + same design = same story.
 - Launch windows and build schedule: an early date means a rushed build, a late one means paying the team to wait.
 - Risk check: 200 simulated missions give success odds and a science range.
+- Mission objective first: click a goal on the mission request to make it the primary objective (it counts 1.5x, the
+  others less). User segment decision: raw data, calibrated products or a science data center.
+- Orbit view (our own sketch, Orbit tab): one orbit with the planet's shadow and the ground contact arc; move time
+  and see when the spacecraft runs on battery and when it can send data.
+- Challenge a friend: a link that opens the same mission with the same random seed, so two teams face the same luck.
+- Glossary in the handbook: every term on the desk in plain language.
 - Design drawer: save designs and compare two side by side (cost, margins, science, success odds, parts).
 - Live flight dashboard: power, battery, fuel, data, budget and science month by month during the flight.
 - Score out of 950 with grade S to F and a post-mission analysis of *why* it went that way.
@@ -55,7 +61,7 @@ site block, `deploy/deploy.sh` redeploys by hand. Every push to `main` runs the 
 - `server.py` HTTP server + JSON API. `web/` the game client (HTML/CSS/JS, pixel sprites in `sprites.js`).
 
 ## NASA data and resources used
-The challenge's Resources tab lists nine items. The game uses every one of them, and the in-game **NASA library**
+The challenge's Resources tab lists nine items. The game adapts selected concepts and links to other resources for further learning. The in-game **NASA library**
 (title screen and menu) shows the same list with links.
 
 | Resource | What the game does with it |
@@ -77,3 +83,6 @@ Europa Clipper, CubeSats, Electron, Falcon 9/Heavy, Vulcan, SLS, the Deep Space 
 trade-offs, not to be an engineering tool. Characters and organisations in the game are fictional.
 Real-mission figures in the comparison are rounded public numbers. This is a student project for the NASA Space Apps
 Challenge; it is not made or endorsed by NASA.
+
+Resource audit and proposed improvements: [review document (Polish)](docs/NASA_RESOURCE_REVIEW_PL.md).
+GMAT and NASA Mission Viz are not integrated or used to validate the simulation. The 10% reserve is a game rule, not a universal NASA requirement.

@@ -34,6 +34,7 @@ RESOURCES = [
     {"key": "sci", "name": "Design and Develop Science Missions", "by": "NASA Small Spacecraft Systems Virtual Institute",
      "what": "How a science mission goes from a need to a flying spacecraft, and the four segments every mission has.",
      "used": "The review sheet and the mission report are sorted into the launch, space, ground and user segments. "
+             "The user segment has its own decisions: the primary objective and how the data is processed. "
              "The six-step process is the strip at the top of the mission process sheet. "
              "'Begin with the end in mind' is why every mission starts with the client's goals, not with parts."},
     {"key": "cml", "name": "Concept Maturity Levels", "by": "NASA Jet Propulsion Laboratory",
@@ -55,10 +56,11 @@ RESOURCES = [
     {"key": "gmat", "name": "General Mission Analysis Tool (GMAT)", "by": "NASA Goddard and partners",
      "what": "Free, open-source software that real teams use to design and optimise trajectories and launch windows.",
      "used": "The game's delta-v, launch windows and cruise times are simplified versions of what GMAT computes. "
-             "Open it when you want to fly one of your orbits for real."},
+             "External learning resource only: the game does not run GMAT or use GMAT-validated trajectories."},
     {"key": "viz", "name": "NASA Mission Viz", "by": "NASA",
      "what": "Web pages that show orbits and transfers in 3D, including an Earth to Moon flight.",
-     "used": "The launch film draws the transfer arc and the final orbit for your destination in the same spirit."},
+     "used": "Visual inspiration only: our own orbit view (Orbit tab) shows one orbit with the planet's shadow and ground "
+             "contact, and our launch film draws the transfer. NASA Mission Viz is not integrated."},
     {"key": "vr", "name": "Visualize a Space Mission Using Virtual Reality", "by": "NASA Space Apps Challenge 2023",
      "what": "An earlier challenge: show a whole mission, its concept, trajectory and timeline.",
      "used": "The launch film and the flight dashboard show the same three things: the concept, the path and the timeline, month by month."},
@@ -80,8 +82,8 @@ PROCESS = [
 CML_LEVELS = [
     {"level": 1, "name": "Cocktail napkin", "text": "The science questions are clear and there is a first sketch of the mission.",
      "todo": "Read the mission request and pick where to fly or what to carry."},
-    {"level": 2, "name": "Initial feasibility", "text": "Every part is chosen and the basic numbers have been calculated.",
-     "todo": "Choose every part so that mass, power, data and cost can be calculated."},
+    {"level": 2, "name": "Initial feasibility", "text": "Every part is chosen and no critical engineering blockers remain.",
+     "todo": "Choose every part, then resolve critical mass, power, data, compatibility and budget issues."},
     {"level": 3, "name": "Trade space", "text": "Different designs have been compared for science return, cost and risk.",
      "todo": "Save this design to the drawer and compare it with a different one (button Compare)."},
     {"level": 4, "name": "Point design", "text": "One design is selected, down to the subsystems, with acceptable margins and reserves.",
@@ -306,8 +308,9 @@ def _missing(ev: dict) -> list:
 def cml(ev: dict, trades: int = 0) -> dict:
     """Concept Maturity Level 1-4 of a design. `trades` = how many different designs the player has compared."""
     d = ev["design"]
-    sketch = bool(d.get("orbit") or d.get("instruments") or d.get("manifest") or d.get("shape") or d.get("launch_vehicle"))
-    feasible = sketch and not _missing(ev)
+    sketch = bool(d.get("orbit") or d.get("instruments") or d.get("manifest") or d.get("shape") or d.get("launch_vehicle")
+                  or d.get("priority"))
+    feasible = sketch and not _missing(ev) and ev["ok"]
     reserve_ok = d.get("sandbox") or ev["cost"]["reserve"] >= POINT_MARGIN
     margins_ok = not _probe(ev) or (ev["mass"]["margin"] >= POINT_MARGIN and ev["power"]["margin"] >= POINT_MARGIN)
     point = bool(feasible and ev["ok"] and reserve_ok and margins_ok)
@@ -337,8 +340,13 @@ def segments(ev: dict) -> list[dict]:
         elif i["severity"] != "info":
             bump(AREA_SEGMENT.get(i["area"], "space"), "bad" if i["severity"] == "blocker" else "warn")
     lines = {k: [] for k in SEGMENT_INFO}
+    notes = {k: [] for k in SEGMENT_INFO}
     goals = ev["science"]["goals"]
     met = sum(1 for g in goals if g["met"])
+    required = [g for g in goals if g["required"]]
+    required_met = sum(1 for g in required if g["met"])
+    if required_met < len(required):
+        bump("user", "warn")
     if _probe(ev):
         lv = C.LAUNCH_VEHICLES.get(d["launch_vehicle"] or "")
         m, p, da = ev["mass"], ev["power"], ev["data"]
@@ -354,16 +362,31 @@ def segments(ev: dict) -> list[dict]:
                            ["Contact", f"{da['contact_hours']:.1f} h a day"],
                            ["Downlink", f"{da['rate_mbps']:.2f} Mbps"],
                            ["Data reaching Earth", f"{da['return']:.0%}"]]
+        generated = da["generated_gb_day"]
+        delivered = generated * da["return"]
+        if generated > 0 and da["return"] < 0.8:
+            bump("user", "warn")
         lines["user"] = [["Goals met", f"{met} of {len(goals)}"],
-                         ["Data delivered", f"{da['generated_gb_day'] * da['return']:.1f} Gb a day"],
-                         ["Science", f"{ev['science']['score']:.0f} of 100"]]
+                         ["Required goals met", f"{required_met} of {len(required)}"],
+                         ["Data collected", f"{generated:.1f} Gb a day"],
+                         ["Data delivered", f"{delivered:.1f} Gb a day"],
+                         ["Data not delivered", f"{max(0, generated - delivered):.1f} Gb a day"],
+                         ["Data processing", C.PROCESSING[d["processing"]]["name"]],
+                         ["Science", f"{ev['science']['score']:.0f} model points"]]
+        lines["user"].extend([[g["label"] + (" (primary)" if g.get("primary") else ""),
+                               f"{'Required' if g['required'] else 'Optional'}: {g['fraction']:.0%} of target"]
+                              for g in goals])
+        notes["user"] = ["Science uses data reaching Earth, not just data collected.",
+                         "To improve delivery, compare antenna, ground station and recorder capacity.",
+                         "A goal is met at 50% of its target or more in this educational model."]
     else:
         lines["launch"] = [["Launch", C.LAUNCH_VEHICLES[d["launch_vehicle"]]["name"] if d.get("launch_vehicle") else
                             (f"{len(ev['program']['flights'])} flights" if ev.get("program") else "not chosen")]]
         lines["space"] = [["Cost", f"{ev['cost']['total']:,.0f} of {ev['cost']['budget']:,.0f} M$"]]
         lines["ground"] = [["Mission control", "NASA Mission Control, Houston"]]
         lines["user"] = [["Goals met", f"{met} of {len(goals)}"], ["Result", f"{ev['science']['score']:.0f} of 100"]]
-    return [{"key": k, "name": SEGMENT_INFO[k][0], "what": SEGMENT_INFO[k][1], "state": state[k], "lines": lines[k]}
+    return [{"key": k, "name": SEGMENT_INFO[k][0], "what": SEGMENT_INFO[k][1], "state": state[k], "lines": lines[k],
+             "notes": notes[k]}
             for k in SEGMENT_INFO]
 
 

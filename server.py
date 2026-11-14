@@ -39,7 +39,7 @@ def clean(o):
 def catalog() -> dict:
     return {k: getattr(C, k) for k in ("DESTINATIONS", "SCENARIOS", "ORBITS", "LAUNCH_VEHICLES", "LV_TARGET_LABEL",
                                        "BUSES", "SOLAR_ARRAYS", "RTG", "BATTERIES", "COMMS", "GROUND", "COMPUTERS",
-                                       "ADCS", "PROPULSION", "INSTRUMENTS", "DIFFICULTY", "ROLES", "RADIATION_LABEL", "EDL", "PAYLOADS", "CREW_RATED", "SUPPLY_KG_PER_CREW_MONTH", "EXISTING", "VEHICLE", "TESTING", "SPARES")} | {
+                                       "ADCS", "PROPULSION", "INSTRUMENTS", "DIFFICULTY", "ROLES", "RADIATION_LABEL", "EDL", "PAYLOADS", "CREW_RATED", "SUPPLY_KG_PER_CREW_MONTH", "EXISTING", "VEHICLE", "TESTING", "SPARES", "PROCESSING", "PRIORITY_WEIGHT")} | {
         "NASA": {"RESOURCES": [{**r, "url": nasa.URL[r["key"]]} for r in nasa.RESOURCES], "PROCESS": nasa.PROCESS,
                  "REAL": nasa.REAL_MISSIONS},
         "FIELD_OWNER": FIELD_OWNER,

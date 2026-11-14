@@ -188,8 +188,8 @@ const TABS = [
     hint: "Engines change your orbit. Efficiency (Isp) decides how much propellant the rocket equation demands." },
   { id: "edl", label: "Landing", icon: "chute", role: "systems", fields: ["edl"],
     hint: "Entry, descent and landing. Parachutes and airbags need air; on airless worlds only rocket engines can slow you down. Safer systems weigh and cost more." },
-  { id: "comms", label: "Comms", icon: "dish", role: "comms", fields: ["comms", "ground"],
-    hint: "Data is useless until it reaches Earth. Signals weaken with distance squared." },
+  { id: "comms", label: "Comms", icon: "dish", role: "comms", fields: ["comms", "ground", "processing"],
+    hint: "Data is useless until it reaches Earth and someone turns it into science. Signals weaken with distance squared." },
   { id: "computer", label: "Computer", icon: "chip", role: "comms", fields: ["computer"],
     hint: "Stores data between contacts and must survive the local radiation." },
   { id: "build", label: "Build", icon: "check", role: "manager", fields: ["testing", "spare"],
@@ -231,7 +231,7 @@ function fieldLabel(f) {
 const FIELD_LABEL = { window: "Launch date", launch_vehicle: "Launch vehicle", orbit: "Orbit", bus: "Spacecraft bus", solar: "Solar array",
   rtg: "Nuclear power (RTG)", battery: "Battery", adcs: "Attitude control", propulsion: "Propulsion", comms: "Antenna",
   ground: "Ground stations", computer: "Flight computer", instruments: "Instruments", edl: "Landing system",
-  testing: "Test campaign", spare: "Flight units", shape: "Hull shape", seats: "Seats", heatshield: "Heat shield", abort: "Launch escape system", landing: "Landing" };
+  testing: "Test campaign", spare: "Flight units", processing: "Science data processing", shape: "Hull shape", seats: "Seats", heatshield: "Heat shield", abort: "Launch escape system", landing: "Landing" };
 const MULTI = new Set(["instruments"]); // fields that hold a list
 
 const S = {
@@ -380,6 +380,10 @@ async function boot() {
   const [k, v] = location.hash.slice(1).split("=");
   if (k === "career") { S.mode = "career"; if (v === "all") store.set("career", Object.fromEntries(ORDER.slice(0, 5).map((o) => [o, { grade: "B", score: 600 }]))); openSelect(); }
   if (k === "library") openLibrary();
+  if (k === "challenge") { const [sc, seed, diff] = (v || "").split(":");
+    if (S.cat.SCENARIOS[sc] && Number(seed) > 0) { S.noLetter = true; S.mode = "free"; if (S.cat.DIFFICULTY[diff]) store.set("difficulty", diff);
+      startMission(sc); S.challenge = { sc, seed: Number(seed) }; renderTop();
+      toast(`${icon("star")} Challenge: same mission, same luck (seed ${Number(seed)}). Beat your friend's score.`, 6000); } }
   if (k === "code") { try { const d = JSON.parse(atob(v)); if (S.cat.SCENARIOS[d.scenario]) { S.noLetter = true; S.mode = "free"; startMission(d.scenario, d); } } catch { /* not a design link */ } }
   if (k === "tutorial") { go("tutorial"); for (let n = 0; n < Number(v || 0); n++) tutAdvance(); }
   if (v && S.cat.SCENARIOS[v.split(":")[0]]) {
@@ -452,6 +456,7 @@ function openSelect() {
 }
 
 function startMission(sc, design, opts = {}) {
+  if (!S.challenge || S.challenge.sc !== sc || S.mode !== "free") S.challenge = null;
   const d = { ...S.cat.BLANK[sc], instruments: [], ...(design || {}) }; // older saved designs lack newer fields
   if (!design) {
     d.difficulty = store.get("difficulty", "normal");
@@ -523,7 +528,7 @@ function renderEval() {
 function renderTop() {
   const i = ORDER.indexOf(S.design.scenario);
   $("#tbDay").innerHTML = S.mode === "career" && agency() ? `${icon("calendar")} ${monthName(agency().month).toUpperCase()} &middot; AGENCY ${fmt(agency().funds)} M$` :
-    S.mode === "team" ? `${icon("person")} TEAM` : `${icon("calendar")} FREE DESIGN`;
+    S.mode === "team" ? `${icon("person")} TEAM` : S.challenge ? `${icon("star")} CHALLENGE &middot; SEED ${S.challenge.seed}` : `${icon("calendar")} FREE DESIGN`;
   $("#tbRoom").innerHTML = S.mode === "team" ? ` &middot; ROOM <span class="code">${S.room}</span> &middot; ${Object.keys(S.players).length} engineer(s)` : "";
   $("#tbScenario").textContent = `${scen().name.toUpperCase()} · ${S.cat.DIFFICULTY[S.design.difficulty].name.toUpperCase()}${S.design.sandbox ? " · SANDBOX" : ""}`;
   if (S.ev) $("#tbBudget").innerHTML = `${icon("coin")} ${fmt(S.ev.cost.total)} / ${fmt(S.ev.cost.budget)} M$`;
@@ -809,11 +814,13 @@ function renderRequest() {
   $("#reqGoals").innerHTML = s.goals.map((g, i) => {
     const G = ev ? ev.science.goals[i] : null, f = G ? G.fraction : 0;
     const cls = f >= 1 ? "" : f >= 0.5 ? "warn" : "bad";
-    return `<div class="goal">${icon(G && G.met ? "check" : g.required ? "star" : "none", 14)}
-      <span class="gl">${esc(g.label)}${g.required ? " *" : ""}</span>
+    const pri = S.design.priority === g.tag, can = !isProgram() && kindNow() !== "vehicle";
+    return `<div class="goal ${pri ? "primary" : ""} ${can ? "pick" : ""}" data-goal="${g.tag}" title="${can ? "Click to make this the primary objective" : ""}">${icon(G && G.met ? "check" : g.required ? "star" : "none", 14)}
+      <span class="gl">${esc(g.label)}${g.required ? " *" : ""}${pri ? ' <b class="pri">PRIMARY</b>' : ""}</span>
       <div class="bar gbar ${cls}"><i style="width:${Math.min(100, f * 100)}%"></i><span class="mark" style="left:50%"></span></div>
       <small>${pct(f)}</small></div>`;
-  }).join("") + `<div class="req-small">* required: needs at least 50%</div>`;
+  }).join("") + `<div class="req-small">* required: needs at least 50%${isProgram() || kindNow() === "vehicle" ? "" : `. Click a goal to make it primary (counts ${S.cat.PRIORITY_WEIGHT}x).`}</div>`;
+  $$("#reqGoals .goal.pick").forEach((el) => (el.onclick = () => setField("priority", S.design.priority === el.dataset.goal ? null : el.dataset.goal)));
   $("#reqBudget").textContent = `${fmt(s.budget * S.cat.DIFFICULTY[S.design.difficulty].budget_mult)} M$`;
   $("#reqYears").textContent = `${S.design.years} yr`;
   const o = S.cat.ORBITS[destKey()][S.design.orbit];
@@ -849,7 +856,7 @@ function goLab(id) {
 let _labFrame = 0;
 setInterval(() => {
   const c = document.getElementById("labCanvas");
-  if (c && $("#desk").classList.contains("active") && !document.hidden) drawLab(c, c.dataset.lab, ++_labFrame);
+  if (c && $("#desk").classList.contains("active") && !document.hidden) { drawLab(c, c.dataset.lab, ++_labFrame); tickOrbitView(); }
 }, 160);
 
 function optionsFor(field, all = false) {
@@ -867,7 +874,7 @@ function optionsForAll(field) {
   if (field === "instruments") return keep(c.INSTRUMENTS, (o) => !o.where || (o.where === "surface") === !!dest.surface);
   return { launch_vehicle: c.LAUNCH_VEHICLES, orbit: c.ORBITS[destKey()], bus: c.BUSES, solar: c.SOLAR_ARRAYS,
     battery: c.BATTERIES, adcs: c.ADCS, propulsion: c.PROPULSION, comms: c.COMMS, ground: c.GROUND,
-    computer: c.COMPUTERS, instruments: c.INSTRUMENTS, testing: c.TESTING, spare: c.SPARES }[field];
+    computer: c.COMPUTERS, instruments: c.INSTRUMENTS, testing: c.TESTING, spare: c.SPARES, processing: c.PROCESSING }[field];
 }
 
 const energy = () => (S.ev && S.ev.schedule && S.ev.schedule.window ? S.ev.schedule.window.energy : 1);
@@ -882,6 +889,23 @@ function windowLearn(w) {
   if (w.synodic) t.push(`Miss it and the next ${S.cat.DESTINATIONS[destKey()].name.split(" (")[0]} window is ${w.synodic} months later.`);
   return t.join(" ");
 }
+// Explain relevance without promising compatibility or science from an unselected part.
+function instrumentScienceFit(k, instrument, goals, destination, ev) {
+  const matched = goals.filter((g) => instrument.tags.includes(g.tag));
+  if ((destination.blind || []).includes(k)) return `Cannot observe this target: ${destination.blind_why || "the destination blocks this instrument's view."}`;
+  if ((instrument.where === "surface" && !destination.surface) || (instrument.where === "orbit" && destination.surface))
+    return "Wrong operating environment for this instrument.";
+  if (!matched.length) return "No mission goal uses this instrument. It still adds mass, power, data and cost.";
+  let text = "Supports: " + matched.map((g) => g.label + (g.required ? " (required)" : " (optional)")).join("; ") + ".";
+  const contribution = ev && ev.science && ev.science.per_instrument;
+  if (contribution && Object.prototype.hasOwnProperty.call(contribution, k)) {
+    text += Number(contribution[k]) > 0
+      ? " Current modelled contribution: " + Number(contribution[k]).toFixed(1) + " capability points (not final mission score)."
+      : " No science contribution in the current design: check orbit, pointing, data delivery and landing requirements.";
+  } else text += " Potential match only: select it to evaluate orbit, pointing and data delivery.";
+  return text;
+}
+
 function statLine(field, k, o) {
   const c = S.cat, dest = c.DESTINATIONS[destKey()];
   const tgt = curOrbit().lv_target;
@@ -906,6 +930,7 @@ function statLine(field, k, o) {
     case "ground": return o.relay_mbps ? `${o.relay_mbps} Mbps relay · ${o.hours} h/sol · ${o.cost_year} M$/yr` : `${o.hours} h/day · signal x${o.gain} · ${o.cost_year} M$/yr`;
     case "computer": return `${o.storage_gb} GB · radiation lvl ${o.rad} · ${o.cost} M$`;
     case "instruments": return `${o.mass} kg · ${o.power} W · ${o.data_mbps} Mbps · ${o.cost} M$`;
+    case "processing": return `operations cost x${o.ops_mult} · science x${o.science_mult} · discovery odds x${o.discovery_mult}`;
     case "testing": return `${o.cost_frac ? `${o.cost_frac > 0 ? "+" : ""}${Math.round(o.cost_frac * 100)}% of hardware cost` : "no extra cost"} · failure odds x${o.risk_mult}${o.slip_add ? ` · late risk ${o.slip_add > 0 ? "+" : ""}${Math.round(o.slip_add * 100)}%` : ""}`;
     case "spare": return o.cost_frac ? `+${Math.round(o.cost_frac * 100)}% of hardware cost · survives a launch failure` : "no extra cost · one chance";
   }
@@ -940,6 +965,7 @@ function renderBinder() {
     <div class="lab-plate"><b>${esc(LABS[tab.id].name)}</b><span>${esc(role.name)}'s lab</span></div></div>`;
   h += locked ? `<div class="lock-banner">${icon("lock")} Classified: this section belongs to the ${S.cat.ROLES[tab.role].name}. You can read it but not change it.</div>` : "";
   h += `<p class="hint">${esc(tab.hint)}</p>`;
+  if (tab.id === "orbit") h += orbitViewHtml();
   if (tab.id === "power" && S.ev && S.ev.power.load) {
     const P = S.ev.power, rows = Object.entries(P.loads).filter(([, w]) => w >= 0.5);
     h += `<div class="pbudget"><b>POWER BUDGET (average, end of mission)</b>
@@ -973,6 +999,7 @@ function renderBinder() {
       return `<div class="card ${sel ? "sel" : ""} ${level() !== "hard" && cardBad(field, k, o) ? "bad" : ""} ${locked ? "disabled" : ""}" data-f="${field}" data-k="${k}">
         <div class="ci">${icon(PART_ICON[field](k), 32)}</div>
         <div class="cn">${esc(o.name)}</div><div class="cs">${statLine(field, k, o)}</div>${tags}
+        ${field === "instruments" && level() !== "hard" ? `<div class="cl fit">${esc(instrumentScienceFit(k, o, scen().goals, S.cat.DESTINATIONS[destKey()], S.ev))}</div>` : ""}
         ${o.learn ? `<div class="cl">${esc(o.learn)}</div>` : ""}</div>`;
     }).join("") + `</div>`;
   }
@@ -980,6 +1007,7 @@ function renderBinder() {
   binder.innerHTML = h;
   binder.scrollTop = top;
   drawLab($("#labCanvas"), tab.id, _labFrame);
+  wireOrbitView();
   $$("#binder .card[data-f]").forEach((el) => el.onclick = () => {
     const f = el.dataset.f, k = el.dataset.k;
     if (MULTI.has(f)) {
@@ -1231,7 +1259,8 @@ async function doLaunch() {
     }
     $("#launchBtn").disabled = true;
     const name = `${scen().name}${S.player ? ` (${S.player})` : ""}`;
-    const req = api("launch", { design: S.design, name, player: S.player, save: !S.noSave, room: S.mode === "team" ? S.room : undefined });
+    const seed = S.challenge && S.challenge.sc === S.design.scenario && S.mode !== "team" ? S.challenge.seed : undefined;
+    const req = api("launch", { design: S.design, name, player: S.player, save: !S.noSave, seed, room: S.mode === "team" ? S.room : undefined });
     await stampAnim("ok");
     const res = await req;
     S.lastRunSeen = res.seed;
@@ -1352,7 +1381,8 @@ const STAGE_AREAS = { launch: ["launch"], orbit: ["schedule"], bus: ["bus"], pow
   prop: ["propulsion"], edl: ["edl"], build: [], comms: ["comms"], computer: ["radiation"], instr: ["science"], review: ["cost"] };
 const STAGES = () => [...tabs(), { id: "review", label: "Review & launch", icon: "check", fields: [],
   hint: "The review board only approves a design with zero blockers. Warnings are allowed but cost points." },
-  { id: "nasa", label: "NASA advice", icon: "star", fields: [], hint: "" }];
+  { id: "nasa", label: "NASA advice", icon: "star", fields: [], hint: "" },
+  { id: "glossary", label: "Glossary", icon: "info", fields: [], hint: "" }];
 
 function stageIssues(st) {
   if (!S.ev) return [];
@@ -1370,6 +1400,7 @@ function openHints(stageId) {
   }).join("");
   $$("#hbNav [data-s]").forEach((el) => (el.onclick = () => openHints(el.dataset.s)));
   const st = stages.find((x) => x.id === stageId);
+  if (st.id === "glossary") { $("#hbBody").innerHTML = glossaryHtml(); return $("#hints").classList.remove("hidden"); }
   if (st.id === "nasa") {
     $("#hbBody").innerHTML = nasaAdviceHtml();
     $("#hbLib").onclick = () => { $("#hints").classList.add("hidden"); openLibrary(); };

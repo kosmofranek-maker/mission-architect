@@ -171,7 +171,7 @@ def blank_design(scenario: str = "wildfire") -> dict:
             "bus": None, "solar": None, "rtg": 0, "battery": None, "comms": None, "ground": None, "computer": None,
             "adcs": None, "propulsion": None, "edl": None, "instruments": [], "years": C.SCENARIOS[scenario]["min_years"],
             "window": None, "start_month": 0, "manifest": [], "boosters": {},
-            "testing": "standard", "spare": "none",
+            "testing": "standard", "spare": "none", "priority": None, "processing": "standard",
             "shape": None, "seats": None, "heatshield": None, "abort": None, "landing": None}
 
 
@@ -207,6 +207,10 @@ def normalize(design: dict) -> dict:
         d["manifest"] = normalize_manifest(design.get("manifest"), C.SCENARIOS[sc])
     else:
         d["manifest"] = []
+    if d["processing"] not in C.PROCESSING:
+        d["processing"] = "standard"
+    if d["priority"] not in {g["tag"] for g in C.SCENARIOS[sc]["goals"]} or C.SCENARIOS[sc].get("kind") in ("program", "vehicle"):
+        d["priority"] = None
     if d["testing"] not in C.TESTING:
         d["testing"] = "standard"
     if d["spare"] not in C.SPARES:
@@ -473,10 +477,14 @@ def _evaluate(design: dict) -> dict:
     schedule_cost = hardware * (1 + INTEGRATION) * ((win["cost_mult"] if win else 1.0) - 1)
     ops_year = ground["cost_year"] + BUS_OPS.get(d["bus"], 0)
     testing, spare = C.TESTING[d["testing"]], C.SPARES[d["spare"]]
+    processing = C.PROCESSING[d["processing"]]
     cost = {
         **hw, "Integration & test (30%)": hardware * INTEGRATION, "Launch": lv["cost"],
         "Operations": ops_year * (years + cruise),
     }
+    if processing["ops_mult"] != 1:
+        cost["Science data center" if processing["ops_mult"] > 1 else "Raw data only (saved)"] = \
+            ops_year * (years + cruise) * (processing["ops_mult"] - 1)
     if testing["cost_frac"]:
         cost["Test like you fly" if testing["cost_frac"] > 0 else "Testing skipped"] = hardware * testing["cost_frac"]
     if spare["cost_frac"]:
@@ -549,11 +557,15 @@ def _evaluate(design: dict) -> dict:
         if v == 0 and not any(t in contrib for t in i["tags"]):
             _issue(issues, "info", "science", f"{i['name']} doesn't serve any goal of this mission.",
                    "It adds mass, power and cost without helping the science goals. Consider removing it.")
+    # the player may name one goal the primary objective: it counts more and the others count less (same total)
+    boost = {g["tag"]: (C.PRIORITY_WEIGHT if g["tag"] == d["priority"] else 1.0) for g in sc["goals"]}
+    norm = sum(g["weight"] for g in sc["goals"]) / sum(g["weight"] * boost[g["tag"]] for g in sc["goals"])
     goals = []
     for g in sc["goals"]:
         frac = min(1.0, contrib[g["tag"]] / g["target"])
-        goals.append({**g, "points": contrib[g["tag"]], "fraction": frac, "score": g["weight"] * frac,
-                      "met": frac >= 0.5})
+        weight = g["weight"] * boost[g["tag"]] * norm
+        goals.append({**g, "weight": weight, "primary": g["tag"] == d["priority"], "points": contrib[g["tag"]],
+                      "fraction": frac, "score": weight * frac, "met": frac >= 0.5})
         if g["required"] and frac < 0.5:
             _issue(issues, "warning", "science", f"Required goal '{g['label']}' is only {frac:.0%} covered.",
                    "Without it the mission fails its main purpose. Add instruments with this capability, or a closer orbit.")
@@ -563,7 +575,10 @@ def _evaluate(design: dict) -> dict:
         life_f = eff_years / sc["min_years"]
     else:
         life_f = 1 + min(0.15, 0.05 * (eff_years - sc["min_years"]))
-    science = base * life_f
+    science = base * life_f * processing["science_mult"]
+    if d["processing"] == "raw" and instr:
+        _issue(issues, "info", "science", "Raw data only: users get about 10% less science out of the same data.",
+               "The user segment is part of the mission. Data nobody has calibrated takes scientists far longer to use.")
 
     blockers = [i for i in issues if i["severity"] == "blocker"]
     order = {"blocker": 0, "warning": 1, "info": 2}
@@ -576,6 +591,8 @@ def _evaluate(design: dict) -> dict:
         "schedule": {"window": win, "risk_mult": risk_mult, "slip": slip,
                      "synodic": win["synodic"] if win else 0, "launch_month": win["month"] if win else d["start_month"]},
         "build": {"testing": d["testing"], "spare": d["spare"] == "spare", "relaunch_cost": cost["Launch"]},
+        "user": {"priority": d["priority"], "processing": d["processing"], "science_mult": processing["science_mult"],
+                 "discovery_mult": processing["discovery_mult"]},
         "kind": kind, "edl": {"use": use, "mass": edl_mass, "landed": landed, "landing_risk": landing_risk,
                               "capsule_risk": capsule_risk},
         "mass": {"parts": parts, "edl": edl_mass, "propellant": propellant, "tanks": tanks, "dry": dry, "wet": wet,
