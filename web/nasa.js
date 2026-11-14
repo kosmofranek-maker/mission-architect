@@ -54,6 +54,27 @@ function processStep() {
   return 5;
 }
 
+// Evidence from the current evaluation, not a NASA approval or a prediction of flight success.
+function mdlReviewHtml(ev) {
+  const blockers = ev.issues.filter((i) => i.severity === "blocker");
+  const warnings = ev.issues.filter((i) => i.severity === "warning");
+  const goals = ev.science.goals;
+  const missingGoals = goals.filter((g) => g.required && !g.met);
+  const ready = blockers.length === 0 && missingGoals.length === 0;
+  const issues = (items) => items.map((i) => `<li>${esc(i.text)}</li>`).join("");
+  const poles = Object.entries(ev.nasa.poles || {}).map(([kind, p]) =>
+    `<li>${esc(kind)}: ${esc(p.name)} (${Math.round(p.share * 100)}% of the modelled total)</li>`).join("");
+  return `<h4>MDL-inspired design review</h4>
+    <p><b>${ready ? "Ready for the next design review" : "Revise the design before proceeding"}</b></p>
+    <p>Educational review of the current design only. Not NASA approval or a mission success prediction.</p>
+    <h5>Science requirements</h5><ul>${goals.map((g) =>
+      `<li>${g.met ? "Met" : "Not met"} — ${esc(g.label)} (${g.required ? "required" : "optional"}); capability ${Number(g.points).toFixed(1)} / target ${Number(g.target).toFixed(1)} model units</li>`).join("")}</ul>
+    <h5>Engineering blockers (${blockers.length})</h5>${blockers.length ? `<ul>${issues(blockers)}</ul>` : "<p>No critical blockers in this model.</p>"}
+    <h5>Warnings (${warnings.length})</h5>${warnings.length ? `<ul>${issues(warnings)}</ul>` : "<p>No warnings in this evaluation.</p>"}
+    <h5>Largest design drivers</h5>${poles ? `<ul>${poles}</ul>` : "<p>No comparable driver available for this design.</p>"}
+    <p>Next: compare alternatives for science, cost and risk; then review equipment, margins and reserves before selecting a point design.</p>`;
+}
+
 function openProcess() {
   const ev = S.ev, c = cmlNow();
   if (!ev || !c) return;
@@ -68,6 +89,7 @@ function openProcess() {
       <span><b>CML ${s.level} · ${esc(s.name)}</b> ${esc(s.text)}${s.done ? "" : ` <em>To do: ${esc(s.todo)}</em>`}</span></div>`).join("")}</div>
     ${c.skipped_trades ? `<p class="proc-note">${icon("warn", 14)} You went straight to a point design. JPL's paper warns about exactly this: teams that skip the trade space never learn whether a cheaper or better design existed. You have ${tradesNow()} design on the table; save this one and try a different one.</p>` : ""}
     <p class="req-small">${esc(c.later)} Source: Wessen, Borden, Ziemer and Kwok, Jet Propulsion Laboratory, 2013.</p>
+    ${mdlReviewHtml(ev)}
     <h4>The four segments of this mission</h4>
     <div class="seg-grid">${ev.nasa.segments.map((s) => `<div class="${lvH ? "" : s.state}"><b>${esc(s.name)}</b><small>${esc(s.what)}</small>
       ${s.lines.map(([k, v]) => `<div class="sl"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join("")}</div>`).join("")}</div>`;
