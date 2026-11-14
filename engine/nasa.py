@@ -339,6 +339,10 @@ def segments(ev: dict) -> list[dict]:
     lines = {k: [] for k in SEGMENT_INFO}
     goals = ev["science"]["goals"]
     met = sum(1 for g in goals if g["met"])
+    required = [g for g in goals if g["required"]]
+    required_met = sum(1 for g in required if g["met"])
+    if required_met < len(required):
+        bump("user", "warn")
     if _probe(ev):
         lv = C.LAUNCH_VEHICLES.get(d["launch_vehicle"] or "")
         m, p, da = ev["mass"], ev["power"], ev["data"]
@@ -354,9 +358,22 @@ def segments(ev: dict) -> list[dict]:
                            ["Contact", f"{da['contact_hours']:.1f} h a day"],
                            ["Downlink", f"{da['rate_mbps']:.2f} Mbps"],
                            ["Data reaching Earth", f"{da['return']:.0%}"]]
+        generated = da["generated_gb_day"]
+        delivered = generated * da["return"]
+        if generated > 0 and da["return"] < 0.8:
+            bump("user", "warn")
         lines["user"] = [["Goals met", f"{met} of {len(goals)}"],
-                         ["Data delivered", f"{da['generated_gb_day'] * da['return']:.1f} Gb a day"],
-                         ["Science", f"{ev['science']['score']:.0f} of 100"]]
+                         ["Required goals met", f"{required_met} of {len(required)}"],
+                         ["Data collected", f"{generated:.1f} Gb a day"],
+                         ["Data delivered", f"{delivered:.1f} Gb a day"],
+                         ["Data not delivered", f"{max(0, generated - delivered):.1f} Gb a day"],
+                         ["Science", f"{ev['science']['score']:.0f} model points"],
+                         ["Delivery lesson", "Science uses data reaching Earth, not just data collected."],
+                         ["Improve delivery", "Compare antenna, ground station and recorder capacity."],
+                         ["Goal rule", "Met means at least 50% of the target in this educational model."]]
+        lines["user"].extend([[g["label"],
+                               f"{'Required' if g['required'] else 'Optional'}: {g['fraction']:.0%} of target"]
+                              for g in goals])
     else:
         lines["launch"] = [["Launch", C.LAUNCH_VEHICLES[d["launch_vehicle"]]["name"] if d.get("launch_vehicle") else
                             (f"{len(ev['program']['flights'])} flights" if ev.get("program") else "not chosen")]]
