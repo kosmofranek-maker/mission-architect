@@ -40,7 +40,7 @@ def test_point_design_needs_margins_and_reserve():
     assert ev["cost"]["reserve"] >= 0.10 and ev["nasa"]["cml"]["level"] == 4
     broke = evaluate(d | {"spare": "spare", "testing": "tlyf", "launch_vehicle": "falcon_heavy"}, trades=2)
     if broke["cost"]["reserve"] < 0.10:
-        assert broke["nasa"]["cml"]["level"] == 3
+        assert broke["nasa"]["cml"]["level"] == (3 if broke["ok"] else 1)
 
 
 def test_segments_follow_the_issues():
@@ -100,3 +100,18 @@ def test_real_mission_rows_compare_like_with_like():
     r = evaluate(default_design("mars_climate"))["nasa"]["real"][0]
     assert r["name"] == "Mars Reconnaissance Orbiter" and {x["label"] for x in r["rows"]} >= {"Launch mass", "Cost", "Rocket"}
     assert "lighter" in r["note"] or "heavier" in r["note"] or "same" in r["note"]
+
+
+def test_complete_but_infeasible_design_cannot_pass_cml_two():
+    ev = evaluate(default_design("mars_climate") | {"ground": "uni"}, trades=2)
+    assert not nasa._missing(ev)
+    assert not ev["ok"]
+    assert ev["nasa"]["cml"]["level"] == 1
+    assert not ev["nasa"]["cml"]["steps"][1]["done"]
+    assert not ev["nasa"]["cml"]["steps"][3]["done"]
+
+
+def test_fixing_blockers_restores_feasibility():
+    ev = evaluate(default_design("wildfire"), trades=2)
+    assert ev["ok"]
+    assert ev["nasa"]["cml"]["level"] == 4
