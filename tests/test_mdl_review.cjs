@@ -1,0 +1,17 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const context = vm.createContext({esc: (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')});
+vm.runInContext(fs.readFileSync('web/nasa.js', 'utf8'), context);
+const base = {issues: [], science: {goals: [{label: 'Thermal science', required: true, met: true, points: 30, target: 25}]}, nasa: {poles: {mass: {name: 'Fuel', share: .5}}}};
+const render = (ev) => {context.ev = ev; return vm.runInContext('mdlReviewHtml(ev)', context);};
+assert.match(render(base), /Ready for the next design review/);
+assert.match(render(base), /Fuel \(50%/);
+assert.match(render({...base, issues: [{severity: 'blocker', text: 'No power'}, {severity: 'warning', text: '<unsafe>'}]}), /Revise the design/);
+const warned = render({...base, issues: [{severity: 'warning', text: '<unsafe>'}]});
+assert.match(warned, /Warnings \(1\)/);
+assert.match(warned, /&lt;unsafe&gt;/);
+assert.doesNotMatch(warned, /<unsafe>/);
+assert.match(render({...base, science: {goals: [{...base.science.goals[0], met: false}]}}), /Revise the design/);
+assert.match(render({...base, science: {goals: [{...base.science.goals[0], required: false, met: false}]}}), /Ready for the next design review/);
+console.log('MDL review: readiness, blockers, warnings, required/optional goals and escaping passed');
