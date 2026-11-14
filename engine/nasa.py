@@ -80,8 +80,8 @@ PROCESS = [
 CML_LEVELS = [
     {"level": 1, "name": "Cocktail napkin", "text": "The science questions are clear and there is a first sketch of the mission.",
      "todo": "Read the mission request and pick where to fly or what to carry."},
-    {"level": 2, "name": "Initial feasibility", "text": "Every part is chosen and the basic numbers have been calculated.",
-     "todo": "Choose every part so that mass, power, data and cost can be calculated."},
+    {"level": 2, "name": "Initial feasibility", "text": "Every part is chosen and no critical engineering blockers remain.",
+     "todo": "Choose every part, then resolve critical mass, power, data, compatibility and budget issues."},
     {"level": 3, "name": "Trade space", "text": "Different designs have been compared for science return, cost and risk.",
      "todo": "Save this design to the drawer and compare it with a different one (button Compare)."},
     {"level": 4, "name": "Point design", "text": "One design is selected, down to the subsystems, with acceptable margins and reserves.",
@@ -307,7 +307,7 @@ def cml(ev: dict, trades: int = 0) -> dict:
     """Concept Maturity Level 1-4 of a design. `trades` = how many different designs the player has compared."""
     d = ev["design"]
     sketch = bool(d.get("orbit") or d.get("instruments") or d.get("manifest") or d.get("shape") or d.get("launch_vehicle"))
-    feasible = sketch and not _missing(ev)
+    feasible = sketch and not _missing(ev) and ev["ok"]
     reserve_ok = d.get("sandbox") or ev["cost"]["reserve"] >= POINT_MARGIN
     margins_ok = not _probe(ev) or (ev["mass"]["margin"] >= POINT_MARGIN and ev["power"]["margin"] >= POINT_MARGIN)
     point = bool(feasible and ev["ok"] and reserve_ok and margins_ok)
