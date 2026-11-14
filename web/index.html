@@ -19,13 +19,13 @@
       <img id="titlePlanet" class="px title-planet" alt="">
       <img id="titlePatch" class="px title-patch" alt="">
       <h1 class="logo">MISSION<br>ARCHITECT</h1>
-      <p class="tagline">Space Mission Review Board &middot; Est. 2026</p>
+      <p class="tagline">Design a spacecraft, balance resources, and discover what makes a space mission succeed.</p>
       <label class="name-field">Engineer name <input id="playerName" maxlength="20" placeholder="Your name"></label>
       <div class="menu">
-        <button class="btn big" data-go="career">Career</button>
-        <button class="btn big" data-go="free">Free design</button>
-        <button class="btn big" data-go="team">Team room</button>
-        <button class="btn big" data-go="hall">Hall of fame</button>
+        <div class="menu-choice"><button class="btn big" data-go="career" aria-describedby="mode-career-description">Career</button><p id="mode-career-description" class="mode-description">Run your space agency, complete missions, and unlock new technology.</p></div>
+        <div class="menu-choice"><button class="btn big" data-go="free" aria-describedby="mode-free-description">Free design</button><p id="mode-free-description" class="mode-description">Choose a mission and experiment with your own spacecraft designs.</p></div>
+        <div class="menu-choice"><button class="btn big" data-go="team" aria-describedby="mode-team-description">Team room</button><p id="mode-team-description" class="mode-description">Design a mission together with up to four players in different engineering roles.</p></div>
+        <div class="menu-choice"><button class="btn big" data-go="hall" aria-describedby="mode-hall-description">Hall of fame</button><p id="mode-hall-description" class="mode-description">See mission rankings and compare your results with other players.</p></div>
         <button class="btn big wide" data-go="tutorial">Tutorial: learn with your first mission</button>
       </div>
       <p class="credit">NASA Space Apps Challenge 2026 &middot; numbers simplified from real missions</p>
