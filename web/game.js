@@ -2134,7 +2134,8 @@ function showNews(res) {
   const idx = ORDER.indexOf(res.design.scenario);
   const nextOk = false;
   $("#nNext").classList.toggle("hidden", S.mode === "team");
-  $("#nNext").textContent = S.mode === "career" ? "Back to headquarters" : "Mission files";
+  $("#nNext").textContent = S.mode === "career" ? "Headquarters" : "Another mission";
+  $("#nNext").title = S.mode === "career" ? "Back to the agency: contracts, research, funds" : "Pick a different mission";
   if (career) {
     const box = document.createElement("div"); box.className = "agency-report";
     box.innerHTML = `<b>AGENCY REPORT</b> Reputation ${career.rep} (${career.repGain >= 0 ? "+" : ""}${career.repGain}) &middot; funds ${fmt(career.funds)} M$
@@ -2183,6 +2184,7 @@ function wireNews() {
     else openSelect();
   };
   $("#nHall").onclick = openHall;
+  $("#nMenu").onclick = () => { SFX.page(); stopPoll(); S.room = null; show("title"); };
   $("#nCompare").onclick = () => {
     const mine = drawer.of(S.result.design.scenario), cur = mine.find((x) => x.flight && x.flight.seed === S.result.seed);
     S.design = { ...S.result.design };

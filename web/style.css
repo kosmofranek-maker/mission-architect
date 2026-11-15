@@ -651,3 +651,9 @@ html:not(.mobile) .title-wrap { inset: 12px 0 45px; gap: 6px; }
 html:not(.mobile) .title-patch { width: 64px; height: 64px; }
 html:not(.mobile) .logo { font-size: 48px; }
 html:not(.mobile) .credit { bottom: -35px; font-size: 14px; }
+
+/* newspaper actions: two groups, the way forward on the right */
+.news-actions { align-items: center; gap: 8px; left: 30px; justify-content: flex-end; }
+.na-label { font-family: "Silkscreen"; font-size: 9px; letter-spacing: 1px; color: #d8ccae; text-transform: uppercase; }
+.na-label.next { margin-left: 18px; padding-left: 18px; border-left: 2px solid #8a7a62; line-height: 28px; }
+html.mobile .news-actions { flex-wrap: wrap; justify-content: center; } html.mobile .na-label { width: 100%; text-align: center; border: none; margin: 0; padding: 0; line-height: 1.4; }
